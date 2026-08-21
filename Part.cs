@@ -8,10 +8,10 @@ namespace AlexGeospatial
 {
     public class Part
     {
-        public double MBRXMin { get; set; }
-        public double MBRXMax { get; set; }
-        public double MBRYMin { get; set; }
-        public double MBRYMax { get; set; }
+        public double MBRXMin { get; set; } = double.MaxValue;
+        public double MBRXMax { get; set; } = double.MinValue;
+        public double MBRYMin { get; set; } = double.MaxValue;
+        public double MBRYMax { get; set; } = double.MinValue;
         public bool IsHole { get; set; }
         public double CentroidX { get; set; }
         public double CentroidY { get; set; }

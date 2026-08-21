@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AlexGeospatial.RTree;
 using Microsoft.VisualBasic;
 
 namespace AlexGeospatial
@@ -17,6 +18,7 @@ namespace AlexGeospatial
         public Projection _proj;
         public string _WKT;
         public GeospatialTools.eShapeType _shapeType;
+        public RTreeManager _rTree;
         public Feat(string path = "", string name = "", Projection proj = null, GeospatialTools.eShapeType shpType = default)
         {
             _parts = new List<List<Part>>();
@@ -43,6 +45,7 @@ namespace AlexGeospatial
             _name = name;
             _shapeType = shpType;
         }
+
         public void readFromFile(string fullname, string name, bool append = false)
         {
             //if (!append)
@@ -276,12 +279,12 @@ namespace AlexGeospatial
                 else
                 {
                     for (int i = 0, loopTo = _parts.Count - 1; i <= loopTo; i++)
-                        xyCoords.Add(get_getPartCentroid(i));
+                        xyCoords.Add(getPartCentroid(i));
                 }
                 return xyCoords;
             }
         }
-        public List<Part> get_getOuterRingParts(long ind)
+        public List<Part> getOuterRingParts(long ind)
         {
             var partlist = new List<Part>();
             foreach (var part in _parts[(int)ind])
@@ -293,15 +296,15 @@ namespace AlexGeospatial
             }
             return partlist;
         }
-        public double[] get_getPartCentroid(long ind)
+        public double[] getPartCentroid(long ind)
         {
-            return GeospatialTools.getMultiPartCentroid(get_getOuterRingParts(ind));
+            return GeospatialTools.getMultiPartCentroid(getOuterRingParts(ind));
         }
-        public double[] get_getPointXY(long ind)
+        public double[] getPointXY(long ind)
         {
             return new[] { _vertices[(int)ind][0][0].X_Cord, _vertices[(int)ind][0][0].Y_Cord };
         }
-        public double[] get_getMBR(long index) // {Xmin, Xmax, Ymin, Ymax}
+        public double[] getMBR(long index) // {Xmin, Xmax, Ymin, Ymax}
         {
             if (_shapeType == GeospatialTools.eShapeType.shpPoint)
             {
@@ -323,6 +326,28 @@ namespace AlexGeospatial
                 }
                 return mbr;
             }
+        }
+        public double[] getPartMBR(int index, int partind)
+        {
+            if (_shapeType == GeospatialTools.eShapeType.shpPoint)
+            {
+                return new[] { _vertices[index][0][0].X_Cord, _vertices[index][0][0].X_Cord, _vertices[index][0][0].Y_Cord, _vertices[index][0][0].Y_Cord };
+            }
+            else
+            {
+                Part part = _parts[index][partind];
+                double[] mbr = new[] { part.MBRXMin, part.MBRXMax, part.MBRYMin, part.MBRYMax };               
+                return mbr;
+            }
+        }
+        public void ConstRTree(int minKids, int maxKids)
+        {
+            _rTree = new RTreeManager(minKids, maxKids);
+        }
+        public void AddFeatPartToRTree(int featind, int partind)
+        {
+            double[] PartMBR = getPartMBR(featind, partind);
+            if (_rTree != null) { _rTree.addFeature(new int[] { featind, partind }, PartMBR[1], PartMBR[0], PartMBR[3], PartMBR[2]); }
         }
     }
 }

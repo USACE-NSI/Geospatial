@@ -34,7 +34,7 @@ namespace AlexGeospatial
             }
             return uniquesList.ToList();
         }
-        public static Feat ReadShapefile(string shapefilePath)
+        public static Feat ReadShapefile(string shapefilePath, bool buildRTree)
         {
             Ogr.RegisterAll();
             DataSource ds = Ogr.Open(shapefilePath, 0);
@@ -75,6 +75,7 @@ namespace AlexGeospatial
 
             //build output feature
             Feat outputFeat = new Feat(WKT, shapefilePath, layer.GetName(), shapeType);
+            if(buildRTree) { outputFeat.ConstRTree(5, 10); }
 
             while ((shpFeat = layer.GetNextFeature()) != null)
             {
@@ -142,6 +143,15 @@ namespace AlexGeospatial
                 }
                 outputFeat._parts.Add(featureParts);
                 outputFeat._vertices.Add(featureVertices);
+
+                if(buildRTree)
+                {
+                    for(int p = 0; p < outputFeat._parts.Count; p++)
+                    {
+                        outputFeat.AddFeatPartToRTree(featureIndex, p);
+                    }
+                }
+
                 shpFeat.Dispose();
                 featureIndex++;
             }
@@ -169,7 +179,7 @@ namespace AlexGeospatial
                     }
 
                     featureVertices.Add(vertices);
-                    parts.Add(polyPart); // store index/size info
+                    parts.Add(polyPart); // store index/size info                    
                 }
             }
             else if (geom.GetGeometryType() == wkbGeometryType.wkbLineString)
