@@ -27,6 +27,8 @@ namespace AlexGeospatial
         }
         public void recordVal(object val, long atInd)
         {
+            string strVal = val.ToString();
+            strVal = strVal.Substring(0, Math.Min(_length, strVal.Length));
             if (atInd == _rows.Count)
             {
                 _rows.Add(new object());
@@ -36,93 +38,62 @@ namespace AlexGeospatial
             {
                 case GeospatialTools.eFieldType.shpText:
                 {
-                    fitVal = Strings.Left((string)val, _length);
+                    fitVal = strVal;
                     break;
                 }
                 case GeospatialTools.eFieldType.shpDouble:
                 case GeospatialTools.eFieldType.shpFloat:
                 {
-                    if (string.IsNullOrEmpty((string)val))
+                    double dval = 0;
+                    if (double.TryParse(strVal, out dval))
                     {
-                        fitVal = 0;
-                    }                   
-                    //else if (val.ToString().Contains("E"))
-                    //{
-                    //    string Fcode = "F" + _decimal;
-                    //    string stringVal = Strings.Left(NSI2Gen_2021.GeneralTools.convertFromSciNotation(Conversions.ToDouble(val)).ToString(Fcode), Math.Min(val.ToString().Length, _length + _decimal));
-                    //    fitVal = stringVal;
-                    //}
-                    else
-                    {
-                        double dval = 0;
-                        if(double.TryParse(val.ToString(), out dval))
-                        {
-                            fitVal = Strings.Left(Math.Round(dval, _decimal).ToString(), Math.Min(val.ToString().Length, _length + _decimal));
-                        }                        
+                        fitVal = Math.Round(dval, _decimal);
                     }
                     break;
                 }
                 case GeospatialTools.eFieldType.shpBoolean:
                 {
-                    if (string.IsNullOrEmpty(val.ToString()))
+                    bool boolVal = false;
+                    if (bool.TryParse(strVal, out boolVal))
                     {
-                        fitVal = false;
-                    }
-                    else
-                    {
-                        fitVal = val.ToString();
+                        fitVal = boolVal;
                     }
                     break;
                 }
                 case GeospatialTools.eFieldType.shpDate:
                 {
-                    if (string.IsNullOrEmpty(val.ToString()))
+                    DateTime dateval = new DateTime();
+                    if (DateTime.TryParse(strVal, out dateval))
                     {
-                        fitVal = DateTime.MinValue;
-                    }
-                    else
-                    {
-                        fitVal = Strings.Left(val.ToString(), _length);
+                        fitVal = dateval;
                     }
                     break;
                 }
                 case GeospatialTools.eFieldType.shpSingle:
                 {
-                    if (string.IsNullOrEmpty(val.ToString()))
+                    Single sval = 0;
+                    if (Single.TryParse(strVal, out sval))
                     {
-                        fitVal = 0;
+                        fitVal = Math.Round(sval, _decimal);
                     }
-                    else
-                    {
-                        fitVal = Strings.Left(val.ToString(), _length);
-                    }
-
                     break;
                 }
                 case GeospatialTools.eFieldType.shpInteger:
                 {
-                    if (string.IsNullOrEmpty(val.ToString()))
+                    int intval = 0;
+                    if (int.TryParse(strVal, out intval))
                     {
-                        fitVal = 0;
+                        fitVal = intval;
                     }
-                    else
-                    {
-                        fitVal = Strings.Left(val.ToString(), _length);
-                    }
-
                     break;
                 }
                 case GeospatialTools.eFieldType.shpLong:
                 {
-                    if (string.IsNullOrEmpty(val.ToString()))
+                    Int64 lintval = 0;
+                    if (Int64.TryParse(strVal, out lintval))
                     {
-                        fitVal = 0;
+                        fitVal = lintval;
                     }
-                    else
-                    {
-                        fitVal = Strings.Left(val.ToString(), _length);
-                    }
-
                     break;
                 }
             }

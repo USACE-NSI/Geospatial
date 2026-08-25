@@ -33,7 +33,7 @@ namespace AlexGeospatial
             //add perimeter if there is already a vertex in the list, otherwise perimeter is 0
             if (Vertices.Count > 0)
             {
-                Perimeter += GeospatialTools.getFtDistBetweenPts(Vertices.LastOrDefault().getPoints, vertex.getPoints, _WKT, _WKT);
+                Perimeter += GeospatialTools.getFtDistBetweenPtsNoRerpoj(Vertices.LastOrDefault().getPoints, vertex.getPoints);
             }
             else
             {

@@ -7,7 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="GDAL.Native" Version="3.12.1" />
+    <Reference Include="gdal_csharp">
+      <HintPath>..\..\..\..\..\..\..\.nuget\packages\gdal\3.11.3\lib\netstandard2.0\gdal_csharp.dll</HintPath>
+    </Reference>
+    <Reference Include="ogr_csharp">
+      <HintPath>..\..\..\..\..\..\..\.nuget\packages\gdal\3.11.3\lib\netstandard2.0\ogr_csharp.dll</HintPath>
+    </Reference>
+    <Reference Include="osr_csharp">
+      <HintPath>..\..\..\..\..\..\..\.nuget\packages\gdal\3.11.3\lib\netstandard2.0\osr_csharp.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

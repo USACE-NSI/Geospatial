@@ -127,7 +127,44 @@ namespace AlexGeospatial.RTree
             {
                 split();
             }
-        }        
+        }   
+        public List<RTreeNode> getCandidateChildNodesByMBR(double XMax, double XMin, double YMax, double YMin)
+        {
+            List<RTreeNode> candidates = new List<RTreeNode>();
+            foreach(RTreeNode node in _children)
+            {
+                if (node.getIsEndNode)
+                {
+                    candidates.Add(node);
+                }
+                else
+                {
+                    if (node.getInterSectsMBR(XMax, XMin, YMax, YMin))
+                    {
+                        candidates.AddRange(node.getCandidateChildNodesByMBR(XMax, XMin, YMax, YMin));
+                    }
+                }
+            }
+            return candidates;
+        }
+        public bool getIsEndNode
+        {
+            get
+            {
+                if(_children.Count == 0 && _featureIndex != null) { return true; } else { return false; }
+            }
+        }
+        public bool getInterSectsMBR(double XMax, double XMin, double YMax, double YMin)
+        {
+            if((XMax >= MBRXMin && XMax <= MBRXMax) || (XMin >= MBRXMin && XMin <= MBRXMax))
+            {
+                if((YMax >= MBRYMin  && YMax <= MBRYMax) || (YMin >= MBRYMin && YMin <= MBRYMax))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
         public double getArea
         {
             get { return (MBRXMax - MBRXMin) * (MBRYMax - MBRYMin); }

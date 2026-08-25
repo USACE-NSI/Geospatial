@@ -11,11 +11,11 @@ namespace AlexGeospatial.RTree
         public RTreeNode _root;
         private int _minChildren;
         private int _maxChildren;
-        public RTreeManager(int minChilds, int maxChilds)
+        public RTreeManager(int minChilds = 4, int maxChilds = 10)
         {
             _minChildren = minChilds;
             _maxChildren = maxChilds;
-            _root = new RTreeNode(this, _minChildren, _maxChildren);
+            _root = new RTreeNode(this, _maxChildren, _minChildren);
         }
 
         public void addFeature(int[] featInd, double mbrXmax, double mbrXmin, double mbrYmax, double mbrYmin)
@@ -26,6 +26,10 @@ namespace AlexGeospatial.RTree
             featNode.MBRYMin = mbrYmin;
             featNode.MBRYMax = mbrYmax;
             _root.addChild(featNode, false);
+        }
+        public List<RTreeNode> findByXY(double x, double y)
+        {
+            return _root.getCandidateChildNodesByMBR(x, x, y, y);
         }
     }
 }

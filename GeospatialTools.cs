@@ -1,8 +1,11 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
+using AlexGeospatial.RTree;
 using Microsoft.VisualBasic;
 using OSGeo;
+using OSGeo.GDAL;
 using OSGeo.OGR;
 using OSGeo.OSR;
 
@@ -39,6 +42,7 @@ namespace AlexGeospatial
             shpSingle,
             shpNumeric
         }
+        
         public static List<long> spatialJoinNearestToPolyFromPnts(ref Feat polyFeat, Feat pntFeat, string[] destinationFileFieldNames, string[] joinFileFieldNames, joinType joinEnum, bool checkforcontains, HashSet<long> exteriorIndices = null, List<long> interiorIndices = null)
         {
             var joinsDict = new Dictionary<long, List<List<object>>>();
@@ -324,6 +328,79 @@ namespace AlexGeospatial
             }
             return joinsDict.Keys.ToList();
         }
+        public static Dictionary<long, List<List<object>>> RTreeSpatialJoinBase(Feat containingFeat, Feat interiorFeat, bool joinToContainer, string[] destinationFileFieldNames, string[] joinFileFieldNames)
+        {
+            if (containingFeat._parts.Count > 0 && interiorFeat._parts.Count > 0 && containingFeat.getHasRTree && interiorFeat.getHasRTree)
+            {
+                var xyCoords = interiorFeat.getXYcoords;
+                // reproject join feature points to match polyfeature
+                var reprojedPnts = GeospatialTools.reprojectPntsDS(xyCoords, interiorFeat._WKT, containingFeat._WKT);
+
+                var joinsDict = new Dictionary<long, List<List<object>>>();
+                long joinKey = 0L;
+
+                foreach (var Point in reprojedPnts)
+                {
+                    //get subset polys from RTree
+                    var subsetPolyInds = containingFeat._rTree.findByXY(Point[0], Point[1]);
+                    int pointInd = reprojedPnts.IndexOf(Point);
+
+                    foreach (RTreeNode polynode in subsetPolyInds)
+                    {
+                        int polyInd = polynode._featureIndex[0];
+                        var poly = containingFeat._parts[polyInd];
+                        if (poly[0].MBRXMin > Point[1]) { continue; }
+                        if (poly[0].MBRXMax < Point[1]) { continue; }
+                        if (poly[0].MBRYMin > Point[0]) { continue; }
+                        if (poly[0].MBRYMax < Point[0]) { continue; }
+                        else
+                        {
+                            if (GeospatialTools.PointWithinSinglePoly(containingFeat._parts[polyInd], containingFeat._vertices[polyInd], Point) == true)
+                            {
+                                if (joinToContainer)
+                                {
+                                    joinKey = polyInd;
+                                }
+                                else
+                                {
+                                    joinKey = pointInd;
+                                }
+                                if (!joinsDict.ContainsKey(joinKey))
+                                    joinsDict.Add(joinKey, new List<List<object>>());
+                                if (joinsDict[joinKey].Count == 0)
+                                {
+                                    for (int n = 0, loopTo2 = destinationFileFieldNames.Count() - 1; n <= loopTo2; n++)
+                                        joinsDict[joinKey].Add(new List<object>());
+                                }
+
+                                for (int i = 0, loopTo3 = destinationFileFieldNames.Count() - 1; i <= loopTo3; i++)
+                                {
+                                    object joinFldVal;
+                                    Type joinFldType;
+                                    if (joinToContainer)
+                                    {
+                                        joinFldVal = interiorFeat._attTable._columns[joinFileFieldNames[i]]._rows[pointInd];
+                                        joinFldType = containingFeat._attTable._columns[destinationFileFieldNames[i]].getEFldType;
+                                    }
+                                    else
+                                    {
+                                        joinFldVal = containingFeat._attTable._columns[joinFileFieldNames[i]]._rows[polyInd];
+                                        joinFldType = interiorFeat._attTable._columns[destinationFileFieldNames[i]].getEFldType;
+                                    }
+
+                                    joinsDict[joinKey][i].Add(Conversion.CTypeDynamic(joinFldVal, joinFldType));
+
+                                }
+                                break;
+                            }
+                        }
+
+                    }
+                }
+                return joinsDict;
+            }
+            return new Dictionary<long, List<List<object>>>();
+        }
 
         public static Dictionary<long, List<List<object>>> SpatialJoinBase(Feat containingFeat, Feat interiorFear, bool joinToContainer, string[] destinationFileFieldNames, string[] joinFileFieldNames)
         {
@@ -340,7 +417,9 @@ namespace AlexGeospatial
                 var reprojedPnts = GeospatialTools.reprojectPntsDS(xyCoords, interiorFear._WKT, containingFeat._WKT);
 
                 for (int i = 0, loopTo = reprojedPnts.Count - 1; i <= loopTo; i++)
+                {
                     pointCoordDict.Add(i, reprojedPnts[i]);
+                }
 
                 // sort pointCoordDict Y values
                 sortedPointDict = pointCoordDict.OrderByDescending(x => x.Value[1]).ToDictionary(k => k.Key, v => v.Value);
@@ -441,7 +520,7 @@ namespace AlexGeospatial
                                     for (int n = 0, loopTo2 = destinationFileFieldNames.Count() - 1; n <= loopTo2; n++)
                                         joinsDict[joinKey].Add(new List<object>());
                                 }
-                                // Dim match As New List(Of Object)
+                                
                                 for (int i = 0, loopTo3 = destinationFileFieldNames.Count() - 1; i <= loopTo3; i++)
                                 {
                                     object joinFldVal;
@@ -1091,42 +1170,18 @@ namespace AlexGeospatial
         {
             var returnPnts = new List<double[]>();
             if (!((fromWKT ?? "") == (targWKT ?? "")))
-            {
-                //var targproj = new ProjectionInfo();
-
-                //bool targworked = targproj.TryParseEsriString(targWKT);
-                //var fromproj = new ProjectionInfo();
-                //bool fromworked = fromproj.TryParseEsriString(fromWKT);
-
-                //var zCoords = new double[pnts.Count];
-                //var xy = new double[(pnts.Count * 2)];
-                //int ixy = 0;
-                //for (int i = 0, loopTo = pnts.Count - 1; i <= loopTo; i++)
-                //{
-                //    xy[ixy] = pnts[i][0];
-                //    xy[ixy + 1] = pnts[i][1];
-                //    zCoords[i] = 0d;
-                //    ixy += 2;
-                //}
-                //Reproject.ReprojectPoints(xy, zCoords, fromproj, targproj, 0, pnts.Count);
-                //ixy = 0;
-                //for (int i = 0, loopTo1 = pnts.Count - 1; i <= loopTo1; i++)
-                //{
-                //    returnPnts.Add(new[] { xy[ixy], xy[ixy + 1] });
-                //    ixy += 2;
-                //}
+            {                
                 SpatialReference src = new SpatialReference(fromWKT);
                 SpatialReference dst = new SpatialReference(targWKT);
 
                 // Create transformation
                 CoordinateTransformation transform = new CoordinateTransformation(src, dst);
-
-                var result = new List<(double X, double Y)>();
+                
                 foreach (var pnt in pnts)
                 {
                     double[] point = new double[] { pnt[0], pnt[1] };
                     transform.TransformPoint(point);
-                    result.Add((point[0], point[1]));
+                    returnPnts.Add(new double[] { point[0], point[1] });
                 }
             }
             else

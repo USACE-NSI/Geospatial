@@ -36,6 +36,8 @@ namespace AlexGeospatial
         }
         public static Feat ReadShapefile(string shapefilePath, bool buildRTree)
         {
+            OSGeo.GDAL.Gdal.SetConfigOption("PROJ_LIB", @"C:\Software\GDAL GISInternals\bin\proj9\share");
+            OSGeo.GDAL.Gdal.SetConfigOption("GDAL_DATA", @"C:\Software\GDAL GISInternals\bin\gdal-data");
             Ogr.RegisterAll();
             DataSource ds = Ogr.Open(shapefilePath, 0);
             if (ds == null) throw new Exception("Could not open shapefile.");            
@@ -75,7 +77,7 @@ namespace AlexGeospatial
 
             //build output feature
             Feat outputFeat = new Feat(WKT, shapefilePath, layer.GetName(), shapeType);
-            if(buildRTree) { outputFeat.ConstRTree(5, 10); }
+            if(buildRTree) { outputFeat.ConstRTree(); }
 
             while ((shpFeat = layer.GetNextFeature()) != null)
             {
@@ -146,7 +148,7 @@ namespace AlexGeospatial
 
                 if(buildRTree)
                 {
-                    for(int p = 0; p < outputFeat._parts.Count; p++)
+                    for(int p = 0; p < outputFeat._parts[featureIndex].Count; p++)
                     {
                         outputFeat.AddFeatPartToRTree(featureIndex, p);
                     }

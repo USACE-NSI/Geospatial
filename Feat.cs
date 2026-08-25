@@ -340,14 +340,18 @@ namespace AlexGeospatial
                 return mbr;
             }
         }
-        public void ConstRTree(int minKids, int maxKids)
+        public void ConstRTree()
         {
-            _rTree = new RTreeManager(minKids, maxKids);
+            _rTree = new RTreeManager();
         }
         public void AddFeatPartToRTree(int featind, int partind)
         {
             double[] PartMBR = getPartMBR(featind, partind);
             if (_rTree != null) { _rTree.addFeature(new int[] { featind, partind }, PartMBR[1], PartMBR[0], PartMBR[3], PartMBR[2]); }
+        }
+        public bool getHasRTree
+        {
+            get { return _rTree != null; }
         }
     }
 }
