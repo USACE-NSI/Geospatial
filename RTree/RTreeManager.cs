@@ -10,12 +10,12 @@ namespace AlexGeospatial.RTree
     {
         public RTreeNode _root;
         private int _minChildren;
-        private int _maxChildren;
+        private int _maxChildren;       
         public RTreeManager(int minChilds = 4, int maxChilds = 10)
         {
             _minChildren = minChilds;
             _maxChildren = maxChilds;
-            _root = new RTreeNode(this, _maxChildren, _minChildren);
+            _root = new RTreeNode(this, _maxChildren, _minChildren);            
         }
 
         public void addFeature(int[] featInd, double mbrXmax, double mbrXmin, double mbrYmax, double mbrYmin)
@@ -25,11 +25,28 @@ namespace AlexGeospatial.RTree
             featNode.MBRXMax = mbrXmax;
             featNode.MBRYMin = mbrYmin;
             featNode.MBRYMax = mbrYmax;
-            _root.addChild(featNode, false);
+            _root.addFeatureChild(featNode);
         }
         public List<RTreeNode> findByXY(double x, double y)
         {
-            return _root.getCandidateChildNodesByMBR(x, x, y, y);
+            List<RTreeNode> nodePAth = new List<RTreeNode>();
+            _root.getCandidateChildNodesByMBR(x, x, y, y, nodePAth);
+            return nodePAth;
+        }
+        public List<RTreeNode> findByInd(int ind)
+        {
+            List<RTreeNode> nodePAth = new List<RTreeNode>();
+            _root.getChildrenContainingInd(ind, nodePAth);
+            return nodePAth;
+        }       
+        public List<RTreeNode> getEndNodes
+        {
+            get
+            {
+                List<RTreeNode> endNodes = new List<RTreeNode>();
+                _root.getEndNodes(endNodes);
+                return endNodes;
+            }
         }
     }
 }

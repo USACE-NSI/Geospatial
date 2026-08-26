@@ -1179,7 +1179,8 @@ namespace AlexGeospatial
                 
                 foreach (var pnt in pnts)
                 {
-                    double[] point = new double[] { pnt[0], pnt[1] };
+
+                    double[] point = new double[] { pnt[1], pnt[0] };
                     transform.TransformPoint(point);
                     returnPnts.Add(new double[] { point[0], point[1] });
                 }
