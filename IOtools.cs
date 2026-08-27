@@ -127,21 +127,8 @@ namespace AlexGeospatial
                 var featureVertices = new List<List<Vertex>>();
 
                 if (geom != null)
-                {
-                    //Check in multi-part
-                    int geomCount = geom.GetGeometryCount();
-                    if (geomCount == 0)
-                    {                        
-                        featureParts.AddRange(ProcessGeometry(geom, featureVertices, WKT));
-                    }
-                    else
-                    {
-                        for (int g = 0; g < geomCount; g++)
-                        {
-                            Geometry subGeom = geom.GetGeometryRef(g);
-                            featureParts.AddRange(ProcessGeometry(subGeom, featureVertices, WKT));
-                        }
-                    }
+                {                                         
+                    featureParts.AddRange(ProcessGeometry(geom, featureVertices, WKT));                    
                 }
                 outputFeat._parts.Add(featureParts);
                 outputFeat._vertices.Add(featureVertices);
@@ -209,6 +196,15 @@ namespace AlexGeospatial
                 featureVertices.Add(vertices);
                 parts.Add(pointPart);
             }
+            else if (geom.GetGeometryType() == wkbGeometryType.wkbMultiPolygon)
+            {
+                for (int i = 0; i < geom.GetGeometryCount(); i++)
+                {
+                    Geometry poly = geom.GetGeometryRef(i);
+                    parts.AddRange(ProcessGeometry(poly, featureVertices, WKT));
+                }
+            }
+
 
             return parts;
         }

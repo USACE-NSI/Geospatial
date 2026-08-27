@@ -55,7 +55,7 @@ namespace AlexGeospatial
                         polyFeat._attTable.AddField(destinationFileFieldNames[i], pntFeat._attTable._columns[joinFileFieldNames[i]]._efldType, pntFeat._attTable._columns[joinFileFieldNames[i]]._length, pntFeat._attTable._columns[joinFileFieldNames[i]]._decimal);
                     }
                 }
-
+                
                 joinsDict = spatialJoinNearestBase(polyFeat, pntFeat, true, destinationFileFieldNames, joinFileFieldNames, checkforcontains, exteriorIndices, interiorIndices);
 
                 foreach (var kvp in joinsDict)
@@ -240,7 +240,7 @@ namespace AlexGeospatial
 
 
 
-        public static List<long> spatialJoinToPntsFromPoly(ref Feat pntFeat, Feat polyFeat, string[] destinationFileFieldNames, string[] joinFileFieldNames)
+        public static List<long> spatialJoinToPntsFromPoly(ref Feat pntFeat, Feat polyFeat, string[] destinationFileFieldNames, string[] joinFileFieldNames, bool useRTree = false)
         {
             var joinsDict = new Dictionary<long, List<List<object>>>();
             if (pntFeat._parts.Count > 0 & polyFeat._parts.Count > 0)
@@ -252,8 +252,14 @@ namespace AlexGeospatial
                         pntFeat._attTable.AddField(destinationFileFieldNames[i], polyFeat._attTable._columns[joinFileFieldNames[i]]._efldType, polyFeat._attTable._columns[joinFileFieldNames[i]]._length, polyFeat._attTable._columns[joinFileFieldNames[i]]._decimal);
                     }
                 }
-
-                joinsDict = SpatialJoinBase(polyFeat, pntFeat, false, destinationFileFieldNames, joinFileFieldNames);
+                if (useRTree)
+                {
+                    joinsDict = RTreeSpatialJoinBase(polyFeat, pntFeat, false, destinationFileFieldNames, joinFileFieldNames);
+                }
+                else
+                {
+                    joinsDict = SpatialJoinBase(polyFeat, pntFeat, false, destinationFileFieldNames, joinFileFieldNames);
+                }
 
                 foreach (var kvp in joinsDict)
                 {
@@ -267,7 +273,7 @@ namespace AlexGeospatial
             return joinsDict.Keys.ToList();
         }
 
-        public static List<long> spatialJoinToPolyFromPnts(ref Feat polyFeat, Feat pntFeat, string[] destinationFileFieldNames, string[] joinFileFieldNames, joinType[] joinEnum)
+        public static List<long> spatialJoinToPolyFromPnts(ref Feat polyFeat, Feat pntFeat, string[] destinationFileFieldNames, string[] joinFileFieldNames, joinType[] joinEnum, bool useRTree = false)
         {
             var joinsDict = new Dictionary<long, List<List<object>>>();
             if (pntFeat._parts.Count > 0 & polyFeat._parts.Count > 0)
@@ -280,7 +286,14 @@ namespace AlexGeospatial
                     }
                 }
 
-                joinsDict = SpatialJoinBase(polyFeat, pntFeat, true, destinationFileFieldNames, joinFileFieldNames);
+                if (useRTree)
+                {
+                    joinsDict = RTreeSpatialJoinBase(polyFeat, pntFeat, true, destinationFileFieldNames, joinFileFieldNames);
+                }
+                else
+                {
+                    joinsDict = SpatialJoinBase(polyFeat, pntFeat, true, destinationFileFieldNames, joinFileFieldNames);
+                }                    
 
                 foreach (var kvp in joinsDict)
                 {
@@ -344,57 +357,61 @@ namespace AlexGeospatial
                     //get subset polys from RTree
                     var subsetPolyInds = containingFeat._rTree.findByXY(Point[0], Point[1]);
                     int pointInd = reprojedPnts.IndexOf(Point);
-
-                    foreach (RTreeNode polynode in subsetPolyInds)
+                    bool found = false;
+                    foreach (RTreeNode childnode in subsetPolyInds)
                     {
-                        int polyInd = polynode._featureIndex[0];
-                        var poly = containingFeat._parts[polyInd];
-                        if (poly[0].MBRXMin > Point[1]) { continue; }
-                        if (poly[0].MBRXMax < Point[1]) { continue; }
-                        if (poly[0].MBRYMin > Point[0]) { continue; }
-                        if (poly[0].MBRYMax < Point[0]) { continue; }
-                        else
+                        foreach( RTreeNode polynode in childnode._children)
                         {
-                            if (GeospatialTools.PointWithinSinglePoly(containingFeat._parts[polyInd], containingFeat._vertices[polyInd], Point) == true)
+                            int polyInd = polynode._featureIndex[0];
+                            var poly = containingFeat._parts[polyInd];
+                            if (poly[0].MBRXMin > Point[0]) { continue; }
+                            if (poly[0].MBRXMax < Point[0]) { continue; }
+                            if (poly[0].MBRYMin > Point[1]) { continue; }
+                            if (poly[0].MBRYMax < Point[1]) { continue; }
+                            else
                             {
-                                if (joinToContainer)
+                                if (GeospatialTools.PointWithinSinglePoly(containingFeat._parts[polyInd], containingFeat._vertices[polyInd], Point) == true)
                                 {
-                                    joinKey = polyInd;
-                                }
-                                else
-                                {
-                                    joinKey = pointInd;
-                                }
-                                if (!joinsDict.ContainsKey(joinKey))
-                                    joinsDict.Add(joinKey, new List<List<object>>());
-                                if (joinsDict[joinKey].Count == 0)
-                                {
-                                    for (int n = 0, loopTo2 = destinationFileFieldNames.Count() - 1; n <= loopTo2; n++)
-                                        joinsDict[joinKey].Add(new List<object>());
-                                }
-
-                                for (int i = 0, loopTo3 = destinationFileFieldNames.Count() - 1; i <= loopTo3; i++)
-                                {
-                                    object joinFldVal;
-                                    Type joinFldType;
                                     if (joinToContainer)
                                     {
-                                        joinFldVal = interiorFeat._attTable._columns[joinFileFieldNames[i]]._rows[pointInd];
-                                        joinFldType = containingFeat._attTable._columns[destinationFileFieldNames[i]].getEFldType;
+                                        joinKey = polyInd;
                                     }
                                     else
                                     {
-                                        joinFldVal = containingFeat._attTable._columns[joinFileFieldNames[i]]._rows[polyInd];
-                                        joinFldType = interiorFeat._attTable._columns[destinationFileFieldNames[i]].getEFldType;
+                                        joinKey = pointInd;
+                                    }
+                                    if (!joinsDict.ContainsKey(joinKey))
+                                        joinsDict.Add(joinKey, new List<List<object>>());
+                                    if (joinsDict[joinKey].Count == 0)
+                                    {
+                                        for (int n = 0, loopTo2 = destinationFileFieldNames.Count() - 1; n <= loopTo2; n++)
+                                            joinsDict[joinKey].Add(new List<object>());
                                     }
 
-                                    joinsDict[joinKey][i].Add(Conversion.CTypeDynamic(joinFldVal, joinFldType));
+                                    for (int i = 0, loopTo3 = destinationFileFieldNames.Count() - 1; i <= loopTo3; i++)
+                                    {
+                                        object joinFldVal;
+                                        Type joinFldType;
+                                        if (joinToContainer)
+                                        {
+                                            joinFldVal = interiorFeat._attTable._columns[joinFileFieldNames[i]]._rows[pointInd];
+                                            joinFldType = containingFeat._attTable._columns[destinationFileFieldNames[i]].getEFldType;
+                                        }
+                                        else
+                                        {
+                                            joinFldVal = containingFeat._attTable._columns[joinFileFieldNames[i]]._rows[polyInd];
+                                            joinFldType = interiorFeat._attTable._columns[destinationFileFieldNames[i]].getEFldType;
+                                        }
 
+                                        joinsDict[joinKey][i].Add(Conversion.CTypeDynamic(joinFldVal, joinFldType));
+
+                                    }
+                                    found = true;
+                                    break;
                                 }
-                                break;
-                            }
+                            }                            
                         }
-
+                        if (found) { break; }
                     }
                 }
                 return joinsDict;

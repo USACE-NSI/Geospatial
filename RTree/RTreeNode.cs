@@ -46,30 +46,33 @@ namespace AlexGeospatial.RTree
             //Then Y axis split by max
             buildChildOptions(yOptions, false, false);
 
-            double xMarginSum = xOptions.Sum(x => x.metrics[2]);
-            double yMarginSum = yOptions.Sum(x => x.metrics[2]);
+            double xTotalOverlap = xOptions.Sum(x => x.metrics[0]);
+            double yTotalOverlap = yOptions.Sum(x => x.metrics[0]);
 
             List<RTreeNode> newKidsOntheBlock;
-            if (xMarginSum < yMarginSum)
+            if (xTotalOverlap < yTotalOverlap)
             {
                 newKidsOntheBlock = xOptions.OrderBy(x => x.metrics[0]).ThenBy(x => x.metrics[1]).ThenBy(x => x.metrics[2]).First().nodes.ToList();
             }
             else
             {
                 newKidsOntheBlock = yOptions.OrderBy(x => x.metrics[0]).ThenBy(x => x.metrics[1]).ThenBy(x => x.metrics[2]).First().nodes.ToList();
-            }
-            foreach (var newKid in newKidsOntheBlock) { newKid.UpdateParents(_parent); }
+            }            
                             
             if(_parent != null)
             {
                 _parent._children.Remove(this);
-                _parent.addChild(newKidsOntheBlock[0], false);
+                newKidsOntheBlock[0].UpdateParents(_parent);
+                newKidsOntheBlock[1].UpdateParents(_parent);
+                _parent.addChild(newKidsOntheBlock[0], true);
                 _parent.addChild(newKidsOntheBlock[1], false);                
             }
             else
             {
                 RTreeNode newRoot = new RTreeNode(_treeManager, maxChidrens, minChidrens);
-                newRoot.addChild(newKidsOntheBlock[0], false);
+                newKidsOntheBlock[0].UpdateParents(newRoot);
+                newKidsOntheBlock[1].UpdateParents(newRoot);
+                newRoot.addChild(newKidsOntheBlock[0], true);
                 newRoot.addChild(newKidsOntheBlock[1], false);        
                 _treeManager._root = newRoot;
             }    
@@ -117,7 +120,7 @@ namespace AlexGeospatial.RTree
         {
             //Find the lowest level child node that would least expand to accept the feature geometry
             List<RTreeNode> candidateKids = new List<RTreeNode>();
-            getCandidateChildNodesByMBR(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin, candidateKids);
+            getCandidateEndNodesByMBR(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin, candidateKids);
             if(candidateKids.Count == 0) { candidateKids = _treeManager.getEndNodes; }
             RTreeNode bestCandidate = null;
             double minExtension = double.MaxValue;
@@ -175,7 +178,31 @@ namespace AlexGeospatial.RTree
                 }
             }                
         }
-        public void getCandidateChildNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
+        public void getCandidateFeatNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
+        {
+            if (getIsEndNode)
+            {
+                foreach (RTreeNode node in _children)
+                {
+                    if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
+                    {
+                        nodeWalk.Add(this);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                foreach (RTreeNode node in _children)
+                {
+                    if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
+                    {
+                        node.getCandidateFeatNodesByMBR(XMax, XMin, YMax, YMin, nodeWalk);
+                    }
+                }
+            }
+        }
+        public void getCandidateEndNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
         {
             if (getIsEndNode)
             {
@@ -187,7 +214,7 @@ namespace AlexGeospatial.RTree
                 { 
                     if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
                     {
-                        node.getCandidateChildNodesByMBR(XMax, XMin, YMax, YMin, nodeWalk);
+                        node.getCandidateEndNodesByMBR(XMax, XMin, YMax, YMin, nodeWalk);
                     }
                 }
             }           

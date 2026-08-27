@@ -30,7 +30,7 @@ namespace AlexGeospatial.RTree
         public List<RTreeNode> findByXY(double x, double y)
         {
             List<RTreeNode> nodePAth = new List<RTreeNode>();
-            _root.getCandidateChildNodesByMBR(x, x, y, y, nodePAth);
+            _root.getCandidateFeatNodesByMBR(x, x, y, y, nodePAth);            
             return nodePAth;
         }
         public List<RTreeNode> findByInd(int ind)
