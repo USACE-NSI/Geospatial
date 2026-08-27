@@ -77,7 +77,7 @@ namespace AlexGeospatial
 
             //build output feature
             Feat outputFeat = new Feat(WKT, shapefilePath, layer.GetName(), shapeType);
-            if(buildRTree) { outputFeat.ConstRTree(); }
+            
 
             while ((shpFeat = layer.GetNextFeature()) != null)
             {
@@ -133,18 +133,14 @@ namespace AlexGeospatial
                 outputFeat._parts.Add(featureParts);
                 outputFeat._vertices.Add(featureVertices);
 
-                if(buildRTree)
-                {
-                    for(int p = 0; p < outputFeat._parts[featureIndex].Count; p++)
-                    {
-                        outputFeat.AddFeatPartToRTree(featureIndex, p);
-                    }
-                }
-
                 shpFeat.Dispose();
                 featureIndex++;
             }
             ds.Dispose();
+
+            if (buildRTree) { outputFeat.ConstRTree(); }
+
+
             return outputFeat;
         }
         private static List<Part> ProcessGeometry(Geometry geom, List<List<Vertex>> featureVertices, string WKT)
@@ -166,7 +162,7 @@ namespace AlexGeospatial
                         vertices.Add(polyVert);
                         polyPart.AddVertex(polyVert);
                     }
-
+                    polyPart.closeRing();
                     featureVertices.Add(vertices);
                     parts.Add(polyPart); // store index/size info                    
                 }
@@ -182,6 +178,7 @@ namespace AlexGeospatial
                     vertices.Add(lineVert);
                     linePart.AddVertex(lineVert);
                 }
+                linePart.closeRing();
                 featureVertices.Add(vertices);
                 parts.Add(linePart);
             }
@@ -194,6 +191,7 @@ namespace AlexGeospatial
                 vertices.Add(pointVert);
                 pointPart.AddVertex(pointVert);                
                 featureVertices.Add(vertices);
+                pointPart.closeRing();
                 parts.Add(pointPart);
             }
             else if (geom.GetGeometryType() == wkbGeometryType.wkbMultiPolygon)

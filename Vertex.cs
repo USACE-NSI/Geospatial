@@ -17,5 +17,6 @@ namespace AlexGeospatial
             X_Cord = x; Y_Cord = y; Z_Cord = z;
         }
         public double[] getPoints { get { return new double[] { X_Cord, Y_Cord, Z_Cord }; } }
+       
     }
 }

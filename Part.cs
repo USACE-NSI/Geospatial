@@ -28,7 +28,7 @@ namespace AlexGeospatial
         {
             _WKT = WKT;
         }
-        public void AddVertex(Vertex vertex)
+        public void AddVertex(Vertex vertex, bool UpdateMBR = true)
         {
             //add perimeter if there is already a vertex in the list, otherwise perimeter is 0
             if (Vertices.Count > 0)
@@ -53,15 +53,22 @@ namespace AlexGeospatial
             Vertices.Add(vertex);
 
             //update MBR values based on the new vertex coordinates
-            if (vertex.X_Cord < MBRXMin || Vertices.Count == 1) { MBRXMin = vertex.X_Cord; }
-            if(vertex.X_Cord > MBRXMax || Vertices.Count == 1) { MBRXMax = vertex.X_Cord; } 
-            if(vertex.Y_Cord < MBRYMin || Vertices.Count == 1) { MBRYMin = vertex.Y_Cord; }
-            if(vertex.Y_Cord > MBRYMax || Vertices.Count == 1) { MBRYMax = vertex.Y_Cord; }
+            if (UpdateMBR)
+            {
+                if (vertex.X_Cord < MBRXMin || Vertices.Count == 1) { MBRXMin = vertex.X_Cord; }
+                if (vertex.X_Cord > MBRXMax || Vertices.Count == 1) { MBRXMax = vertex.X_Cord; }
+                if (vertex.Y_Cord < MBRYMin || Vertices.Count == 1) { MBRYMin = vertex.Y_Cord; }
+                if (vertex.Y_Cord > MBRYMax || Vertices.Count == 1) { MBRYMax = vertex.Y_Cord; }
+            }
         }
         public void closeRing()
         {
             //Set Ends to the last vertex index
-            Ends = Vertices.Count - 1; //Need to come back and make this capable of handling counter-clockwise rings and holes. For now, just set Begins to 0 for the first vertex.
+            if (!IsHole) { Ends = Vertices.Count - 1; } else {  Ends = 0; }
+
+            //Close Ring by duplicating first added vertex
+            var firstVert = Vertices.First();
+            AddVertex(new Vertex(firstVert.X_Cord, firstVert.Y_Cord), false);
 
             //Compute Centroid
             double[] centroid = GeospatialTools.getCentroid(Vertices);

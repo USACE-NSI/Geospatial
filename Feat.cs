@@ -342,7 +342,38 @@ namespace AlexGeospatial
         }
         public void ConstRTree()
         {
+            int xPartitions = 10;
+            
             _rTree = new RTreeManager();
+            var indices = Enumerable.Range(0, _parts.Count).ToArray();
+            var keys = _parts.Select(p => p[0].MBRXMax).ToArray();
+            Array.Sort(keys, indices); 
+            List<int> indexChunk = new List<int>();
+            for(int i = 0; i < indices.Length; i++) 
+            {
+                indexChunk.Add(indices[i]);
+                if (i % xPartitions == 0 && i > 0)
+                {
+                    //sort x-axis chunk by y-axis mbr                    
+                    var subKeys = indexChunk.Select(x=> _parts[x][0].MBRYMax).ToArray();
+                    var subIndices = indexChunk.ToArray();
+                    Array.Sort(subIndices, subKeys);
+
+                    //iterate through these
+                    foreach(var subind in subIndices)
+                    {
+                        for (int p = 0; p < _parts[subind].Count; p++)
+                        {
+                            AddFeatPartToRTree(subind, p);
+                        }                       
+                    }
+
+                    //reset indexChunk
+                    indexChunk = new List<int>();
+                }
+            }
+            
+
         }
         public void AddFeatPartToRTree(int featind, int partind)
         {

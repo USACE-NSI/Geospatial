@@ -343,7 +343,7 @@ namespace AlexGeospatial
         }
         public static Dictionary<long, List<List<object>>> RTreeSpatialJoinBase(Feat containingFeat, Feat interiorFeat, bool joinToContainer, string[] destinationFileFieldNames, string[] joinFileFieldNames)
         {
-            if (containingFeat._parts.Count > 0 && interiorFeat._parts.Count > 0 && containingFeat.getHasRTree && interiorFeat.getHasRTree)
+            if (containingFeat._parts.Count > 0 && interiorFeat._parts.Count > 0 && containingFeat.getHasRTree)
             {
                 var xyCoords = interiorFeat.getXYcoords;
                 // reproject join feature points to match polyfeature
@@ -512,13 +512,11 @@ namespace AlexGeospatial
                     }
                     foreach (KeyValuePair<int, double[]> poly in subsetPolys)
                     {
-                        if (poly.Value[2] > Point.Value[1])
-                            continue;
-                        if (poly.Value[3] < Point.Value[1])
-                            continue;
-                        if (poly.Value[0] > Point.Value[0])
-                            continue;
-                        if (poly.Value[1] >= Point.Value[0])
+                        if (poly.Value[2] > Point.Value[1]) { continue; }                            
+                        if (poly.Value[3] < Point.Value[1]) { continue; }                           
+                        if (poly.Value[0] > Point.Value[0]) { continue; }
+                        if (poly.Value[1] < Point.Value[0]) { continue; }
+                        else
                         {
                             if (GeospatialTools.PointWithinSinglePoly(containingFeat._parts[poly.Key], containingFeat._vertices[poly.Key], Point.Value) == true)
                             {
@@ -537,7 +535,7 @@ namespace AlexGeospatial
                                     for (int n = 0, loopTo2 = destinationFileFieldNames.Count() - 1; n <= loopTo2; n++)
                                         joinsDict[joinKey].Add(new List<object>());
                                 }
-                                
+
                                 for (int i = 0, loopTo3 = destinationFileFieldNames.Count() - 1; i <= loopTo3; i++)
                                 {
                                     object joinFldVal;
@@ -810,16 +808,20 @@ namespace AlexGeospatial
         public static bool PointWithinSinglePoly(List<Part> parts, List<List<Vertex>> polygon, double[] Point)
         {
             bool within = false;
-            for (int i = 0, loopTo = parts.Count - 1; i <= loopTo; i++)
+            for (int i = 0; i < parts.Count; i++)
             {
                 var coords = polygon[i];
                 if (!parts[i].IsHole)
                 {
-                    if (within == false)
-                        within = pointWithinRing(coords, Point, true);
+                    if (within == false) 
+                    { 
+                        within = pointWithinRing(coords, Point, true); 
+                    }                       
                 }
-                else if (within == true)
-                    within = !pointWithinRing(coords, Point, true);
+                else if (within == true) 
+                { 
+                    within = !pointWithinRing(coords, Point, true); 
+                }                   
             }
             return within;
         }
@@ -828,7 +830,7 @@ namespace AlexGeospatial
             bool within = false;
             int countCrosses = 0;
             int zPlus1 = 0;
-            for (int z = 0, loopTo = coords.Count - 2; z <= loopTo; z++)
+            for (int z = 0; z < coords.Count - 1; z++)
             {
                 if (containsOnly == false)
                 {
@@ -838,14 +840,11 @@ namespace AlexGeospatial
                     }
                 }
                 zPlus1 = (z + 1) % (coords.Count - 1);
-                if (coords[z].Y_Cord >= point[1] & coords[zPlus1].Y_Cord >= point[1])
-                    continue;
-                if (coords[z].Y_Cord < point[1] & coords[zPlus1].Y_Cord < point[1])
-                    continue;
-                if (coords[z].X_Cord < point[0] & coords[zPlus1].X_Cord < point[0])
-                    continue;
-                if ((coords[z].X_Cord <= point[0] | coords[zPlus1].X_Cord <= point[0]) & pointLeftofLine(new[] { coords[z].X_Cord, coords[z].Y_Cord }, new[] { coords[zPlus1].X_Cord, coords[zPlus1].Y_Cord }, point) == false)
-                    continue;
+                if (coords[z].Y_Cord >= point[1] & coords[zPlus1].Y_Cord >= point[1]) { continue; }                    
+                if (coords[z].Y_Cord < point[1] & coords[zPlus1].Y_Cord < point[1]) { continue; }                
+                if (coords[z].X_Cord < point[0] & coords[zPlus1].X_Cord < point[0]) { continue; }
+                if ((coords[z].X_Cord <= point[0] || coords[zPlus1].X_Cord <= point[0]) && pointLeftofLine(new[] { coords[z].X_Cord, coords[z].Y_Cord }, new[] { coords[zPlus1].X_Cord, coords[zPlus1].Y_Cord }, point) == false) { continue; }
+                
                 countCrosses += 1;
             }
             if (countCrosses % 2 != 0)
@@ -1199,7 +1198,7 @@ namespace AlexGeospatial
 
                     double[] point = new double[] { pnt[1], pnt[0] };
                     transform.TransformPoint(point);
-                    returnPnts.Add(new double[] { point[0], point[1] });
+                    returnPnts.Add(new double[] { point[1], point[0] });
                 }
             }
             else
@@ -1208,6 +1207,7 @@ namespace AlexGeospatial
             }
             return returnPnts;
         }
+
         //public static void InitializeShape(ref ShapeFile shape, List<Field> Fields)
         //{
         //    foreach (var @field in Fields)
@@ -1624,6 +1624,25 @@ namespace AlexGeospatial
             double d = earthRadius * c;
             return d;
         }
+        public static double SphericalPolygonAreaFunction(List<double[]> coords, double earthRadiusFeet = 20925524.9)
+        {
+            // earthRadiusFeet = 6371000 m * 3.28084 ft/m ≈ 20,925,524.9 ft
+            double total = 0d;
+            int n = coords.Count;
+
+            for (int i = 0; i < n; i++)
+            {
+                double lat1 = coords[i][0] * Math.PI / 180.0;
+                double lon1 = coords[i][1] * Math.PI / 180.0;
+                double lat2 = coords[(i + 1) % n][0] * Math.PI / 180.0;
+                double lon2 = coords[(i + 1) % n][1] * Math.PI / 180.0;
+                total += (lon2 - lon1) * (Math.Sin(lat1) + Math.Sin(lat2));
+            }
+
+            double area = Math.Abs(total * earthRadiusFeet * earthRadiusFeet / 2.0);
+            return area; //in square feet here
+        }
+
         public static double[] getMultiPartCentroid(List<Part> parts)
         {
             var centroid = new double[2];
@@ -1652,40 +1671,26 @@ namespace AlexGeospatial
             // Next
         }
         public static double CalcArea(List<Vertex> verts, string fromWKT)
+        {            
+            List<double[]> coords = verts.Select(v => v.getPoints).ToList(); 
+            return SphericalPolygonAreaFunction(coords, 1);
+        }
+        public static double shoeStringAreaFunction(List<double[]> coords, double unitToFeet)
         {
-            var convertedCoords = new List<double[]>();
-            List<double[]> coords = verts.Select(v => v.getPoints).ToList();
-            var reprojCoords = reprojectPntsDS(coords, fromWKT, _ALBERS);
-            foreach (var coord in reprojCoords)
+            double area = 0;
+            int n = coords.Count;
+            for (int i = 0; i < n; i++)
             {
-                var newCoord = new double[2];
-                // newCoord(0) = coord(0) * (10000 / 90) * 3280.4
-                // newCoord(1) = coord(1) * (10000 / 90) * 3280.4
-                // newCoord(0) = getFtDistBetweenPts({coord(0), 0}, {0, 0}, fromWKT, fromWKT)
-                // newCoord(1) = getFtDistBetweenPts({0, coord(1)}, {0, 0}, fromWKT, fromWKT)
-                newCoord[0] = coord[0] * 3.28084d;
-                newCoord[1] = coord[1] * 3.28084d;
-                convertedCoords.Add(newCoord);
+                var p0 = coords[i];
+                var p1 = coords[(i + 1) % n];
+                area += p0[0] * p1[1] - p1[0] * p0[1];
             }
 
-            // Dim test As Double = getFtDistBetweenPts(coords(1), coords(2), fromWKT, fromWKT)
-            return shoeStringAreaFunction(convertedCoords);
-        }
-        public static double shoeStringAreaFunction(List<double[]> coords)
-        {
-            double XY = 0d;
-            double YX = 0d;
-            for (int i = 0, loopTo = coords.Count - 2; i <= loopTo; i++)
-            {
-                double xi = coords[i][0];
-                double yi = coords[i][1];
-                double xiPlus1 = coords[i + 1][0];
-                double yiPlus1 = coords[i + 1][1];
-                XY += xi * yiPlus1;
-                YX += yi * xiPlus1;
-            }
-            double area = Math.Abs(XY - YX) / 2d;
-            return area;
+            area = Math.Abs(area) * 0.5;
+
+            // Convert to square feet
+            double areaSqFt = area * unitToFeet * unitToFeet;
+            return areaSqFt;
         }
         public static List<List<Vertex>> GetVerticesAroundPoint(double x, double y, double area, string wkt, double slope = 1d)
         {

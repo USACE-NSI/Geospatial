@@ -12,7 +12,7 @@ namespace AlexGeospatial.RTree
     {
         public RTreeNode _parent;
         public RTreeManager _treeManager;
-        public List<RTreeNode> _children = new List<RTreeNode>();
+        public List<RTreeNode> _children = new List<RTreeNode>();  
         public int[] _featureIndex; //  { Feature Index, Sub-Part Index (for holes, etc) }
         public int maxChidrens = 0;
         public int minChidrens = 0;
@@ -21,6 +21,8 @@ namespace AlexGeospatial.RTree
         public double MBRXMax { get; set; } = double.MinValue;
         public double MBRYMin { get; set; } = double.MaxValue;
         public double MBRYMax { get; set; } = double.MinValue;
+
+        public double siblingOverlap { get; set; }      
 
         public RTreeNode(RTreeManager treemanager, int maxChildren, int minChildren, int[] featInd = null)
         {
@@ -31,34 +33,24 @@ namespace AlexGeospatial.RTree
         }
         public void split()
         {
-            List<(RTreeNode[] nodes, double[] metrics)> xOptions = new List<(RTreeNode[], double[])>();
-            List<(RTreeNode[] nodes, double[] metrics)> yOptions = new List<(RTreeNode[], double[])>();
+            List<(RTreeNode[] nodes, double[] metrics)> Options = new List<(RTreeNode[], double[])>();            
 
             //First X axis split by min
-            buildChildOptions(xOptions, true, true);
+            buildChildOptions(Options, true, true);
 
             //Then X axis split by max
-            buildChildOptions(xOptions, true, false);
+            buildChildOptions(Options, true, false);
 
             //Then Y axis split by min
-            buildChildOptions(yOptions, false, true);
+            buildChildOptions(Options, false, true);
 
             //Then Y axis split by max
-            buildChildOptions(yOptions, false, false);
-
-            double xTotalOverlap = xOptions.Sum(x => x.metrics[0]);
-            double yTotalOverlap = yOptions.Sum(x => x.metrics[0]);
+            buildChildOptions(Options, false, false);
 
             List<RTreeNode> newKidsOntheBlock;
-            if (xTotalOverlap < yTotalOverlap)
-            {
-                newKidsOntheBlock = xOptions.OrderBy(x => x.metrics[0]).ThenBy(x => x.metrics[1]).ThenBy(x => x.metrics[2]).First().nodes.ToList();
-            }
-            else
-            {
-                newKidsOntheBlock = yOptions.OrderBy(x => x.metrics[0]).ThenBy(x => x.metrics[1]).ThenBy(x => x.metrics[2]).First().nodes.ToList();
-            }            
-                            
+            
+            newKidsOntheBlock = Options.OrderBy(x => x.metrics[0]).ThenBy(x => x.metrics[1]).ThenBy(x => x.metrics[2]).First().nodes.ToList();            
+            
             if(_parent != null)
             {
                 _parent._children.Remove(this);
@@ -112,6 +104,9 @@ namespace AlexGeospatial.RTree
                 double overlap = overlapWidth * overlapHeight;
                 double totalArea = node1.getArea + node2.getArea;
                 double perimeterTotal = node1.getPerimeter + node2.getPerimeter;
+
+                node1.siblingOverlap = overlap + siblingOverlap;
+                node2.siblingOverlap = overlap + siblingOverlap;
 
                 options.Add((new RTreeNode[] { node1, node2 }, new double[] { overlap, totalArea, perimeterTotal }));
             }
