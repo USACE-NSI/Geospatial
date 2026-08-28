@@ -22,7 +22,8 @@ namespace AlexGeospatial.RTree
         public double MBRYMin { get; set; } = double.MaxValue;
         public double MBRYMax { get; set; } = double.MinValue;
 
-        public double siblingOverlap { get; set; }      
+        public double cumulativeOverlap { get; set; }      
+        public double siblingOverlap { get; set; }
 
         public RTreeNode(RTreeManager treemanager, int maxChildren, int minChildren, int[] featInd = null)
         {
@@ -105,21 +106,49 @@ namespace AlexGeospatial.RTree
                 double totalArea = node1.getArea + node2.getArea;
                 double perimeterTotal = node1.getPerimeter + node2.getPerimeter;
 
-                node1.siblingOverlap = overlap + siblingOverlap;
-                node2.siblingOverlap = overlap + siblingOverlap;
+                node1.siblingOverlap = overlap;
+                node2.siblingOverlap = overlap;
+                node1.cumulativeOverlap = overlap + siblingOverlap;
+                node2.cumulativeOverlap = overlap + siblingOverlap;               
 
                 options.Add((new RTreeNode[] { node1, node2 }, new double[] { overlap, totalArea, perimeterTotal }));
             }
         }
         public void addFeatureChild(RTreeNode feature)
         {
+            if(getIsEndNode) 
+            { 
+                addChild(feature, false); 
+            }            
+            else
+            {
+                RTreeNode bestCandidate = null;
+                double minExtension = double.MaxValue;
+                foreach (RTreeNode childnode in _children)
+                {
+                    double extensionReq = childnode.getAddedSizeToAccomodate(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin);
+                    if (extensionReq < minExtension)
+                    {
+                        bestCandidate = childnode;
+                        minExtension = extensionReq;
+                    }
+                    else if (extensionReq == minExtension && childnode.getArea < bestCandidate.getArea)
+                    {
+                        bestCandidate = childnode;
+                    }
+                }
+                bestCandidate.addFeatureChild(feature);
+            }            
+        }
+        public void addFeatureChildEnforceIntersect(RTreeNode feature)
+        {
             //Find the lowest level child node that would least expand to accept the feature geometry
             List<RTreeNode> candidateKids = new List<RTreeNode>();
             getCandidateEndNodesByMBR(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin, candidateKids);
-            if(candidateKids.Count == 0) { candidateKids = _treeManager.getEndNodes; }
+            if (candidateKids.Count == 0) { candidateKids = _treeManager.getEndNodes; }
             RTreeNode bestCandidate = null;
             double minExtension = double.MaxValue;
-            foreach(RTreeNode candidate in candidateKids)
+            foreach (RTreeNode candidate in candidateKids)
             {
                 double extensionReq = candidate.getAddedSizeToAccomodate(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin);
                 if (extensionReq < minExtension)
@@ -128,7 +157,7 @@ namespace AlexGeospatial.RTree
                     minExtension = extensionReq;
                 }
             }
-            bestCandidate.addChild(feature, false);            
+            bestCandidate.addChild(feature, false);
         }
         public void addChild(RTreeNode child, bool evaluation) 
         {
@@ -173,6 +202,23 @@ namespace AlexGeospatial.RTree
                 }
             }                
         }
+        public void getCandidateEndNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
+        {
+            if (getIsEndNode)
+            {
+                nodeWalk.Add(this);
+            }
+            else
+            {
+                foreach (RTreeNode node in _children)
+                {
+                    if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
+                    {
+                        node.getCandidateEndNodesByMBR(XMax, XMin, YMax, YMin, nodeWalk);
+                    }
+                }
+            }
+        }
         public void getCandidateFeatNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
         {
             if (getIsEndNode)
@@ -196,24 +242,7 @@ namespace AlexGeospatial.RTree
                     }
                 }
             }
-        }
-        public void getCandidateEndNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
-        {
-            if (getIsEndNode)
-            {
-                nodeWalk.Add(this);
-            }
-            else
-            {
-                foreach (RTreeNode node in _children)
-                { 
-                    if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
-                    {
-                        node.getCandidateEndNodesByMBR(XMax, XMin, YMax, YMin, nodeWalk);
-                    }
-                }
-            }           
-        }
+        }        
         public void getChildrenContainingInd(int ind, List<RTreeNode> nodeWalk)
         {
             if (getIsEndNode)

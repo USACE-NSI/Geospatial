@@ -25,7 +25,7 @@ namespace AlexGeospatial.RTree
             featNode.MBRXMax = mbrXmax;
             featNode.MBRYMin = mbrYmin;
             featNode.MBRYMax = mbrYmax;
-            _root.addFeatureChild(featNode);
+            _root.addFeatureChildEnforceIntersect(featNode);
         }
         public List<RTreeNode> findByXY(double x, double y)
         {

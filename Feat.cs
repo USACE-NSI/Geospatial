@@ -341,10 +341,9 @@ namespace AlexGeospatial
             }
         }
         public void ConstRTree()
-        {
-            int xPartitions = 10;
-            
+        {   
             _rTree = new RTreeManager();
+            int xPartitions = _rTree._root.maxChidrens;
             var indices = Enumerable.Range(0, _parts.Count).ToArray();
             var keys = _parts.Select(p => p[0].MBRXMax).ToArray();
             Array.Sort(keys, indices); 
@@ -372,8 +371,6 @@ namespace AlexGeospatial
                     indexChunk = new List<int>();
                 }
             }
-            
-
         }
         public void AddFeatPartToRTree(int featind, int partind)
         {

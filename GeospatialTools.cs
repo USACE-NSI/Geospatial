@@ -351,12 +351,12 @@ namespace AlexGeospatial
 
                 var joinsDict = new Dictionary<long, List<List<object>>>();
                 long joinKey = 0L;
+                int pointInd = 0;
 
                 foreach (var Point in reprojedPnts)
                 {
                     //get subset polys from RTree
-                    var subsetPolyInds = containingFeat._rTree.findByXY(Point[0], Point[1]);
-                    int pointInd = reprojedPnts.IndexOf(Point);
+                    var subsetPolyInds = containingFeat._rTree.findByXY(Point[0], Point[1]);                    
                     bool found = false;
                     foreach (RTreeNode childnode in subsetPolyInds)
                     {
@@ -413,6 +413,7 @@ namespace AlexGeospatial
                         }
                         if (found) { break; }
                     }
+                    pointInd++;
                 }
                 return joinsDict;
             }
