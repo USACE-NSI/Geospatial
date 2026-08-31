@@ -1,26 +1,24 @@
 using Nsi.Geospatial.Attributes;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
-using OSGeo.GDAL;
 using OSGeo.OGR;
 
 namespace Nsi.Geospatial.Io;
 
-/// <summary>GDAL/OGR-backed shapefile reader. fix: deterministic disposal of OGR handles.</summary>
-public sealed class ShapefileReader : IFeatureSource
+/// <summary>GDAL/OGR-backed feature reader (deterministic disposal of OGR handles).</summary>
+public sealed class FeatureReader : IFeatureSource
 {
     public FeatureCollection Read(string path)
     {
-        Gdal.Configure();
         Ogr.RegisterAll();
 
-        // fix: no more hardcoded C:\Software\GDAL GISInternals paths. Native runtime must be
-        // discoverable via PATH / GDAL_DATA / PROJ_LIB; surface a clear error otherwise.
-        using var ds = Ogr.Open(path, 0) ?? throw new FileNotFoundException($"Could not open shapefile: {path}");
-        using var layer = ds.GetLayerByIndex(0) ?? throw new InvalidOperationException("Layer 0 not found.");
+        using var ds = Ogr.Open(path, 0)
+            ?? throw new FileNotFoundException($"Could not open: {path}");
+        using var layer = ds.GetLayerByIndex(0)
+            ?? throw new InvalidOperationException("Layer 0 not found.");
 
         string wkt = "";
-        layer.GetSpatialRef().ExportToWkt(out wkt, Array.Empty<string>());
+        layer.GetSpatialRef()?.ExportToWkt(out wkt, Array.Empty<string>());
 
         var fc = new FeatureCollection
         {
@@ -29,10 +27,10 @@ public sealed class ShapefileReader : IFeatureSource
             ShapeType = MapGeomType(layer.GetGeomType()),
         };
 
-        Feature? feat;
+        OSGeo.OGR.Feature? feat;
         while ((feat = layer.GetNextFeature()) is not null)
         {
-            var f = new Feature();
+            var f = new Nsi.Geospatial.Geometry.Feature();
             f.Wkt = wkt;
             f.Path = path;
 
@@ -40,12 +38,12 @@ public sealed class ShapefileReader : IFeatureSource
             {
                 using var defn = feat.GetFieldDefnRef(i);
                 string name = defn.GetName();
-                FieldType type = MapFieldType(defn.GetFieldType());
+                Nsi.Geospatial.Enums.FieldType type = MapFieldType(defn.GetFieldType());
                 fc.Schema.AddField(name, type, defn.GetWidth(), defn.GetPrecision());
                 f.Attributes[name] = ReadFieldValue(feat, i, type);
             }
 
-            if (feat.GetGeometryRef() is { } geom && geom is not null)
+            if (feat.GetGeometryRef() is { } geom)
             {
                 foreach (var part in ProcessGeometry(geom, wkt))
                     f.AddPart(part);
@@ -59,17 +57,17 @@ public sealed class ShapefileReader : IFeatureSource
         return fc;
     }
 
-    private static object? ReadFieldValue(Feature feat, int i, FieldType type) => type switch
+    private static object? ReadFieldValue(OSGeo.OGR.Feature feat, int i, Nsi.Geospatial.Enums.FieldType type) => type switch
     {
-        FieldType.Integer => feat.GetFieldAsInteger(i),
-        FieldType.Double or FieldType.Float or FieldType.Numeric => feat.GetFieldAsDouble(i),
-        FieldType.Date or FieldType.Single =>
-            feat.GetFieldAsDateTime(i, out var yr, out var mo, out var dy, out var h, out var mi, out var s, out _)
-                ? new DateTime(yr, mo, dy, h, mi, (int)s) : null,
+        Nsi.Geospatial.Enums.FieldType.Integer => feat.GetFieldAsInteger(i),
+        Nsi.Geospatial.Enums.FieldType.Double or Nsi.Geospatial.Enums.FieldType.Float or Nsi.Geospatial.Enums.FieldType.Numeric or Nsi.Geospatial.Enums.FieldType.Single => feat.GetFieldAsDouble(i),
+        // Shapefiles have no true date field; the OSGeo binding's GetFieldAsDateTime
+        // returns void, so read the date as a string instead.
+        Nsi.Geospatial.Enums.FieldType.Date => feat.IsFieldSet(i) ? feat.GetFieldAsString(i) : null,
         _ => feat.GetFieldAsString(i),
     };
 
-    private static List<Part> ProcessGeometry(Geometry geom, string wkt)
+    private static List<Part> ProcessGeometry(OSGeo.OGR.Geometry geom, string wkt)
     {
         var parts = new List<Part>();
         var type = geom.GetGeometryType();
@@ -122,12 +120,12 @@ public sealed class ShapefileReader : IFeatureSource
         _ => ShapeType.Point,
     };
 
-    private static FieldType MapFieldType(OSGeo.OGR.FieldType t) => t switch
+    private static Nsi.Geospatial.Enums.FieldType MapFieldType(OSGeo.OGR.FieldType t) => t switch
     {
-        OSGeo.OGR.FieldType.OFTInteger => FieldType.Integer,
-        OSGeo.OGR.FieldType.OFTReal => FieldType.Double,
-        OSGeo.OGR.FieldType.OFTString => FieldType.Text,
-        OSGeo.OGR.FieldType.OFTDate or OSGeo.OGR.FieldType.OFTDateTime => FieldType.Date,
-        _ => FieldType.Text,
+        OSGeo.OGR.FieldType.OFTInteger => Nsi.Geospatial.Enums.FieldType.Integer,
+        OSGeo.OGR.FieldType.OFTReal => Nsi.Geospatial.Enums.FieldType.Double,
+        OSGeo.OGR.FieldType.OFTString => Nsi.Geospatial.Enums.FieldType.Text,
+        OSGeo.OGR.FieldType.OFTDate or OSGeo.OGR.FieldType.OFTDateTime => Nsi.Geospatial.Enums.FieldType.Date,
+        _ => Nsi.Geospatial.Enums.FieldType.Text,
     };
 }

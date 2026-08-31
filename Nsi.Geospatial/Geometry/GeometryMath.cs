@@ -56,8 +56,8 @@ public static class GeometryMath
     /// <summary>Distance from point p to the segment [a,b] (for point-to-line joins).</summary>
     public static double PointToSegmentDistance((double X, double Y) p, (double X, double Y) a, (double X, double Y) b)
     {
-        var ab = (b.X - a.X, b.Y - a.Y);
-        var ap = (p.X - a.X, p.Y - a.Y);
+        var ab = (X: b.X - a.X, Y: b.Y - a.Y);
+        var ap = (X: p.X - a.X, Y: p.Y - a.Y);
         double abLen2 = ab.X * ab.X + ab.Y * ab.Y;
         if (abLen2 < 1e-12) return Distance(p, a);
         double t = Math.Clamp((ap.X * ab.X + ap.Y * ab.Y) / abLen2, 0, 1);

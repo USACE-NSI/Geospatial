@@ -27,23 +27,23 @@ public static class SpatialJoins
             }
         }
 
-        // The original RTreeManager's getMBRoverlap gate reports no overlap when the
-        // query box fully contains a feature's MBR, and a nearest-join candidate can
-        // sit outside the target's MBR entirely — so candidate selection scans the
-        // collection instead of querying the tree. pointTree is kept for API
-        // continuity and remains available to callers for findByXY lookups.
+        // The original RTreeManager's getMBRoverlap gate reports no overlap when
+        // the query box fully contains a feature's MBR, and a nearest-join
+        // candidate can sit outside the target's MBR entirely — so candidate
+        // selection scans the collection instead of querying the tree.
+        // pointTree is kept for API continuity and findByXY lookups.
         _ = pointTree ?? BuildTree(points);
 
         var matched = new List<long>();
-        for (long polyIdx = 0; polyIdx < polygons.Count; polyIdx++)
+        for (int polyIdx = 0; polyIdx < polygons.Count; polyIdx++)
         {
-            if (exteriorOnly is not null && !ContainsIndex(exteriorOnly, polyIdx))
+            if (exteriorOnly is not null && !ContainsIndex(exteriorOnly.Value, polyIdx))
                 continue;
 
             var poly = polygons[polyIdx];
 
             double? best = null;
-            List<Feature> nearestPoints = new();
+            var nearestPoints = new List<Feature>();
             foreach (var p in points.Features)
             {
                 double d = DistanceFeatureToFeature(p, poly);
@@ -138,7 +138,7 @@ public static class SpatialJoins
     {
         if (polygon.Parts.Count == 0) return double.MaxValue;
         double best = double.MaxValue;
-        var px = point.Mbr.MinX, py = point.Mbr.MinY;
+        double px = point.Mbr.MinX, py = point.Mbr.MinY;
         foreach (var part in polygon.Parts)
         {
             if (part.Vertices.Count < 2)
@@ -149,18 +149,14 @@ public static class SpatialJoins
             }
             for (int i = 0; i < part.Vertices.Count - 1; i++)
             {
-                var a = part.Vertices[i], b = part.Vertices[i + 1];
+                Vertex a = part.Vertices[i];
+                Vertex b = part.Vertices[i + 1];
                 best = Math.Min(best, GeometryMath.PointToSegmentDistance((px, py), (a.X, a.Y), (b.X, b.Y)));
             }
         }
         return best;
     }
 
-    /// <summary>
-    /// Aggregate the matched points' source-field values. fix: First/Sum/Average now
-    /// operate on the raw typed values instead of a string round-trip, so a Double
-    /// column stays a Double after the join.
-    /// </summary>
     private static object? Aggregate(List<Feature> points, string sourceField, JoinType joinType)
     {
         var values = points

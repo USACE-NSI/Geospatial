@@ -4,7 +4,7 @@ namespace Nsi.Geospatial.Attributes;
 
 public sealed class AttributeColumn
 {
-    public string Name { get; }
+    public string Name { get; set;}
     public FieldType FieldType { get; }
     public int Length { get; }
     public int DecimalPlaces { get; }

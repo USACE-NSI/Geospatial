@@ -9,7 +9,7 @@ namespace Nsi.Geospatial.Geometry;
 /// </summary>
 public sealed class Feature
 {
-    public int Id { get; }
+    public int Id { get; set; }
     public ShapeType ShapeType { get; set; }
     public string? Wkt { get; set; }
     public string? Path { get; set; }
