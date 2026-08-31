@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure model. Zero external dependencies so it builds/tests anywhere. -->
+</Project>

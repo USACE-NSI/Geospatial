@@ -1,0 +1,14 @@
+name: ci
+on:
+  push: { branches: [ main, master ] }
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: 8.0.x }
+      # Core + tests have no native deps; IO tests are marked to skip when GDAL runtime is absent.
+      - run: dotnet build -c Release
+      - run: dotnet test -c Release --filter Category!=Gdal

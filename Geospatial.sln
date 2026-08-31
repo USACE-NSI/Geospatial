@@ -1,0 +1,19 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nsi.Geospatial", "Nsi.Geospatial\Nsi.Geospatial.csproj", "{11111111-0000-0000-0000-000000000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nsi.Geospatial.Io", "Nsi.Geospatial.Io\Nsi.Geospatial.Io.csproj", "{11111111-0000-0000-0000-000000000002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nsi.Geospatial.Reprojection", "Nsi.Geospatial.Reprojection\Nsi.Geospatial.Reprojection.csproj", "{11111111-0000-0000-0000-000000000003}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nsi.Geospatial.Tests", "tests\Nsi.Geospatial.Tests\Nsi.Geospatial.Tests.csproj", "{11111111-0000-0000-0000-000000000004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nsi.Geospatial.Io.Tests", "tests\Nsi.Geospatial.Io.Tests\Nsi.Geospatial.Io.Tests.csproj", "{11111111-0000-0000-0000-000000000005}"
+EndProject
+Global
+    ProjectConfigurationEntries
+        Release|Any CPU = Release|Any CPU
+        Debug|Any CPU = Debug|Any CPU
+    EndProjectConfigurationEntries
+EndGlobal

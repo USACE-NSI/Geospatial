@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Nsi.Geospatial\Nsi.Geospatial.csproj" />
+    <PackageReference Include="gdal" Version="3.11.3" />
+  </ItemGroup>
+</Project>

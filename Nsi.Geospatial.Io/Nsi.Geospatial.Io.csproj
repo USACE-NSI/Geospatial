@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Nsi.Geospatial\Nsi.Geospatial.csproj" />
+  </ItemGroup>
+
+  <!-- GDAL managed assemblies. Native GDAL runtime must be on PATH / via GDAL_DATA & PROJ_LIB.
+       Replace the relative-path Reference below (from the old csproj) with this package. -->
+  <ItemGroup>
+    <PackageReference Include="gdal" Version="3.11.3" />
+  </ItemGroup>
+</Project>
