@@ -25,25 +25,26 @@ public static class CsvHelper
     {
         var lines = ReadAll(path, hasHeaders);
         return lines.Select(l => columnIndex < l.Count ? l[columnIndex] : null)
-                    .Where(v => !string.IsNullOrEmpty(v))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
+            .Where(v => !string.IsNullOrEmpty(v))
+            .Select(v => v!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
-    private static List<List<string?>> ReadAll(string path, bool hasHeaders)
+private static List<List<string?>> ReadAll(string path, bool hasHeaders)
+{
+    var result = new List<List<string?>>();
+    using var sr = new StreamReader(path);
+    string? line;
+    int lineNo = 0;
+    while ((line = sr.ReadLine()) is not null)
     {
-        var result = new List<List<string?>>();
-        using var sr = new StreamReader(path);
-        string? line;
-        int index = hasHeaders ? 1 : 0;
-        while ((line = sr.ReadLine()) is not null)
-        {
-            if (index > 0) result.Add(ParseLine(line));
-            index++;
-        }
-        return result;
+        lineNo++;
+        if (hasHeaders && lineNo == 1) continue;
+        result.Add(ParseLine(line));
     }
-
+    return result;
+}
     private static List<string?> ParseLine(string line)
     {
         var fields = new List<string?>();
