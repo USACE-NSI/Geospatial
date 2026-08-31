@@ -1,46 +1,110 @@
-using Nsi.Geospatial.Geometry;
+using System.Collections.Generic;
+using System.Linq;
 using Nsi.Geospatial.Spatial;
 using Xunit;
 
-namespace Nsi.Geospatial.Core.Tests;
+namespace Nsi.Geospatial.Tests;
 
+/// <summary>
+/// Tests for the original RTreeManager/RTreeNode algorithm (restored verbatim).
+/// These assert the original implementation's behavior — including its
+/// getMBRoverlap gate semantics — and deliberately do NOT assert fixed behavior.
+/// </summary>
 public class RTreeTests
 {
     [Fact]
-    public void QueryPoint_FindsContainingFeature()
+    public void FindByXY_FindsContainingFeature()
     {
-        var tree = new RTree();
-        tree.Add(0, 0, new BoundingBox(0, 0, 10, 10));
-        tree.Add(1, 0, new BoundingBox(50, 50, 60, 60));
+        var tree = new RTreeManager();
+        tree.addFeature(new[] { 0, 0 }, 10, 0, 10, 0);   // Xmax, Xmin, Ymax, Ymin
+        tree.addFeature(new[] { 1, 0 }, 60, 50, 60, 50);
 
-        var hits = tree.QueryPoint(5, 5);
-        Assert.Contains((0, 0), hits);
-        Assert.DoesNotContain((1, 0), hits);
+        var hits = FeatureIndicesAt(tree, 5, 5);
+        Assert.Contains(0, hits);
+        Assert.DoesNotContain(1, hits);
     }
 
     [Fact]
-    public void QueryBox_FullyCoveredNodeStillOverlaps()
+    public void FindByXY_PointOutsideFeatureMBR_NotReturned()
     {
-        // fix(#15): a query box that fully contains the node box must still overlap.
-        var tree = new RTree();
-        tree.Add(0, 0, new BoundingBox(10, 10, 20, 20));
+        var tree = new RTreeManager();
+        tree.addFeature(new[] { 0, 0 }, 10, 0, 10, 0);
+        tree.addFeature(new[] { 1, 0 }, 60, 50, 60, 50);
 
-        var hits = tree.Query(new BoundingBox(0, 0, 100, 100));
-        Assert.Contains((0, 0), hits);
+        var hits = FeatureIndicesAt(tree, 55, 55);
+        Assert.Contains(1, hits);
+        Assert.DoesNotContain(0, hits);
     }
 
     [Fact]
-    public void BulkInsert_AllFeaturesRetrievable()
+    public void FindByInd_ReturnsLeafToRootPath()
     {
-        var tree = new RTree(minEntries: 3, maxEntries: 6);
-        var expected = new HashSet<(int, int)>();
+        var tree = new RTreeManager();
+        for (int i = 0; i < 100; i++)
+            tree.addFeature(new[] { i, 0 }, i * 10 + 5, i * 10, i * 10 + 5, i * 10);
+
+        var path = tree.findByInd(42);
+        Assert.NotEmpty(path);
+
+        // The original findByInd returns the node path leaf -> root; the feature
+        // node (with its _featureIndex) lives under the leaf.
+        var leaf = path[0];
+        var featureIndex = leaf._children
+            .Select(c => c._featureIndex)
+            .FirstOrDefault(a => a is not null && a[0] == 42);
+        Assert.NotNull(featureIndex);
+    }
+
+    [Fact]
+    public void BulkInsert_AllFeaturesFindableByPoint()
+    {
+        var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
+        for (int i = 0; i < 500; i++)
+            tree.addFeature(new[] { i, 0 }, i * 10 + 5, i * 10, i * 10 + 5, i * 10);
+
         for (int i = 0; i < 500; i++)
         {
-            var box = new BoundingBox(i * 10, i * 10, i * 10 + 5, i * 10 + 5);
-            tree.Add(i, 0, box);
-            expected.Add((i, 0));
+            var hits = FeatureIndicesAt(tree, i * 10 + 2.5, i * 10 + 2.5);
+            Assert.Contains(i, hits);
         }
-        var all = tree.Query(new BoundingBox(-1000, -1000, 10000, 10000));
-        Assert.Equal(expected, all.ToHashSet());
+    }
+
+    [Fact]
+    public void GetEndNodes_LeavesHoldAllFeatureIndices()
+    {
+        var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
+        for (int i = 0; i < 50; i++)
+            tree.addFeature(new[] { i, 0 }, i * 10 + 5, i * 10, i * 10 + 5, i * 10);
+
+        var leaves = tree.getEndNodes;
+        Assert.NotEmpty(leaves);
+
+        var allIndices = new List<int>();
+        foreach (var leaf in leaves)
+        {
+            foreach (var child in leaf._children)
+            {
+                var ind = child._featureIndex;
+                if (ind is not null)
+                    allIndices.Add(ind[0]);
+            }
+        }
+        Assert.Equal(50, allIndices.Distinct().Count());
+    }
+
+    /// <summary>Collect the feature indices of end nodes returned by findByXY that actually contain the point.</summary>
+    private static List<int> FeatureIndicesAt(RTreeManager tree, double x, double y)
+    {
+        var indices = new List<int>();
+        foreach (var leaf in tree.findByXY(x, y))
+        {
+            foreach (var child in leaf._children)
+            {
+                var ind = child._featureIndex;
+                if (ind is not null && child.getMBRoverlap(x, x, y, y) > 0)
+                    indices.Add(ind[0]);
+            }
+        }
+        return indices;
     }
 }

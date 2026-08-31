@@ -13,7 +13,7 @@ public static class SpatialJoins
         string[] destFields,
         string[] sourceFields,
         JoinType joinType,
-        IRTree? pointTree = null,
+        RTreeManager? pointTree = null,
         int? exteriorOnly = null,
         int? interiorOnly = null)
     {
@@ -27,22 +27,25 @@ public static class SpatialJoins
             }
         }
 
-        var tree = pointTree ?? BuildTree(points);
+        // The original RTreeManager's getMBRoverlap gate reports no overlap when the
+        // query box fully contains a feature's MBR, and a nearest-join candidate can
+        // sit outside the target's MBR entirely — so candidate selection scans the
+        // collection instead of querying the tree. pointTree is kept for API
+        // continuity and remains available to callers for findByXY lookups.
+        _ = pointTree ?? BuildTree(points);
 
         var matched = new List<long>();
         for (long polyIdx = 0; polyIdx < polygons.Count; polyIdx++)
         {
-            if (exteriorOnly is not null && !exteriorOnly.Equals(polyIdx) && !ContainsIndex(exteriorOnly, polyIdx))
+            if (exteriorOnly is not null && !ContainsIndex(exteriorOnly, polyIdx))
                 continue;
 
             var poly = polygons[polyIdx];
-            var candidates = tree.Query(poly.Mbr.Enlarged(0.0)); // refine below with exact distance
 
             double? best = null;
             List<Feature> nearestPoints = new();
-            foreach (var (fIdx, _) in candidates)
+            foreach (var p in points.Features)
             {
-                var p = points[fIdx];
                 double d = DistanceFeatureToFeature(p, poly);
                 if (best is null || d < best)
                 {
@@ -62,8 +65,7 @@ public static class SpatialJoins
             for (int i = 0; i < destFields.Length; i++)
             {
                 string field = destFields[i];
-                object? value = Aggregate(nearestPoints, sourceFields[i], joinType);
-                poly.Attributes[field] = value;
+                poly.Attributes[field] = Aggregate(nearestPoints, sourceFields[i], joinType);
             }
         }
 
@@ -76,7 +78,7 @@ public static class SpatialJoins
         FeatureCollection polygons,
         string[] destFields,
         string[] sourceFields,
-        IRTree? polyTree = null)
+        RTreeManager? polyTree = null)
     {
         foreach (var d in destFields)
         {
@@ -88,34 +90,46 @@ public static class SpatialJoins
             }
         }
 
-        var tree = polyTree ?? BuildTree(polygons);
+        _ = polyTree ?? BuildTree(polygons);
+
         for (int pIdx = 0; pIdx < points.Count; pIdx++)
         {
             var p = points[pIdx];
             double? best = null;
             Feature? bestPoly = null;
-            foreach (var (fIdx, _) in tree.Query(p.Mbr))
+            foreach (var poly in polygons.Features)
             {
-                var poly = polygons[fIdx];
                 double d = DistanceFeatureToFeature(p, poly);
-                if (best is null || d < best) { best = d; bestPoly = poly; }
+                if (best is null || d < best)
+                {
+                    best = d;
+                    bestPoly = poly;
+                }
             }
             if (bestPoly is not null)
             {
                 for (int i = 0; i < destFields.Length; i++)
-                    p.Attributes[destFields[i]] = bestPoly.Attributes.TryGetValue(sourceFields[i], out var v) ? v : null;
+                {
+                    p.Attributes[destFields[i]] =
+                        bestPoly.Attributes.TryGetValue(sourceFields[i], out var v) ? v : null;
+                }
             }
         }
     }
 
-    public static IRTree BuildTree(FeatureCollection fc)
+    /// <summary>
+    /// Build an RTreeManager over the collection's feature MBRs using the original
+    /// RTreeManager API. Note the original addFeature argument order:
+    /// (featInd, Xmax, Xmin, Ymax, Ymin).
+    /// </summary>
+    public static RTreeManager BuildTree(FeatureCollection fc)
     {
-        var tree = new RTree();
+        var tree = new RTreeManager();
         for (int i = 0; i < fc.Count; i++)
         {
             var f = fc[i];
             if (f.Mbr != BoundingBox.Empty)
-                tree.Add(f.Id, 0, f.Mbr);
+                tree.addFeature(new[] { f.Id, 0 }, f.Mbr.MaxX, f.Mbr.MinX, f.Mbr.MaxY, f.Mbr.MinY);
         }
         return tree;
     }
@@ -142,30 +156,41 @@ public static class SpatialJoins
         return best;
     }
 
+    /// <summary>
+    /// Aggregate the matched points' source-field values. fix: First/Sum/Average now
+    /// operate on the raw typed values instead of a string round-trip, so a Double
+    /// column stays a Double after the join.
+    /// </summary>
     private static object? Aggregate(List<Feature> points, string sourceField, JoinType joinType)
     {
-        var values = points.Select(p => p.Attributes.TryGetValue(sourceField, out var v) ? v?.ToString() : null)
-                           .Where(v => !string.IsNullOrEmpty(v)).ToList();
+        var values = points
+            .Select(p => p.Attributes.TryGetValue(sourceField, out var v) ? v : null)
+            .Where(v => v is not null)
+            .ToList();
+
         return joinType switch
         {
             JoinType.First => values.FirstOrDefault(),
             JoinType.Count => values.Count,
-            JoinType.Sum => values.Sum(v => double.TryParse(v, out var d) ? d : 0),
+            JoinType.Sum => values.Sum(v => ToDouble(v)),
             JoinType.Average => values.Count == 0 ? 0d :
-                values.Where(v => double.TryParse(v, out _)).Average(v => double.Parse(v!)),
+                values.Where(v => ToDouble(v) is not null).Average(v => ToDouble(v)!.Value),
             _ => null,
         };
     }
 
+    private static double? ToDouble(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            double d => d,
+            float f => f,
+            int i => i,
+            long l => l,
+            _ => double.TryParse(value.ToString()!, out var parsed) ? parsed : null,
+        };
+    }
+
     private static bool ContainsIndex(int index, long candidate) => candidate == index;
-
-    private static int? ParseIndex(int? value) => value;
-}
-
-internal static class BoundingBoxExtensions
-{
-    /// <summary>A slightly padded copy of the box, for candidate refinement.</summary>
-    public static BoundingBox Enlarged(this BoundingBox box, double pad)
-        => box == BoundingBox.Empty ? box :
-        new(box.MinX - pad, box.MinY - pad, box.MaxX + pad, box.MaxY + pad);
 }
