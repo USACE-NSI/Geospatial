@@ -12,8 +12,8 @@ jobs:
           dotnet-version: 8.0.x        # ← indented under the step
       - name: Confirm SDK
         run: dotnet --info
-      - name: Restore (verbose — surfaces the real error)
-        run: dotnet restore Geospatial.slnx -v:m
+      - name: Restore
+        run: dotnet restore Geospatial.slnx -v:n
       - name: Build
         run: dotnet build Geospatial.slnx -c Release --no-restore
       - name: Test
