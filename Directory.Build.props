@@ -6,7 +6,6 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
-  </PropertyGroup>
   
     <!-- NuGet packaging (Version is overridden per-release by the release workflow via /p:Version=) -->
     <Version>0.1.0</Version>
