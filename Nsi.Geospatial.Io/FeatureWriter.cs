@@ -20,19 +20,26 @@ public sealed class FeatureWriter : IFeatureSink
         string target = path;
         if (string.Equals(driverName, "ESRI Shapefile", StringComparison.OrdinalIgnoreCase))
         {
-            string baseName = System.IO.Path.ChangeExtension(path, null) ?? path;
+            string baseName = global::System.IO.Path.ChangeExtension(path, null) ?? path;
             string shp = baseName + ".shp";
-            if (System.IO.File.Exists(shp) && System.IO.File.Delete(shp))
-                throw new System.IO.IOException($"Existing shapefile is locked: {shp}");
+            if (global::System.IO.File.Exists(shp))
+            {
+                System.IO.File.Delete(shp);
+                //if (!deleted)
+               //     throw new global::System.IO.IOException($"Existing shapefile is locked: {shp}");
+            }
             target = shp;
         }
 
         var srs = new SpatialReference(string.IsNullOrEmpty(collection.Wkt) ? null : collection.Wkt);
-        using var ds = driver.Create(target, 0, 0, Array.Empty<string>());
+        using var ds = driver.CreateDataSource(target, Array.Empty<string>());
         using var layer = ds.CreateLayer(
             collection.Name ?? "layer",
+            srs,
             MapShapeTypeToOgr(collection.ShapeType),
-            srs);
+            Array.Empty<string>());
+
+        var defn = layer.GetLayerDefn();
 
         foreach (var col in collection.Schema.ColumnNames)
         {
@@ -40,25 +47,58 @@ public sealed class FeatureWriter : IFeatureSink
             var fdefn = new FieldDefn(c.Name, MapFieldType(c.FieldType));
             fdefn.SetWidth(c.Length);
             fdefn.SetPrecision(c.DecimalPlaces);
-            layer.CreateField(fdefn);
+            layer.CreateField(fdefn, 1);
         }
 
         foreach (var feat in collection.Features)
         {
-            using var of = new OSGeo.OGR.Feature(layer);
+            using var of = new OSGeo.OGR.Feature(defn);
             foreach (var kv in feat.Attributes)
             {
-                int idx = layer.FieldIndex(kv.Key);
-                if (idx >= 0)
-                    of.SetField(idx, kv.Value);
+                SetOgrField(of, kv.Key, kv.Value);
             }
 
             if (feat.Parts.Count > 0 && collection.ShapeType == ShapeType.Point)
             {
                 var p = feat.Parts[0].Vertices[0];
-                of.SetGeometry(OSGeo.OGR.Geometry.CreateFromWkt($"POINT({p.X} {p.Y})"));
+                string wktPt = $"POINT({p.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture)} " +
+                               $"{p.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)})";
+                of.SetGeometry(OSGeo.OGR.Geometry.CreateFromWkt(wktPt));
             }
             layer.CreateFeature(of);
+        }
+    }
+
+    // The OSGeo binding's SetField takes a field NAME plus a typed value (no object
+    // overload, and no Layer.FieldIndex in 3.11.3), so resolve by name and dispatch
+    // on the CLR value type. The string setter works for any OGR field type.
+    private static void SetOgrField(OSGeo.OGR.Feature f, string name, object? value)
+    {
+        if (value is null)
+            return; // leave the field NULL
+        switch (value)
+        {
+            case string s:
+                f.SetField(name, s);
+                break;
+            case double d:
+                f.SetField(name, d);
+                break;
+            case int i:
+                f.SetField(name, i);
+                break;
+            case long l:
+                f.SetField(name, (int)l);
+                break;
+            case float fl:
+                f.SetField(name, (double)fl);
+                break;
+            case bool b:
+                f.SetField(name, b ? "1" : "0");
+                break;
+            default:
+                f.SetField(name, global::System.Convert.ToString(value, global::System.Globalization.CultureInfo.InvariantCulture));
+                break;
         }
     }
 

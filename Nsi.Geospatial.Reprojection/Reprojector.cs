@@ -88,14 +88,14 @@ public static class Reprojector
                 "library name to the candidate list in Reprojector.");
         }
 
-        // Delegate types matching the stable GDAL C API signatures. Named
-        // distinctly from the wrapper methods below (no CS0102).
-        private delegate IntPtr OSRNewSRS(byte[]? argument);
-        private delegate int    OSRSetFromUserInput(IntPtr srs, byte[] input);
-        private delegate IntPtr OGRNewCT(IntPtr source, IntPtr dest);
-        private delegate int    OGRCTTransform(IntPtr transform, int nFeatures, double[] x, double[] y, double[] z, int bSkipFid);
-        private delegate void   OGRCTDestroy(IntPtr transform);
-        private delegate void   OSRRelease(IntPtr srs);
+        // Delegate types matching the stable GDAL C API signatures. All names
+        // are suffixed 'Fn' so none collides with the wrapper methods below.
+        private delegate IntPtr OSRNewSRSFn(byte[]? argument);
+        private delegate int OSRSetFromUserInputFn(IntPtr srs, byte[] input);
+        private delegate IntPtr OGRNewCTFn(IntPtr source, IntPtr dest);
+        private delegate int OGRCTTransformFn(IntPtr transform, int nFeatures, double[] x, double[] y, double[] z, int bSkipFid);
+        private delegate void OGRCTDestroyFn(IntPtr transform);
+        private delegate void OSRReleaseFn(IntPtr srs);
 
         private static T Get<T>(string symbol) where T : Delegate
         {
@@ -108,23 +108,23 @@ public static class Reprojector
         public static IntPtr OSRNewSpatialReference(string? argument)
         {
             byte[]? bytes = argument is null ? null : NullTerminatedUTF8(argument);
-            return Get<OSRNewSRS>("OSRNewSpatialReference")(bytes);
+            return Get<OSRNewSRSFn>("OSRNewSpatialReference")(bytes);
         }
 
         public static int OSRSetFromUserInput(IntPtr srs, string input)
-            => Get<OSRSetFromUserInput>("OSRSetFromUserInput")(srs, NullTerminatedUTF8(input));
+            => Get<OSRSetFromUserInputFn>("OSRSetFromUserInput")(srs, NullTerminatedUTF8(input));
 
         public static IntPtr OGRNewCoordinateTransformation(IntPtr source, IntPtr dest)
-            => Get<OGRNewCT>("OGRNewCoordinateTransformation")(source, dest);
+            => Get<OGRNewCTFn>("OGRNewCoordinateTransformation")(source, dest);
 
         public static int OGR_CT_Transform(IntPtr ct, int n, double[] x, double[] y, double[] z, int skipFid)
-            => Get<OGRCTTransform>("OGR_CT_Transform")(ct, n, x, y, z, skipFid);
+            => Get<OGRCTTransformFn>("OGR_CT_Transform")(ct, n, x, y, z, skipFid);
 
         public static void OGR_CT_Destroy(IntPtr ct)
-            => Get<OGRCTDestroy>("OGR_CT_Destroy")(ct);
+            => Get<OGRCTDestroyFn>("OGR_CT_Destroy")(ct);
 
         public static void OSRRelease(IntPtr srs)
-            => Get<OSRRelease>("OSRRelease")(srs);
+            => Get<OSRReleaseFn>("OSRRelease")(srs);
 
         public static void Check(int rc, string what)
         {
