@@ -6,7 +6,7 @@ using OSGeo.OGR;
 namespace Nsi.Geospatial.Io;
 
 /// <summary>GDAL/OGR-backed feature reader (deterministic disposal of OGR handles).</summary>
-public sealed class FeatureReader : IFeatureSource
+public sealed class SpatialReader : IFeatureSource
 {
     public FeatureCollection Read(string path)
     {
