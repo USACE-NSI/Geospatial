@@ -1,0 +1,6 @@
+name: gdal
+channels:
+  - conda-forge
+dependencies:
+  - gdal=3.11
+  - gdal-csharp
