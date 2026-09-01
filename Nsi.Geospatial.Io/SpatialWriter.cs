@@ -79,23 +79,23 @@ public sealed class SpatialWriter : IFeatureSink
             }
 
             // emit geometry for every shape type, not just Point.
-            string? wkt = BuildWkt(collection.ShapeType, feat);
-            if (wkt is not null)
+            // Built through the OGR geometry API rather than WKT parsing: the
+            // OSGeo.OGR 3.11.3 CreateFromWkt path rejects valid polygon WKT in this
+            // native environment ("OGR Error %d: General Error"); the programmatic
+            // API works for all shape types.
+            var geom = BuildOgrGeometry(collection.ShapeType, feat);
+            if (geom is not null)
             {
-                var geom = OSGeo.OGR.Geometry.CreateFromWkt(wkt);
-                if (geom is null)
-                    throw new System.IO.InvalidDataException(
-                        $"Could not parse geometry WKT for feature {feat.Id}: {wkt}");
                 of.SetGeometry(geom); // OGR copies the geometry into the feature
-                geom.Dispose();      // the binding returns a Geometry we own
+                geom.Dispose();       // the binding returns a Geometry we own
             }
 
             layer.CreateFeature(of);
         }
     }
 
-    /// Builds the feature's geometry as WKT from its parts, or null when it has none.
-    private static string? BuildWkt(ShapeType shapeType, Nsi.Geospatial.Geometry.Feature feat)
+    /// Builds the feature's OGR geometry directly from its parts, or null when it has none.
+    private static OSGeo.OGR.Geometry? BuildOgrGeometry(ShapeType shapeType, Nsi.Geospatial.Geometry.Feature feat)
     {
         var parts = feat.Parts.Where(p => p.Vertices.Count > 0).ToList();
         if (parts.Count == 0)
@@ -107,9 +107,11 @@ public sealed class SpatialWriter : IFeatureSink
             case ShapeType.PointM:
             {
                 // Both point shapes emit a plain 2D POINT: shapefiles carry no M axis,
-                // so PointM stays representable without a driver-specific WKT variant.
+                // so PointM stays representable without a driver-specific variant.
                 var v = parts[0].Vertices[0];
-                return $"POINT({Fmt(v.X)} {Fmt(v.Y)})";
+                var g = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPoint);
+                g.AddPoint(v.X, v.Y, v.Z);
+                return g;
             }
 
             case ShapeType.Line:
@@ -119,29 +121,50 @@ public sealed class SpatialWriter : IFeatureSink
                     if (parts[0].Vertices.Count < 2)
                         throw new System.IO.InvalidDataException(
                             $"Feature {feat.Id}: line part has fewer than 2 vertices");
-                    return $"LINESTRING({RingWkt(parts[0].Vertices)})";
+                    var g = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLineString);
+                    foreach (var v in parts[0].Vertices)
+                        g.AddPoint(v.X, v.Y, v.Z);
+                    return g;
                 }
 
                 if (parts.Any(p => p.Vertices.Count < 2))
                     throw new System.IO.InvalidDataException(
                         $"Feature {feat.Id}: multi-part line has a part with fewer than 2 vertices");
-                return "MULTILINESTRING(" +
-                       string.Join(", ", parts.Select(p => $"({RingWkt(p.Vertices)})")) + ")";
+                var multi = new OSGeo.OGR.Geometry(wkbGeometryType.wkbMultiLineString);
+                foreach (var part in parts)
+                {
+                    var seg = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLineString);
+                    foreach (var v in part.Vertices)
+                        seg.AddPoint(v.X, v.Y, v.Z);
+                    multi.AddGeometry(seg);
+                }
+                return multi;
             }
 
             case ShapeType.Polygon:
             {
-                // Ring 0 is the exterior ring; the rest are holes (the reader fills
-                // parts in ring order, with Part.IsHole marking the holes).
-                var rings = parts.Select(ClosedRing).ToList();
-                if (rings[0].Count < 4)
-                    throw new System.IO.InvalidDataException(
-                        $"Feature {feat.Id}: polygon exterior ring has fewer than 3 unique vertices");
-                for (int i = 1; i < rings.Count; i++)
-                    if (rings[i].Count < 4)
+                // Ring 0 is the exterior ring; the rest are holes. A WKT/OGR ring must be
+                // closed: repeat the first vertex unless the ring already is.
+                var poly = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPolygon);
+                for (int i = 0; i < parts.Count; i++)
+                {
+                    var verts = parts[i].Vertices;
+                    if (i == 0 && verts.Count < 3)
+                        throw new System.IO.InvalidDataException(
+                            $"Feature {feat.Id}: polygon exterior ring has fewer than 3 unique vertices");
+                    if (i > 0 && verts.Count < 3)
                         throw new System.IO.InvalidDataException(
                             $"Feature {feat.Id}: polygon hole {i} has fewer than 3 unique vertices");
-                return "POLYGON(" + string.Join(", ", rings.Select(RingWkt)) + ")";
+
+                    var ring = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLinearRing);
+                    foreach (var v in verts)
+                        ring.AddPoint(v.X, v.Y, v.Z);
+                    var first = verts[0];
+                    if (verts[^1].Coordinates != first.Coordinates)
+                        ring.AddPoint(first.X, first.Y, first.Z); // close the ring
+                    poly.AddGeometry(ring);
+                }
+                return poly;
             }
 
             default:
