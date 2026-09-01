@@ -56,18 +56,18 @@ namespace Nsi.Geospatial.Spatial
             {
                 _parent._children.Remove(this);
                 newKidsOntheBlock[0].UpdateParents(_parent);
-                newKidsOntheBlock[1].UpdateParents(_parent);
-                _parent.addChild(newKidsOntheBlock[0], true);
-                _parent.addChild(newKidsOntheBlock[1], false);                
+                newKidsOntheBlock[1].UpdateParents(_parent);                
+                _parent.addChild(newKidsOntheBlock[0], false, true);
+                _parent.addChild(newKidsOntheBlock[1], true, true);                
             }
             else
             {
                 RTreeNode newRoot = new RTreeNode(_treeManager, maxChidrens, minChidrens);
                 newKidsOntheBlock[0].UpdateParents(newRoot);
                 newKidsOntheBlock[1].UpdateParents(newRoot);
-                newRoot.addChild(newKidsOntheBlock[0], true);
-                newRoot.addChild(newKidsOntheBlock[1], false);        
-                _treeManager._root = newRoot;
+                newRoot.addChild(newKidsOntheBlock[0], false, true);
+                newRoot.addChild(newKidsOntheBlock[1], true, true);        
+                _treeManager._root = newRoot;                
             }    
         }
         private void buildChildOptions(List<(RTreeNode[], double[])> options, bool xAxis, bool min)
@@ -93,11 +93,11 @@ namespace Nsi.Geospatial.Spatial
                     var Child = sortedChidrens[i];
                     if (i < split)
                     {
-                        node1.addChild(Child, true);
+                        node1.addChild(Child, false, false);
                     }
                     else
                     {
-                        node2.addChild(Child, true);
+                        node2.addChild(Child, false, false);
                     }                   
                 }
                 double overlapWidth = Math.Max(0, Math.Min(node1.MBRXMax, node2.MBRXMax) - Math.Max(node1.MBRXMin, node2.MBRXMin));
@@ -118,7 +118,7 @@ namespace Nsi.Geospatial.Spatial
         {
             if(getIsEndNode) 
             { 
-                addChild(feature, false); 
+                addChild(feature, true, true); 
             }            
             else
             {
@@ -157,9 +157,9 @@ namespace Nsi.Geospatial.Spatial
                     minExtension = extensionReq;
                 }
             }
-            bestCandidate.addChild(feature, false);
+            bestCandidate.addChild(feature, true, true);
         }
-        public void addChild(RTreeNode child, bool evaluation) 
+        public void addChild(RTreeNode child, bool canSplit, bool canPropagateMBRup) 
         {
             _children.Add(child);
             child._parent = this;
@@ -167,9 +167,13 @@ namespace Nsi.Geospatial.Spatial
             if(child.MBRXMax > MBRXMax) { MBRXMax = child.MBRXMax; }
             if(child.MBRYMin < MBRYMin) { MBRYMin = child.MBRYMin; }
             if(child.MBRYMax > MBRYMax) { MBRYMax = child.MBRYMax; }
-            if(_children.Count > maxChidrens && !evaluation)
+            if(_children.Count > maxChidrens && canSplit)
             {
                 split();
+            }
+            else if(canPropagateMBRup)
+            {
+                RecomputeMBR();
             }
         }
         public void RecomputeMBR()
