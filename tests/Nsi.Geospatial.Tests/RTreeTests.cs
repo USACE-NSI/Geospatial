@@ -55,7 +55,7 @@ public class RTreeTests
         Assert.NotNull(featureIndex);
     }
 
-    [Fact(Skip = "Fails by design: asserts correct behavior that the original (unfixed) RTree split/overlap defects violate. Re-enable once the RTree defects are fixed.")]
+    [Fact] //(Skip = "Fails by design: asserts correct behavior that the original (unfixed) RTree split/overlap defects violate. Re-enable once the RTree defects are fixed.")]
     public void BulkInsert_AllFeaturesFindableByPoint()
     {
         var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
@@ -65,6 +65,10 @@ public class RTreeTests
         for (int i = 0; i < 500; i++)
         {
             var hits = FeatureIndicesAt(tree, i * 10 + 2.5, i * 10 + 2.5);
+            if (!hits.Contains(i))
+            {
+        string test = "WTF";
+            }
             Assert.Contains(i, hits);
         }
     }
