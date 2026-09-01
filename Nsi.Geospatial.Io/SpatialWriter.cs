@@ -95,7 +95,7 @@ public sealed class SpatialWriter : IFeatureSink
     }
 
     /// Builds the feature's geometry as WKT from its parts, or null when it has none.
-    private static string? BuildWkt(ShapeType shapeType, Feature feat)
+    private static string? BuildWkt(ShapeType shapeType, Nsi.Geospatial.Geometry.Feature feat)
     {
         var parts = feat.Parts.Where(p => p.Vertices.Count > 0).ToList();
         if (parts.Count == 0)
@@ -153,7 +153,7 @@ public sealed class SpatialWriter : IFeatureSink
     private static List<Vertex> ClosedRing(Part part)
     {
         var verts = new List<Vertex>(part.Vertices);
-        if (verts.Count > 1 && verts[0] != verts[^1])
+        if (verts.Count > 1 && verts[0].Coordinates != verts[^1].Coordinates)
             verts.Add(verts[0]);
         return verts;
     }
