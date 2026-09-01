@@ -1,0 +1,48 @@
+name: ci
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Confirm SDK
+        run: dotnet --info
+      - name: Install GDAL native runtime + C# wrappers
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: gdal
+          environment-file: .github/gdal.yml
+      - name: Export GDAL environment for OSGeo OGR/OSR
+        run: |
+          # setup-micromamba can leave CONDA_PREFIX empty; resolve the prefix ourselves.
+          PFX="${CONDA_PREFIX}"
+          if [ -z "$PFX" ] || [ ! -x "$PFX/bin/gdalinfo" ]; then
+            PFX="$MAMBA_ROOT_PREFIX/envs/gdal"
+          fi
+          test -x "$PFX/bin/gdalinfo" || { echo "::error::GDAL env not found (CONDA_PREFIX='${CONDA_PREFIX}', tried $PFX)"; exit 1; }
+          echo "CONDA_PREFIX=$PFX" >> "$GITHUB_ENV"
+          echo "GDAL_DATA=$PFX/share/gdal" >> "$GITHUB_ENV"
+          echo "PROJ_DATA=$PFX/share/proj" >> "$GITHUB_ENV"
+          echo "PROJ_LIB=$PFX/share/proj" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$PFX/lib:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "PATH=$PFX/bin:${PATH}" >> "$GITHUB_ENV"
+      - name: Verify GDAL
+        run: |
+          gdalinfo --version
+          ls -1 "$CONDA_PREFIX/lib" | grep -E 'gdal|proj|_wrap\.so'
+      - name: Restore
+        run: dotnet restore Geospatial.slnx -v:n
+      - name: Build
+        run: dotnet build Geospatial.slnx -c Release --no-restore
+      - name: Test (non-Gdal)
+        run: dotnet test Geospatial.slnx -c Release --no-restore --filter Category!=Gdal
+      - name: Test (Nsi.Geospatial.Io.Tests)
+        run: dotnet test tests/Nsi.Geospatial.Io.Tests/Nsi.Geospatial.Io.Tests.csproj -c Release --no-restore

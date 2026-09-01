@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/Nsi.Geospatial.Io.Tests/Nsi.Geospatial.Io.Tests.csproj" />
+    <Project Path="tests/Nsi.Geospatial.Tests/Nsi.Geospatial.Tests.csproj" />
+  </Folder>
+  <Project Path="Nsi.Geospatial.Io/Nsi.Geospatial.Io.csproj" />
+  <Project Path="Nsi.Geospatial.Reprojection/Nsi.Geospatial.Reprojection.csproj" />
+  <Project Path="Nsi.Geospatial/Nsi.Geospatial.csproj" />
+</Solution>

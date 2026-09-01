@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  
+    <!-- NuGet packaging (Version is overridden per-release by the release workflow via /p:Version=) -->
+    <Version>0.1.0</Version>
+    <Authors>USACE-NSI</Authors>
+    <Description>Geospatial model, spatial-index, and IO library for USACE-NSI workflows.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/USACE-NSI/Geospatial</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/USACE-NSI/Geospatial</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ship the repo README as the package description on the feed -->
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

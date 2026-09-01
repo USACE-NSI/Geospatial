@@ -1,0 +1,11 @@
+// For format details, see https://aka.ms/devcontainer.json
+{
+  "name": "C# (.NET + GDAL)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // Features still apply to Dockerfile-based dev containers.
+  "features": {
+    "ghcr.io/nikiforovall/devcontainer-features/dotnet-csharpier:1": {}
+  }
+}
