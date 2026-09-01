@@ -21,16 +21,19 @@ jobs:
           environment-name: gdal
           environment-file: .github/gdal.yml
       - name: Export GDAL environment for OSGeo OGR/OSR
-        run: |
-          # setup-micromamba can leave CONDA_PREFIX empty; resolve the prefix ourselves
-          PFX="${CONDA_PREFIX}"
-          [ -n "$PFX" ] && [ -x "$PFX/bin/gdalinfo" ] || PFX="$MAMBA_ROOT_PREFIX/envs/gdal"
-          test -x "$PFX/bin/gdalinfo" || { echo "::error::GDAL env not found (CONDA_PREFIX='${CONDA_PREFIX}', tried $PFX)"; exit 1; }
-          echo "CONDA_PREFIX=$PFX" >> "$GITHUB_ENV"
-          echo "GDAL_DATA=$PFX/share/gdal" >> "$GITHUB_ENV"
-          echo "PROJ_DATA=$PFX/share/proj" >> "$GITHUB_ENV"
-          echo "PROJ_LIB=$PFX/share/proj" >> "$GITHUB_ENV"
-          echo "LD_LIBRARY_PATH=$PFX/lib:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+              run: |
+                # setup-micromamba can leave CONDA_PREFIX empty; resolve the prefix ourselves.
+                PFX="${CONDA_PREFIX}"
+                if [ -z "$PFX" ] || [ ! -x "$PFX/bin/gdalinfo" ]; then
+                  PFX="$MAMBA_ROOT_PREFIX/envs/gdal"
+                fi
+                test -x "$PFX/bin/gdalinfo" || { echo "::error::GDAL env not found (CONDA_PREFIX='${CONDA_PREFIX}', tried $PFX)"; exit 1; }
+                echo "CONDA_PREFIX=$PFX" >> "$GITHUB_ENV"
+                echo "GDAL_DATA=$PFX/share/gdal" >> "$GITHUB_ENV"
+                echo "PROJ_DATA=$PFX/share/proj" >> "$GITHUB_ENV"
+                echo "PROJ_LIB=$PFX/share/proj" >> "$GITHUB_ENV"
+                echo "LD_LIBRARY_PATH=$PFX/lib:${LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+                echo "PATH=$PFX/bin:${PATH}" >> "$GITHUB_ENV"   # <-- the missing piece
       - name: Verify GDAL
         run: |
           gdalinfo --version
