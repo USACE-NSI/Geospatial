@@ -71,7 +71,7 @@ public class RTreeNode
       newKidsOntheBlock[1].UpdateParents(newRoot);
       newRoot.addChild(newKidsOntheBlock[0], false, true);
       newRoot.addChild(newKidsOntheBlock[1], true, true);
-      TreeManager._root = newRoot;
+      TreeManager.Root = newRoot;
     }
   }
 
@@ -189,7 +189,7 @@ public class RTreeNode
         minExtension = extensionReq;
       }
     }
-    bestCandidate ??= TreeManager._root;
+    bestCandidate ??= TreeManager.Root;
     bestCandidate.addChild(feature, true, true);
   }
 

@@ -44,3 +44,4 @@ public class SpatialJoinTests
     Assert.Equal(42.0, p1.Attributes["VALUE"]);
   }
 }
+

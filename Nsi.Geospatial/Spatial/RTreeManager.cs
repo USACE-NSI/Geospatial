@@ -9,36 +9,36 @@ namespace Nsi.Geospatial.Spatial;
 
 public class RTreeManager
 {
-  public RTreeNode _root;
-  private int _minChildren;
-  private int _maxChildren;
+  public RTreeNode Root { get; set; }
+  private int MinChildren { get; set; }
+  private int MaxChildren { get; set; }
 
   public RTreeManager(int minChilds = 4, int maxChilds = 10)
   {
-    _minChildren = minChilds;
-    _maxChildren = maxChilds;
-    _root = new RTreeNode(this, _maxChildren, _minChildren);
+    MinChildren = minChilds;
+    MaxChildren = maxChilds;
+    Root = new RTreeNode(this, MaxChildren, MinChildren);
   }
 
   public void addFeature(int[] featInd, BoundingBox bbox)
   {
-    RTreeNode featNode = new RTreeNode(this, _maxChildren, _minChildren, featInd);
+    RTreeNode featNode = new(this, MaxChildren, MinChildren, featInd);
     featNode.BoundingBox = bbox;
-    _root.addFeatureChildEnforceIntersect(featNode);
+    Root.addFeatureChildEnforceIntersect(featNode);
   }
 
   public List<RTreeNode> findByXY(double x, double y)
   {
-    List<RTreeNode> nodePAth = new List<RTreeNode>();
-    BoundingBox bbox = new BoundingBox(x, y, x, y);
-    _root.getCandidateFeatNodesByMBR(bbox, nodePAth);
+    List<RTreeNode> nodePAth = new();
+    BoundingBox bbox = new(x, y, x, y);
+    Root.getCandidateFeatNodesByMBR(bbox, nodePAth);
     return nodePAth;
   }
 
   public List<RTreeNode> findByInd(int ind)
   {
-    List<RTreeNode> nodePAth = new List<RTreeNode>();
-    _root.getChildrenContainingInd(ind, nodePAth);
+    List<RTreeNode> nodePAth = new();
+    Root.getChildrenContainingInd(ind, nodePAth);
     return nodePAth;
   }
 
@@ -46,8 +46,8 @@ public class RTreeManager
   {
     get
     {
-      List<RTreeNode> endNodes = new List<RTreeNode>();
-      _root.getEndNodes(endNodes);
+      List<RTreeNode> endNodes = new();
+      Root.getEndNodes(endNodes);
       return endNodes;
     }
   }
