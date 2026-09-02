@@ -128,8 +128,8 @@ public static class SpatialJoins
         for (int i = 0; i < fc.Count; i++)
         {
             var f = fc[i];
-            if (f.Mbr != BoundingBox.Empty)
-                tree.addFeature(new[] { f.Id, 0 }, f.Mbr.MaxX, f.Mbr.MinX, f.Mbr.MaxY, f.Mbr.MinY);
+            if (f.BoundingBox != BoundingBox.Empty)
+                tree.addFeature(new[] { f.Id, 0 }, f.BoundingBox);
         }
         return tree;
     }
@@ -138,7 +138,7 @@ public static class SpatialJoins
     {
         if (polygon.Parts.Count == 0) return double.MaxValue;
         double best = double.MaxValue;
-        double px = point.Mbr.MinX, py = point.Mbr.MinY;
+        double px = point.BoundingBox.MinX, py = point.BoundingBox.MinY;
         foreach (var part in polygon.Parts)
         {
             if (part.Vertices.Count < 2)

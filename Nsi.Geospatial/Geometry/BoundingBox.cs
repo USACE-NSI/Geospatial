@@ -1,12 +1,12 @@
 namespace Nsi.Geospatial.Geometry;
 
 /// <summary>Axis-aligned 2D bounding box. Replaces the old double[4] MBR arrays.</summary>
-public readonly struct BoundingBox
+public struct BoundingBox
 {
-    public double MinX { get; }
-    public double MinY { get; }
-    public double MaxX { get; }
-    public double MaxY { get; }
+    public double MinX { get; set;}
+    public double MinY { get; set;}
+    public double MaxX { get; set;}
+    public double MaxY { get; set;}
 
     public BoundingBox(double minX, double minY, double maxX, double maxY)
     {

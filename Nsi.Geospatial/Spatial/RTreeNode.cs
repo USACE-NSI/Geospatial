@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
+using Nsi.Geospatial.Geometry;
 
 namespace Nsi.Geospatial.Spatial
 {
@@ -17,10 +18,7 @@ namespace Nsi.Geospatial.Spatial
         public int maxChidrens = 0;
         public int minChidrens = 0;
 
-        public double MBRXMin { get; set; } = double.MaxValue;
-        public double MBRXMax { get; set; } = double.MinValue;
-        public double MBRYMin { get; set; } = double.MaxValue;
-        public double MBRYMax { get; set; } = double.MinValue;
+        public BoundingBox BoundingBox {get;set;} = BoundingBox.Empty;
 
         public double cumulativeOverlap { get; set; }      
         public double siblingOverlap { get; set; }
@@ -75,13 +73,13 @@ namespace Nsi.Geospatial.Spatial
             List<RTreeNode> sortedChidrens = null;
             if(xAxis)
             {
-                if (min) { sortedChidrens = _children.OrderBy(c => c.MBRXMin).ToList(); }                
-                else { sortedChidrens = _children.OrderBy(c => c.MBRXMax).ToList(); }
+                if (min) { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MinX).ToList(); }                
+                else { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MaxX).ToList(); }
             }
             else
             {
-                if (min) { sortedChidrens = _children.OrderBy(c => c.MBRYMin).ToList(); }
-                else { sortedChidrens = _children.OrderBy(c => c.MBRYMax).ToList(); }
+                if (min) { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MinY).ToList(); }
+                else { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MaxY).ToList(); }
             }
                        
             for(int split = minChidrens; split <= _children.Count() - minChidrens; split++)
@@ -100,8 +98,8 @@ namespace Nsi.Geospatial.Spatial
                         node2.addChild(Child, false, false);
                     }                   
                 }
-                double overlapWidth = Math.Max(0, Math.Min(node1.MBRXMax, node2.MBRXMax) - Math.Max(node1.MBRXMin, node2.MBRXMin));
-                double overlapHeight = Math.Max(0, Math.Min(node1.MBRYMax, node2.MBRYMax) - Math.Max(node1.MBRYMin, node2.MBRYMin));
+                double overlapWidth = Math.Max(0, Math.Min(node1.BoundingBox.MaxX, node2.BoundingBox.MaxX) - Math.Max(node1.BoundingBox.MinX, node2.BoundingBox.MinX));
+                double overlapHeight = Math.Max(0, Math.Min(node1.BoundingBox.MaxY, node2.BoundingBox.MaxY) - Math.Max(node1.BoundingBox.MinY, node2.BoundingBox.MinY));
                 double overlap = overlapWidth * overlapHeight;
                 double totalArea = node1.getArea + node2.getArea;
                 double perimeterTotal = node1.getPerimeter + node2.getPerimeter;
@@ -126,7 +124,7 @@ namespace Nsi.Geospatial.Spatial
                 double minExtension = double.MaxValue;
                 foreach (RTreeNode childnode in _children)
                 {
-                    double extensionReq = childnode.getAddedSizeToAccomodate(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin);
+                    double extensionReq = childnode.getAddedSizeToAccomodate(feature.BoundingBox);
                     if (extensionReq < minExtension)
                     {
                         bestCandidate = childnode;
@@ -144,13 +142,13 @@ namespace Nsi.Geospatial.Spatial
         {
             //Find the lowest level child node that would least expand to accept the feature geometry
             List<RTreeNode> candidateKids = new List<RTreeNode>();
-            getCandidateEndNodesByMBR(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin, candidateKids);
+            getCandidateEndNodesByMBR(feature.BoundingBox, candidateKids);
             if (candidateKids.Count == 0) { candidateKids = _treeManager.getEndNodes; }
             RTreeNode bestCandidate = null;
             double minExtension = double.MaxValue;
             foreach (RTreeNode candidate in candidateKids)
             {
-                double extensionReq = candidate.getAddedSizeToAccomodate(feature.MBRXMax, feature.MBRXMin, feature.MBRYMax, feature.MBRYMin);
+                double extensionReq = candidate.getAddedSizeToAccomodate(feature.BoundingBox);
                 if (extensionReq < minExtension)
                 {
                     bestCandidate = candidate;
@@ -163,10 +161,10 @@ namespace Nsi.Geospatial.Spatial
         {
             _children.Add(child);
             child._parent = this;
-            if(child.MBRXMin < MBRXMin) { MBRXMin = child.MBRXMin; }
-            if(child.MBRXMax > MBRXMax) { MBRXMax = child.MBRXMax; }
-            if(child.MBRYMin < MBRYMin) { MBRYMin = child.MBRYMin; }
-            if(child.MBRYMax > MBRYMax) { MBRYMax = child.MBRYMax; }
+            if(child.BoundingBox.MinX < this.BoundingBox.MinX) { this.BoundingBox.MinX = child.BoundingBox.MinX; }
+            if(child.BoundingBox.MaxX > this.BoundingBox.MaxX) { this.BoundingBox.MaxX = child.BoundingBox.MaxX; }
+            if(child.BoundingBox.MinY < this.BoundingBox.MinY) { this.BoundingBox.MinY = child.BoundingBox.MinY; }
+            if(child.BoundingBox.MaxY > this.BoundingBox.MaxY) { this.BoundingBox.MaxY = child.BoundingBox.MaxY; }
             if(_children.Count > maxChidrens && canSplit)
             {
                 split();
@@ -178,10 +176,10 @@ namespace Nsi.Geospatial.Spatial
         }
         public void RecomputeMBR()
         {
-            MBRXMin = _children.Min(c => c.MBRXMin);
-            MBRXMax = _children.Max(c => c.MBRXMax);
-            MBRYMin = _children.Min(c => c.MBRYMin);
-            MBRYMax = _children.Max(c => c.MBRYMax);
+            BoundingBox.MinX = _children.Min(c => c.BoundingBox.MinX);
+            BoundingBox.MaxX = _children.Max(c => c.BoundingBox.MaxX);
+            BoundingBox.MinY = _children.Min(c => c.BoundingBox.MinY);
+            BoundingBox.MaxY = _children.Max(c => c.BoundingBox.MaxY);
             if(_parent != null) { _parent.RecomputeMBR(); }
         }
         public void UpdateParents(RTreeNode newParent)
@@ -206,7 +204,7 @@ namespace Nsi.Geospatial.Spatial
                 }
             }                
         }
-        public void getCandidateEndNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
+        public void getCandidateEndNodesByMBR(BoundingBox bbox, List<RTreeNode> nodeWalk)
         {
             if (getIsEndNode)
             {
@@ -216,20 +214,20 @@ namespace Nsi.Geospatial.Spatial
             {
                 foreach (RTreeNode node in _children)
                 {
-                    if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
+                    if (node.getMBRoverlap(bbox) > 0)
                     {
-                        node.getCandidateEndNodesByMBR(XMax, XMin, YMax, YMin, nodeWalk);
+                        node.getCandidateEndNodesByMBR(bbox, nodeWalk);
                     }
                 }
             }
         }
-        public void getCandidateFeatNodesByMBR(double XMax, double XMin, double YMax, double YMin, List<RTreeNode> nodeWalk)
+        public void getCandidateFeatNodesByMBR(BoundingBox bbox, List<RTreeNode> nodeWalk)
         {
             if (getIsEndNode)
             {
                 foreach (RTreeNode node in _children)
                 {
-                    if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
+                    if (node.getMBRoverlap(bbox) > 0)
                     {
                         nodeWalk.Add(this);
                         break;
@@ -240,9 +238,9 @@ namespace Nsi.Geospatial.Spatial
             {
                 foreach (RTreeNode node in _children)
                 {
-                    if (node.getMBRoverlap(XMax, XMin, YMax, YMin) > 0)
+                    if (node.getMBRoverlap(bbox) > 0)
                     {
-                        node.getCandidateFeatNodesByMBR(XMax, XMin, YMax, YMin, nodeWalk);
+                        node.getCandidateFeatNodesByMBR(bbox, nodeWalk);
                     }
                 }
             }
@@ -276,24 +274,24 @@ namespace Nsi.Geospatial.Spatial
                 _parent.getPathReverse(nodeWalk);
             }
         }
-        public double getMBRoverlap(double XMax, double XMin, double YMax, double YMin) 
+        public double getMBRoverlap(BoundingBox bbox) 
         {
             double overlap = 0;
-            if ((XMax >= MBRXMin && XMax <= MBRXMax) || (XMin >= MBRXMin && XMin <= MBRXMax))
+            if ((bbox.MaxX >= BoundingBox.MinX && bbox.MaxX <= BoundingBox.MaxX) || (bbox.MinX >= BoundingBox.MinX && bbox.MinX <= BoundingBox.MaxX))
             {
-                if ((YMax >= MBRYMin && YMax <= MBRYMax) || (YMin >= MBRYMin && YMin <= MBRYMax))
+                if ((bbox.MaxY >= BoundingBox.MinY && bbox.MaxY <= BoundingBox.MaxY) || (bbox.MinY >= BoundingBox.MinY && bbox.MinY <= BoundingBox.MaxY))
                 {
-                    double xAxisOverlap = Math.Min(XMax, MBRXMax) - Math.Max(XMin, MBRXMin);
-                    double YAxisOverlap = Math.Min(YMax, MBRYMax) - Math.Max(YMin, MBRYMin);
+                    double xAxisOverlap = Math.Min(bbox.MaxX, BoundingBox.MaxX) - Math.Max(bbox.MinX, BoundingBox.MinX);
+                    double YAxisOverlap = Math.Min(bbox.MaxY, BoundingBox.MaxY) - Math.Max(bbox.MinY, BoundingBox.MinY);
                     overlap = Math.Max(xAxisOverlap * YAxisOverlap, 1); //Always return at least one, if top two conditions are met to avoid ignoring point shape overlap
                 }
             }
             return overlap;
         }
-        public double getAddedSizeToAccomodate(double XMax, double XMin, double YMax, double YMin) 
+        public double getAddedSizeToAccomodate(BoundingBox bbox) 
         {
-            double featArea = (XMax - XMin) * (YMax - YMin);
-            return getArea + featArea - getMBRoverlap(XMax, XMin, YMax, YMin);
+            double featArea = (bbox.MaxX - bbox.MinX) * (bbox.MaxY - bbox.MinY);
+            return getArea + featArea - getMBRoverlap(bbox);
         }
         public bool getIsEndNode
         {
@@ -313,13 +311,13 @@ namespace Nsi.Geospatial.Spatial
         {
             get
             {
-                if (MBRXMax < MBRXMin || MBRYMax < MBRYMin) { return 0; }
-                return (MBRXMax - MBRXMin) * (MBRYMax - MBRYMin);
+                if (BoundingBox.MaxX < BoundingBox.MinX || BoundingBox.MaxY < BoundingBox.MinY) { return 0; }
+                return (BoundingBox.MaxX - BoundingBox.MinX) * (BoundingBox.MaxY - BoundingBox.MinY);
             }
         }
         public double getPerimeter
         {
-            get { return 2 * ((MBRXMax - MBRXMin) + (MBRYMax - MBRYMin)); }
+            get { return 2 * ((BoundingBox.MaxX - BoundingBox.MinX) + (BoundingBox.MaxY - BoundingBox.MinY)); }
         }
     }
 }

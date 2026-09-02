@@ -6,7 +6,7 @@ namespace Nsi.Geospatial.Geometry;
 public sealed class Part
 {
     public List<Vertex> Vertices { get; } = new();
-    public BoundingBox Mbr { get; private set; } = BoundingBox.Empty;
+    public BoundingBox BoundingBox { get; private set; } = BoundingBox.Empty;
     public bool IsHole { get; set; }
     public bool Direction { get; set; }
     public int BeginIndex { get; set; }
@@ -20,7 +20,7 @@ public sealed class Part
 
     public Part(string? wkt = null) => Wkt = wkt;
 
-    public void AddVertex(Vertex vertex, bool updateMbr = true)
+    public void AddVertex(Vertex vertex, bool updateBoundingBox = true)
     {
         if (Vertices.Count > 0)
         {
@@ -38,11 +38,11 @@ public sealed class Part
 
         Vertices.Add(vertex);
 
-        if (updateMbr)
+        if (updateBoundingBox)
         {
-            Mbr = Vertices.Count == 1
+            BoundingBox = Vertices.Count == 1
                 ? BoundingBox.Point(vertex.X, vertex.Y)
-                : Mbr.Union(BoundingBox.Point(vertex.X, vertex.Y));
+                : BoundingBox.Union(BoundingBox.Point(vertex.X, vertex.Y));
         }
     }
 
@@ -52,7 +52,7 @@ public sealed class Part
         if (Vertices.Count > 0)
         {
             var first = Vertices[0];
-            AddVertex(new Vertex(first.X, first.Y), updateMbr: false);
+            AddVertex(new Vertex(first.X, first.Y), updateBoundingBox: false);
             (CentroidX, CentroidY) = GeometryMath.Centroid(Vertices.Select(v => (v.X, v.Y)));
             Area = GeometryMath.Area(Vertices.Select(v => (v.X, v.Y)));
         }
