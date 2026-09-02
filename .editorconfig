@@ -16,3 +16,6 @@ dotnet_sort_system_directives_first = true
 csharp_indent_namespace_body = block
 csharp_style_namespace_declarations = file_scoped:warning
 csharp_style_var_when_type_is_apparent = true:warning
+
+[obj/**/*]
+generated_code = true

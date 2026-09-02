@@ -2,13 +2,13 @@ namespace Nsi.Geospatial.Enums;
 
 public enum FieldType
 {
-    Boolean,
-    Float,
-    Double,
-    Text,
-    Integer,
-    Long,
-    Date,
-    Single,
-    Numeric,
+  BooleanFT,
+  FloatFT,
+  DoubleFT,
+  TextFT,
+  IntegerFT,
+  LongFT,
+  DateFT,
+  SingleFT,
+  NumericFT,
 }

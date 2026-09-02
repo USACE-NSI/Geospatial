@@ -4,5 +4,5 @@ namespace Nsi.Geospatial.Io;
 
 public interface IFeatureSource
 {
-    FeatureCollection Read(string path);
+  FeatureCollection Read(string path);
 }

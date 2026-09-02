@@ -3,6 +3,10 @@ on:
   push:
     branches: [ main, master ]
   pull_request:
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,6 +17,13 @@ jobs:
           dotnet-version: |
             8.0.x
             9.0.x
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
       - name: Confirm SDK
         run: dotnet --info
       - name: Install GDAL native runtime + C# wrappers
@@ -20,14 +31,14 @@ jobs:
         with:
           environment-name: gdal
           environment-file: .github/gdal.yml
+          cache-environment: true   # cache the conda env between runs
       - name: Export GDAL environment for OSGeo OGR/OSR
         run: |
-          # setup-micromamba can leave CONDA_PREFIX empty; resolve the prefix ourselves.
           PFX="${CONDA_PREFIX}"
           if [ -z "$PFX" ] || [ ! -x "$PFX/bin/gdalinfo" ]; then
             PFX="$MAMBA_ROOT_PREFIX/envs/gdal"
           fi
-          test -x "$PFX/bin/gdalinfo" || { echo "::error::GDAL env not found (CONDA_PREFIX='${CONDA_PREFIX}', tried $PFX)"; exit 1; }
+          test -x "$PFX/bin/gdalinfo" || { echo "::error::GDAL env not found"; exit 1; }
           echo "CONDA_PREFIX=$PFX" >> "$GITHUB_ENV"
           echo "GDAL_DATA=$PFX/share/gdal" >> "$GITHUB_ENV"
           echo "PROJ_DATA=$PFX/share/proj" >> "$GITHUB_ENV"
@@ -42,7 +53,9 @@ jobs:
         run: dotnet restore Geospatial.slnx -v:n
       - name: Build
         run: dotnet build Geospatial.slnx -c Release --no-restore
+      - name: Format check
+        run: dotnet format Geospatial.slnx --verify-no-changes --no-restore --include Nsi.Geospatial Nsi.Geospatial.Io Nsi.Geospatial.Reprojection tests
       - name: Test (non-Gdal)
-        run: dotnet test Geospatial.slnx -c Release --no-restore --filter Category!=Gdal
+        run: dotnet test Geospatial.slnx -c Release --no-restore
       - name: Test (Nsi.Geospatial.Io.Tests)
         run: dotnet test tests/Nsi.Geospatial.Io.Tests/Nsi.Geospatial.Io.Tests.csproj -c Release --no-restore
