@@ -11,10 +11,10 @@ namespace Nsi.Geospatial.Spatial;
 
 public class RTreeNode
 {
-  public RTreeNode Parent { get; private set; }
-  public RTreeManager TreeManager { get; private set; }
-  public List<RTreeNode> Children { get; private set; } = new List<RTreeNode>();
-  public int[] FeatureIndex { get; private set; } //  { Feature Index, Sub-Part Index (for holes, etc) }
+  public RTreeNode? Parent { get; private set; }
+  public RTreeManager TreeManager { get; private set; } = null!;
+  public List<RTreeNode> Children { get; private set; } = new();
+  public int[]? FeatureIndex { get; private set; } //  { Feature Index, Sub-Part Index (for holes, etc) }
   public int MaxChidrens { get; private set; } = 0;
   public int MinChidrens { get; private set; } = 0;
 
@@ -160,12 +160,15 @@ public class RTreeNode
           bestCandidate = childnode;
           minExtension = extensionReq;
         }
-        else if (extensionReq == minExtension && childnode.getArea < bestCandidate.getArea)
+        else if (
+          extensionReq == minExtension
+          && childnode.getArea < (bestCandidate?.getArea ?? double.MaxValue)
+        )
         {
           bestCandidate = childnode;
         }
       }
-      bestCandidate.addFeatureChild(feature);
+      bestCandidate!.addFeatureChild(feature);
     }
   }
 

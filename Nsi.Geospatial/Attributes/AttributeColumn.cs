@@ -33,21 +33,21 @@ public sealed class AttributeColumn
 
     switch (FieldType)
     {
-      case FieldType.Text:
+      case FieldType.TextFT:
         return text.Length <= Length ? text : text[..Length];
-      case FieldType.Double:
-      case FieldType.Float:
-      case FieldType.Numeric:
+      case FieldType.DoubleFT:
+      case FieldType.FloatFT:
+      case FieldType.NumericFT:
         return double.TryParse(text, out var d) ? Math.Round(d, DecimalPlaces) : null;
-      case FieldType.Single:
+      case FieldType.SingleFT:
         return Single.TryParse(text, out var s) ? Math.Round(s, DecimalPlaces) : null;
-      case FieldType.Integer:
+      case FieldType.IntegerFT:
         return int.TryParse(text, out var i) ? i : null;
-      case FieldType.Long:
+      case FieldType.LongFT:
         return long.TryParse(text, out var l) ? l : null;
-      case FieldType.Boolean:
+      case FieldType.BooleanFT:
         return bool.TryParse(text, out var b) ? b : null;
-      case FieldType.Date:
+      case FieldType.DateFT:
         return DateTime.TryParse(text, out var dt) ? dt : null;
       default:
         return text;
@@ -57,15 +57,15 @@ public sealed class AttributeColumn
   public static Type FieldTypeToType(FieldType t) =>
     t switch
     {
-      FieldType.Boolean => typeof(bool),
-      FieldType.Date => typeof(DateTime),
-      FieldType.Double => typeof(double),
-      FieldType.Float => typeof(double),
-      FieldType.Numeric => typeof(double),
-      FieldType.Integer => typeof(int),
-      FieldType.Long => typeof(long),
-      FieldType.Single => typeof(float),
-      FieldType.Text => typeof(string),
+      FieldType.BooleanFT => typeof(bool),
+      FieldType.DateFT => typeof(DateTime),
+      FieldType.DoubleFT => typeof(double),
+      FieldType.FloatFT => typeof(double),
+      FieldType.NumericFT => typeof(double),
+      FieldType.IntegerFT => typeof(int),
+      FieldType.LongFT => typeof(long),
+      FieldType.SingleFT => typeof(float),
+      FieldType.TextFT => typeof(string),
       _ => typeof(object),
     };
 }

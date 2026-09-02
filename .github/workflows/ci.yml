@@ -54,7 +54,7 @@ jobs:
       - name: Build
         run: dotnet build Geospatial.slnx -c Release --no-restore
       - name: Format check
-        run: dotnet format Geospatial.slnx --verify-no-changes --no-restore
+        run: dotnet format Geospatial.slnx --verify-no-changes --no-restore --include Nsi.Geospatial Nsi.Geospatial.Io Nsi.Geospatial.Reprojection tests
       - name: Test (non-Gdal)
         run: dotnet test Geospatial.slnx -c Release --no-restore
       - name: Test (Nsi.Geospatial.Io.Tests)

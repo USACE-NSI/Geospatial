@@ -21,7 +21,7 @@ public class SpatialJoinTests
     p1.Parts[0].CloseRing();
     p1.ComputeBoundingBox();
     polys.AddFeature(p1);
-    polys.Schema.AddField("VALUE", FieldType.Double, 12, 2);
+    polys.Schema.AddField("VALUE", FieldType.DoubleFT, 12, 2);
 
     var pnts = new FeatureCollection { ShapeType = ShapeType.Point };
     var pp = new Feature();
@@ -30,7 +30,7 @@ public class SpatialJoinTests
     pp.ComputeBoundingBox();
     pp.Attributes["VALUE"] = 42.0;
     pnts.AddFeature(pp);
-    pnts.Schema.AddField("VALUE", FieldType.Double, 12, 2);
+    pnts.Schema.AddField("VALUE", FieldType.DoubleFT, 12, 2);
 
     SpatialJoins.NearestPointsToPolygons(
       polys,

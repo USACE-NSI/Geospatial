@@ -252,12 +252,12 @@ public sealed class SpatialWriter : IFeatureSink
   private static OSGeo.OGR.FieldType MapFieldType(Nsi.Geospatial.Enums.FieldType t) =>
     t switch
     {
-      Nsi.Geospatial.Enums.FieldType.Integer => OSGeo.OGR.FieldType.OFTInteger,
-      Nsi.Geospatial.Enums.FieldType.Double
-      or Nsi.Geospatial.Enums.FieldType.Float
-      or Nsi.Geospatial.Enums.FieldType.Numeric
-      or Nsi.Geospatial.Enums.FieldType.Single => OSGeo.OGR.FieldType.OFTReal,
-      Nsi.Geospatial.Enums.FieldType.Date => OSGeo.OGR.FieldType.OFTDate,
+      Nsi.Geospatial.Enums.FieldType.IntegerFT => OSGeo.OGR.FieldType.OFTInteger,
+      Nsi.Geospatial.Enums.FieldType.DoubleFT
+      or Nsi.Geospatial.Enums.FieldType.FloatFT
+      or Nsi.Geospatial.Enums.FieldType.NumericFT
+      or Nsi.Geospatial.Enums.FieldType.SingleFT => OSGeo.OGR.FieldType.OFTReal,
+      Nsi.Geospatial.Enums.FieldType.DateFT => OSGeo.OGR.FieldType.OFTDate,
       _ => OSGeo.OGR.FieldType.OFTString,
     };
 }

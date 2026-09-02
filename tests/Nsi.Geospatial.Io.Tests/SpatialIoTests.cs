@@ -269,9 +269,9 @@ public class SpatialIoTests
   private static FeatureCollection NewFc(string name, ShapeType shapeType)
   {
     var fc = new FeatureCollection { Name = name, ShapeType = shapeType };
-    fc.Schema.AddField("id", FieldType.Integer, 0, 0);
-    fc.Schema.AddField("name", FieldType.Text, 20, 0);
-    fc.Schema.AddField("value", FieldType.Double, 0, 2);
+    fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
+    fc.Schema.AddField("name", FieldType.TextFT, 20, 0);
+    fc.Schema.AddField("value", FieldType.DoubleFT, 0, 2);
     return fc;
   }
 

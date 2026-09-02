@@ -63,14 +63,14 @@ public sealed class SpatialReader : IFeatureSource
   ) =>
     type switch
     {
-      Nsi.Geospatial.Enums.FieldType.Integer => feat.GetFieldAsInteger(i),
-      Nsi.Geospatial.Enums.FieldType.Double
-      or Nsi.Geospatial.Enums.FieldType.Float
-      or Nsi.Geospatial.Enums.FieldType.Numeric
-      or Nsi.Geospatial.Enums.FieldType.Single => feat.GetFieldAsDouble(i),
+      Nsi.Geospatial.Enums.FieldType.IntegerFT => feat.GetFieldAsInteger(i),
+      Nsi.Geospatial.Enums.FieldType.DoubleFT
+      or Nsi.Geospatial.Enums.FieldType.FloatFT
+      or Nsi.Geospatial.Enums.FieldType.NumericFT
+      or Nsi.Geospatial.Enums.FieldType.SingleFT => feat.GetFieldAsDouble(i),
       // Shapefiles have no true date field; the OSGeo binding's GetFieldAsDateTime
       // returns void, so read the date as a string instead.
-      Nsi.Geospatial.Enums.FieldType.Date => feat.IsFieldSet(i) ? feat.GetFieldAsString(i) : null,
+      Nsi.Geospatial.Enums.FieldType.DateFT => feat.IsFieldSet(i) ? feat.GetFieldAsString(i) : null,
       _ => feat.GetFieldAsString(i),
     };
 
@@ -135,13 +135,13 @@ public sealed class SpatialReader : IFeatureSource
   private static Nsi.Geospatial.Enums.FieldType MapFieldType(OSGeo.OGR.FieldType t) =>
     t switch
     {
-      OSGeo.OGR.FieldType.OFTInteger => Nsi.Geospatial.Enums.FieldType.Integer,
-      OSGeo.OGR.FieldType.OFTReal => Nsi.Geospatial.Enums.FieldType.Double,
-      OSGeo.OGR.FieldType.OFTString => Nsi.Geospatial.Enums.FieldType.Text,
+      OSGeo.OGR.FieldType.OFTInteger => Nsi.Geospatial.Enums.FieldType.IntegerFT,
+      OSGeo.OGR.FieldType.OFTReal => Nsi.Geospatial.Enums.FieldType.DoubleFT,
+      OSGeo.OGR.FieldType.OFTString => Nsi.Geospatial.Enums.FieldType.TextFT,
       OSGeo.OGR.FieldType.OFTDate or OSGeo.OGR.FieldType.OFTDateTime => Nsi.Geospatial
         .Enums
         .FieldType
-        .Date,
-      _ => Nsi.Geospatial.Enums.FieldType.Text,
+        .DateFT,
+      _ => Nsi.Geospatial.Enums.FieldType.TextFT,
     };
 }
