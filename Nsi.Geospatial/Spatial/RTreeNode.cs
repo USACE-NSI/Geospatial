@@ -155,6 +155,7 @@ namespace Nsi.Geospatial.Spatial;
                   minExtension = extensionReq;
               }
           }
+          bestCandidate??= _treeManager._root;
           bestCandidate.addChild(feature, true, true);
       }
     public void addChild(RTreeNode child, bool canSplit, bool canPropagateMBRup)
