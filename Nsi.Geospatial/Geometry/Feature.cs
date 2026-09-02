@@ -16,7 +16,7 @@ public sealed class Feature
     public string? Name { get; set; }
 
     public List<Part> Parts { get; } = new();
-    public BoundingBox Mbr { get; private set; } = BoundingBox.Empty;
+    public BoundingBox BoundingBox { get; private set; } = BoundingBox.Empty;
 
     /// <summary>This feature's attribute values, keyed by column name. Null-safe.</summary>
     public Dictionary<string, object?> Attributes { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -26,15 +26,15 @@ public sealed class Feature
     public void AddPart(Part part)
     {
         Parts.Add(part);
-        Mbr = Mbr.Union(part.Mbr);
+        BoundingBox = BoundingBox.Union(part.BoundingBox);
     }
 
-    public BoundingBox ComputeMbr()
+    public BoundingBox ComputeBoundingBox()
     {
-        Mbr = BoundingBox.Empty;
+        BoundingBox = BoundingBox.Empty;
         foreach (var p in Parts)
-            Mbr = Mbr.Union(p.Mbr);
-        return Mbr;
+            BoundingBox = BoundingBox.Union(p.BoundingBox);
+        return BoundingBox;
     }
 
     public T? GetAttribute<T>(string name)

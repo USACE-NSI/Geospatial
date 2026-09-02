@@ -19,7 +19,7 @@ public class SpatialJoinTests
         p1.Parts[0].AddVertex(new Vertex(0, 10));
         p1.Parts[0].AddVertex(new Vertex(0, 0));
         p1.Parts[0].CloseRing();
-        p1.ComputeMbr();
+        p1.ComputeBoundingBox();
         polys.AddFeature(p1);
         polys.Schema.AddField("VALUE", FieldType.Double, 12, 2);
 
@@ -27,7 +27,7 @@ public class SpatialJoinTests
         var pp = new Feature();
         pp.Parts.Add(new Part());
         pp.Parts[0].AddVertex(new Vertex(1, 1));
-        pp.ComputeMbr();
+        pp.ComputeBoundingBox();
         pp.Attributes["VALUE"] = 42.0;
         pnts.AddFeature(pp);
         pnts.Schema.AddField("VALUE", FieldType.Double, 12, 2);

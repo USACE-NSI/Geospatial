@@ -115,10 +115,10 @@ public class SpatialIoTests
                 Assert.Equal(orig.GetAttribute<int>("id"), back.GetAttribute<int>("id"));
 
                 // MBR must survive the round-trip.
-                Assert.Equal(orig.Mbr.MinX, back.Mbr.MinX, Tol);
-                Assert.Equal(orig.Mbr.MinY, back.Mbr.MinY, Tol);
-                Assert.Equal(orig.Mbr.MaxX, back.Mbr.MaxX, Tol);
-                Assert.Equal(orig.Mbr.MaxY, back.Mbr.MaxY, Tol);
+                Assert.Equal(orig.BoundingBox.MinX, back.BoundingBox.MinX, Tol);
+                Assert.Equal(orig.BoundingBox.MinY, back.BoundingBox.MinY, Tol);
+                Assert.Equal(orig.BoundingBox.MaxX, back.BoundingBox.MaxX, Tol);
+                Assert.Equal(orig.BoundingBox.MaxY, back.BoundingBox.MaxY, Tol);
 
                 // And the geometry must still contain the same points.
                 var ring = back.Parts[0].Vertices;
@@ -182,8 +182,8 @@ public class SpatialIoTests
             Assert.Equal(fc.Count, read.Count);
 
             var back = read[0];
-            Assert.Equal(fc[0].Mbr.MinX, back.Mbr.MinX, Tol);
-            Assert.Equal(fc[0].Mbr.MaxX, back.Mbr.MaxX, Tol);
+            Assert.Equal(fc[0].BoundingBox.MinX, back.BoundingBox.MinX, Tol);
+            Assert.Equal(fc[0].BoundingBox.MaxX, back.BoundingBox.MaxX, Tol);
             Assert.True(PointInPolygon((5, 5), back.Parts[0].Vertices));
         }
         finally

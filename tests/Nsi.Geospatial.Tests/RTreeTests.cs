@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Spatial;
 using Xunit;
 
@@ -16,8 +17,8 @@ public class RTreeTests
     public void FindByXY_FindsContainingFeature()
     {
         var tree = new RTreeManager();
-        tree.addFeature(new[] { 0, 0 }, 10, 0, 10, 0);   // Xmax, Xmin, Ymax, Ymin
-        tree.addFeature(new[] { 1, 0 }, 60, 50, 60, 50);
+        tree.addFeature(new[] { 0, 0 }, new BoundingBox(0, 0, 10, 10)); // Xmax=10, Xmin=0, Ymax=10, Ymin=0
+        tree.addFeature(new[] { 1, 0 }, new BoundingBox(50, 50, 60, 60)); // Xmax=60, Xmin=50, Ymax=60, Ymin=50
 
         var hits = FeatureIndicesAt(tree, 5, 5);
         Assert.Contains(0, hits);
@@ -28,8 +29,8 @@ public class RTreeTests
     public void FindByXY_PointOutsideFeatureMBR_NotReturned()
     {
         var tree = new RTreeManager();
-        tree.addFeature(new[] { 0, 0 }, 10, 0, 10, 0);
-        tree.addFeature(new[] { 1, 0 }, 60, 50, 60, 50);
+        tree.addFeature(new[] { 0, 0 }, new BoundingBox(0, 0, 10, 10));
+        tree.addFeature(new[] { 1, 0 }, new BoundingBox(50, 50, 60, 60));
 
         var hits = FeatureIndicesAt(tree, 55, 55);
         Assert.Contains(1, hits);
@@ -41,7 +42,7 @@ public class RTreeTests
     {
         var tree = new RTreeManager();
         for (int i = 0; i < 100; i++)
-            tree.addFeature(new[] { i, 0 }, i * 10 + 5, i * 10, i * 10 + 5, i * 10);
+            tree.addFeature(new[] { i, 0 }, new BoundingBox(i * 10, i * 10, i * 10 + 5, i * 10 + 5));
 
         var path = tree.findByInd(42);
         Assert.NotEmpty(path);
@@ -60,14 +61,14 @@ public class RTreeTests
     {
         var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
         for (int i = 0; i < 500; i++)
-            tree.addFeature(new[] { i, 0 }, i * 10 + 5, i * 10, i * 10 + 5, i * 10);
+            tree.addFeature(new[] { i, 0 }, new BoundingBox(i * 10, i * 10, i * 10 + 5, i * 10 + 5));
 
         for (int i = 0; i < 500; i++)
         {
             var hits = FeatureIndicesAt(tree, i * 10 + 2.5, i * 10 + 2.5);
             if (!hits.Contains(i))
             {
-        string test = "WTF";
+                string test = "WTF";
             }
             Assert.Contains(i, hits);
         }
@@ -78,7 +79,7 @@ public class RTreeTests
     {
         var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
         for (int i = 0; i < 50; i++)
-            tree.addFeature(new[] { i, 0 }, i * 10 + 5, i * 10, i * 10 + 5, i * 10);
+            tree.addFeature(new[] { i, 0 }, new BoundingBox(i * 10, i * 10, i * 10 + 5, i * 10 + 5));
 
         var leaves = tree.getEndNodes;
         Assert.NotEmpty(leaves);
@@ -96,7 +97,7 @@ public class RTreeTests
         Assert.Equal(50, allIndices.Distinct().Count());
     }
 
-    /// <summary>Collect the feature indices of end nodes returned by findByXY that actually contain the point.</summary>
+    /// Collect the feature indices of end nodes returned by findByXY that actually contain the point. 
     private static List<int> FeatureIndicesAt(RTreeManager tree, double x, double y)
     {
         var indices = new List<int>();
@@ -105,7 +106,7 @@ public class RTreeTests
             foreach (var child in leaf._children)
             {
                 var ind = child._featureIndex;
-                if (ind is not null && child.getMBRoverlap(x, x, y, y) > 0)
+                if (ind is not null && child.getMBRoverlap(new BoundingBox(x, y, x, y)) > 0)
                     indices.Add(ind[0]);
             }
         }

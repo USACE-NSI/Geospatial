@@ -47,7 +47,7 @@ public sealed class SpatialReader : IFeatureSource
             {
                 foreach (var part in ProcessGeometry(geom, wkt))
                     f.AddPart(part);
-                f.ComputeMbr();
+                f.ComputeBoundingBox();
             }
 
             fc.AddFeature(f);
