@@ -13,12 +13,14 @@ namespace Nsi.Geospatial.Tests;
 /// </summary>
 public class RTreeTests
 {
+    static readonly int[] zerozero = new[] { 0, 0 };
+    static readonly int[] onezero = new[] { 1, 0 };
     [Fact]
-    public void FindByXY_FindsContainingFeature()
+    public void FindByXYFindsContainingFeature()
     {
         var tree = new RTreeManager();
-        tree.addFeature(new[] { 0, 0 }, new BoundingBox(0, 0, 10, 10)); // Xmax=10, Xmin=0, Ymax=10, Ymin=0
-        tree.addFeature(new[] { 1, 0 }, new BoundingBox(50, 50, 60, 60)); // Xmax=60, Xmin=50, Ymax=60, Ymin=50
+        tree.addFeature(zerozero, new BoundingBox(0, 0, 10, 10)); // Xmax=10, Xmin=0, Ymax=10, Ymin=0
+        tree.addFeature(onezero, new BoundingBox(50, 50, 60, 60)); // Xmax=60, Xmin=50, Ymax=60, Ymin=50
 
         var hits = FeatureIndicesAt(tree, 5, 5);
         Assert.Contains(0, hits);
@@ -26,11 +28,11 @@ public class RTreeTests
     }
 
     [Fact]
-    public void FindByXY_PointOutsideFeatureMBR_NotReturned()
+    public void FindByXYPointOutsideFeatureMBRNotReturned()
     {
         var tree = new RTreeManager();
-        tree.addFeature(new[] { 0, 0 }, new BoundingBox(0, 0, 10, 10));
-        tree.addFeature(new[] { 1, 0 }, new BoundingBox(50, 50, 60, 60));
+        tree.addFeature(zerozero, new BoundingBox(0, 0, 10, 10));
+        tree.addFeature(onezero, new BoundingBox(50, 50, 60, 60));
 
         var hits = FeatureIndicesAt(tree, 55, 55);
         Assert.Contains(1, hits);
@@ -38,7 +40,7 @@ public class RTreeTests
     }
 
     [Fact]
-    public void FindByInd_ReturnsLeafToRootPath()
+    public void FindByIndReturnsLeafToRootPath()
     {
         var tree = new RTreeManager();
         for (int i = 0; i < 100; i++)
@@ -50,14 +52,14 @@ public class RTreeTests
         // The original findByInd returns the node path leaf -> root; the feature
         // node (with its _featureIndex) lives under the leaf.
         var leaf = path[0];
-        var featureIndex = leaf._children
-            .Select(c => c._featureIndex)
+        var featureIndex = leaf.Children
+            .Select(c => c.FeatureIndex)
             .FirstOrDefault(a => a is not null && a[0] == 42);
         Assert.NotNull(featureIndex);
     }
 
     [Fact] //(Skip = "Fails by design: asserts correct behavior that the original (unfixed) RTree split/overlap defects violate. Re-enable once the RTree defects are fixed.")]
-    public void BulkInsert_AllFeaturesFindableByPoint()
+    public void BulkInsertAllFeaturesFindableByPoint()
     {
         var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
         for (int i = 0; i < 500; i++)
@@ -68,14 +70,14 @@ public class RTreeTests
             var hits = FeatureIndicesAt(tree, i * 10 + 2.5, i * 10 + 2.5);
             if (!hits.Contains(i))
             {
-                string test = "WTF";
+                Assert.Fail();
             }
             Assert.Contains(i, hits);
         }
     }
 
     [Fact]
-    public void GetEndNodes_LeavesHoldAllFeatureIndices()
+    public void GetEndNodesLeavesHoldAllFeatureIndices()
     {
         var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
         for (int i = 0; i < 50; i++)
@@ -87,9 +89,9 @@ public class RTreeTests
         var allIndices = new List<int>();
         foreach (var leaf in leaves)
         {
-            foreach (var child in leaf._children)
+            foreach (var child in leaf.Children)
             {
-                var ind = child._featureIndex;
+                var ind = child.FeatureIndex;
                 if (ind is not null)
                     allIndices.Add(ind[0]);
             }
@@ -103,9 +105,9 @@ public class RTreeTests
         var indices = new List<int>();
         foreach (var leaf in tree.findByXY(x, y))
         {
-            foreach (var child in leaf._children)
+            foreach (var child in leaf.Children)
             {
-                var ind = child._featureIndex;
+                var ind = child.FeatureIndex;
                 if (ind is not null && child.getMBRoverlap(new BoundingBox(x, y, x, y)) > 0)
                     indices.Add(ind[0]);
             }

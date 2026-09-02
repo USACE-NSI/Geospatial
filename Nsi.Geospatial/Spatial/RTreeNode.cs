@@ -11,12 +11,12 @@ namespace Nsi.Geospatial.Spatial;
 
   public class RTreeNode
   {
-      public RTreeNode _parent;
-      public RTreeManager _treeManager;
-      public List<RTreeNode> _children = new List<RTreeNode>();  
-      public int[] _featureIndex; //  { Feature Index, Sub-Part Index (for holes, etc) }
-      public int maxChidrens = 0;
-      public int minChidrens = 0;
+      public RTreeNode Parent{get; private set;}
+      public RTreeManager TreeManager{get; private set;}
+      public List<RTreeNode> Children{get; private set;} = new List<RTreeNode>();  
+      public int[] FeatureIndex{get; private set;} //  { Feature Index, Sub-Part Index (for holes, etc) }
+      public int MaxChidrens{get; private set;} = 0;
+      public int MinChidrens{get; private set;} = 0;
 
       public BoundingBox BoundingBox {get;set;} = BoundingBox.Empty;
 
@@ -25,10 +25,10 @@ namespace Nsi.Geospatial.Spatial;
 
       public RTreeNode(RTreeManager treemanager, int maxChildren, int minChildren, int[] featInd = null)
       {
-          _treeManager = treemanager;
-          maxChidrens = maxChildren;
-          minChidrens = minChildren;
-          _featureIndex = featInd;
+          TreeManager = treemanager;
+          MaxChidrens = maxChildren;
+          MinChidrens = minChildren;
+          FeatureIndex = featInd;
       }
       public void split()
       {
@@ -50,22 +50,22 @@ namespace Nsi.Geospatial.Spatial;
           
           newKidsOntheBlock = Options.OrderBy(x => x.metrics[0]).ThenBy(x => x.metrics[1]).ThenBy(x => x.metrics[2]).First().nodes.ToList();            
           
-          if(_parent != null)
+          if(Parent != null)
           {
-              _parent._children.Remove(this);
-              newKidsOntheBlock[0].UpdateParents(_parent);
-              newKidsOntheBlock[1].UpdateParents(_parent);                
-              _parent.addChild(newKidsOntheBlock[0], false, true);
-              _parent.addChild(newKidsOntheBlock[1], true, true);                
+              Parent.Children.Remove(this);
+              newKidsOntheBlock[0].UpdateParents(Parent);
+              newKidsOntheBlock[1].UpdateParents(Parent);                
+              Parent.addChild(newKidsOntheBlock[0], false, true);
+              Parent.addChild(newKidsOntheBlock[1], true, true);                
           }
           else
           {
-              RTreeNode newRoot = new RTreeNode(_treeManager, maxChidrens, minChidrens);
+              RTreeNode newRoot = new (TreeManager, MaxChidrens, MinChidrens);
               newKidsOntheBlock[0].UpdateParents(newRoot);
               newKidsOntheBlock[1].UpdateParents(newRoot);
               newRoot.addChild(newKidsOntheBlock[0], false, true);
               newRoot.addChild(newKidsOntheBlock[1], true, true);        
-              _treeManager._root = newRoot;                
+              TreeManager._root = newRoot;                
           }    
       }
       private void buildChildOptions(List<(RTreeNode[], double[])> options, bool xAxis, bool min)
@@ -73,19 +73,19 @@ namespace Nsi.Geospatial.Spatial;
           List<RTreeNode> sortedChidrens = null;
           if(xAxis)
           {
-              if (min) { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MinX).ToList(); }                
-              else { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MaxX).ToList(); }
+              if (min) { sortedChidrens = Children.OrderBy(c => c.BoundingBox.MinX).ToList(); }                
+              else { sortedChidrens = Children.OrderBy(c => c.BoundingBox.MaxX).ToList(); }
           }
           else
           {
-              if (min) { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MinY).ToList(); }
-              else { sortedChidrens = _children.OrderBy(c => c.BoundingBox.MaxY).ToList(); }
+              if (min) { sortedChidrens = Children.OrderBy(c => c.BoundingBox.MinY).ToList(); }
+              else { sortedChidrens = Children.OrderBy(c => c.BoundingBox.MaxY).ToList(); }
           }
                      
-          for(int split = minChidrens; split <= _children.Count() - minChidrens; split++)
+          for(int split = MinChidrens; split <= Children.Count() - MinChidrens; split++)
           {
-              RTreeNode node1 = new RTreeNode(_treeManager, maxChidrens, minChidrens);
-              RTreeNode node2 = new RTreeNode(_treeManager, maxChidrens, minChidrens);
+              RTreeNode node1 = new (TreeManager, MaxChidrens, MinChidrens);
+              RTreeNode node2 = new (TreeManager, MaxChidrens, MinChidrens);
               for (int i = 0; i < sortedChidrens.Count; i++)
               {
                   var Child = sortedChidrens[i];
@@ -122,7 +122,7 @@ namespace Nsi.Geospatial.Spatial;
           {
               RTreeNode bestCandidate = null;
               double minExtension = double.MaxValue;
-              foreach (RTreeNode childnode in _children)
+              foreach (RTreeNode childnode in Children)
               {
                   double extensionReq = childnode.getAddedSizeToAccomodate(feature.BoundingBox);
                   if (extensionReq < minExtension)
@@ -141,9 +141,9 @@ namespace Nsi.Geospatial.Spatial;
       public void addFeatureChildEnforceIntersect(RTreeNode feature)
       {
           //Find the lowest level child node that would least expand to accept the feature geometry
-          List<RTreeNode> candidateKids = new List<RTreeNode>();
+          List<RTreeNode> candidateKids = new ();
           getCandidateEndNodesByMBR(feature.BoundingBox, candidateKids);
-          if (candidateKids.Count == 0) { candidateKids = _treeManager.getEndNodes; }
+          if (candidateKids.Count == 0) { candidateKids = TreeManager.getEndNodes; }
           RTreeNode bestCandidate = null;
           double minExtension = double.MaxValue;
           foreach (RTreeNode candidate in candidateKids)
@@ -155,15 +155,15 @@ namespace Nsi.Geospatial.Spatial;
                   minExtension = extensionReq;
               }
           }
-          bestCandidate??= _treeManager._root;
+          bestCandidate??= TreeManager._root;
           bestCandidate.addChild(feature, true, true);
       }
     public void addChild(RTreeNode child, bool canSplit, bool canPropagateMBRup)
     {
-        _children.Add(child);
-        child._parent = this;
+        Children.Add(child);
+        child.Parent = this;
         BoundingBox = BoundingBox.Union(child.BoundingBox); 
-        if (_children.Count > maxChidrens && canSplit)
+        if (Children.Count > MaxChidrens && canSplit)
             split();
         else if (canPropagateMBRup)
             RecomputeMBR();
@@ -171,16 +171,16 @@ namespace Nsi.Geospatial.Spatial;
         public void RecomputeMBR()
         {
             BoundingBox = new BoundingBox(
-                _children.Min(c => c.BoundingBox.MinX),
-                _children.Min(c => c.BoundingBox.MinY),
-                _children.Max(c => c.BoundingBox.MaxX),
-                _children.Max(c => c.BoundingBox.MaxY));
-            if (_parent != null) _parent.RecomputeMBR();
+                Children.Min(c => c.BoundingBox.MinX),
+                Children.Min(c => c.BoundingBox.MinY),
+                Children.Max(c => c.BoundingBox.MaxX),
+                Children.Max(c => c.BoundingBox.MaxY));
+            if (Parent != null) Parent.RecomputeMBR();
         }
       public void UpdateParents(RTreeNode newParent)
       {
-          _parent = newParent;
-          foreach (var child in _children)
+          Parent = newParent;
+          foreach (var child in Children)
           {
               child.UpdateParents(this);
           }
@@ -193,7 +193,7 @@ namespace Nsi.Geospatial.Spatial;
           }
           else
           {
-              foreach (RTreeNode node in _children)
+              foreach (RTreeNode node in Children)
               {                    
                   node.getEndNodes(nodeWalk);                    
               }
@@ -207,7 +207,7 @@ namespace Nsi.Geospatial.Spatial;
           }
           else
           {
-              foreach (RTreeNode node in _children)
+              foreach (RTreeNode node in Children)
               {
                   if (node.getMBRoverlap(bbox) > 0)
                   {
@@ -220,7 +220,7 @@ namespace Nsi.Geospatial.Spatial;
       {
           if (getIsEndNode)
           {
-              foreach (RTreeNode node in _children)
+              foreach (RTreeNode node in Children)
               {
                   if (node.getMBRoverlap(bbox) > 0)
                   {
@@ -231,7 +231,7 @@ namespace Nsi.Geospatial.Spatial;
           }
           else
           {
-              foreach (RTreeNode node in _children)
+              foreach (RTreeNode node in Children)
               {
                   if (node.getMBRoverlap(bbox) > 0)
                   {
@@ -244,9 +244,9 @@ namespace Nsi.Geospatial.Spatial;
       {
           if (getIsEndNode)
           {
-              foreach (RTreeNode node in _children)
+              foreach (RTreeNode node in Children)
               {
-                  if (node._featureIndex[0] == ind)
+                  if (node.FeatureIndex[0] == ind)
                   {
                       getPathReverse(nodeWalk);
                       break;
@@ -255,7 +255,7 @@ namespace Nsi.Geospatial.Spatial;
           }
           else
           {
-              foreach (RTreeNode node in _children)
+              foreach (RTreeNode node in Children)
               {
                   node.getChildrenContainingInd(ind, nodeWalk);
               }
@@ -264,9 +264,9 @@ namespace Nsi.Geospatial.Spatial;
       public void getPathReverse(List<RTreeNode> nodeWalk)
       {
           nodeWalk.Add(this);
-          if (_parent != null)
+          if (Parent != null)
           {
-              _parent.getPathReverse(nodeWalk);
+              Parent.getPathReverse(nodeWalk);
           }
       }
       public double getMBRoverlap(BoundingBox bbox) 
@@ -292,7 +292,7 @@ namespace Nsi.Geospatial.Spatial;
       {
           get
           {
-              if ((_children.Count == 0 && _featureIndex == null) || (_children.Count > 0 && _children[0]._featureIndex != null))
+              if ((Children.Count == 0 && FeatureIndex == null) || (Children.Count > 0 && Children[0].FeatureIndex != null))
               {
                   return true;
               }

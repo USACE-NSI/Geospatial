@@ -7,7 +7,7 @@ namespace Nsi.Geospatial.Core.Tests;
 public class AttributeTableTests
 {
     [Fact]
-    public void Coerce_NullYieldsNull_NotThrow()
+    public void CoerceNullYieldsNullNotThrow()
     {
         var table = new AttributeTable();
         table.AddField("NAME", FieldType.Text, 8, 0);
@@ -15,7 +15,7 @@ public class AttributeTableTests
     }
 
     [Fact]
-    public void Coerce_TextTruncatesToLength()
+    public void CoerceTextTruncatesToLength()
     {
         var table = new AttributeTable();
         table.AddField("NAME", FieldType.Text, 3, 0);
@@ -23,7 +23,7 @@ public class AttributeTableTests
     }
 
     [Fact]
-    public void Coerce_DoubleRoundsToDecimals()
+    public void CoerceDoubleRoundsToDecimals()
     {
         var table = new AttributeTable();
         table.AddField("NUM", FieldType.Double, 12, 1);
@@ -31,7 +31,7 @@ public class AttributeTableTests
     }
 
     [Fact]
-    public void RenameColumn_MovesKey()
+    public void RenameColumnMovesKey()
     {
         var table = new AttributeTable();
         table.AddField("OLD", FieldType.Integer, 4, 0);

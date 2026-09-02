@@ -9,7 +9,7 @@ namespace Nsi.Geospatial.Core.Tests;
 public class SpatialJoinTests
 {
     [Fact]
-    public void NearestPointsToPolygons_FirstJoin_CopiesValue()
+    public void NearestPointsToPolygonsFirstJoinCopiesValue()
     {
         var polys = new FeatureCollection { ShapeType = ShapeType.Polygon };
         var p1 = new Feature { ShapeType = ShapeType.Polygon };
