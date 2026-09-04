@@ -1,3 +1,4 @@
+using System.Globalization;
 using Nsi.Geospatial.Projections;
 using OSGeo.OSR;
 
@@ -50,7 +51,8 @@ public static class CrsInspector
     LinearUnit unit = LinearUnit.Unknown;
     if (kind == CrsKind.Projected)
     {
-      unitToMeters = srs.GetLinearUnits(out string unitName);
+      unitToMeters = srs.GetLinearUnits();
+      string unitName = srs.GetAttrValue("UNIT", 0);
       unit = MapUnit(unitName, unitToMeters);
     }
 
@@ -185,3 +187,4 @@ public static class CrsInspector
   /// </summary>
   private static bool AsBoolean(int value) => value != 0;
 }
+

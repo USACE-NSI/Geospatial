@@ -1,3 +1,4 @@
+using System.Globalization;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Io;
@@ -106,15 +107,26 @@ public sealed class SpatialReader : IFeatureSource
       && string.Equals(Normalize(source.Wkt), Normalize(targetWkt), StringComparison.Ordinal);
   }
 
-  private static int? ParseEpsg(string? token) =>
-    int.TryParse(
-      token?.AsSpan("EPSG:".Length).TrimStart(),
-      NumberStyles.Integer,
-      CultureInfo.InvariantCulture,
-      out int code
-    )
-      ? code
+  private static int? ParseEpsg(string? token)
+  {
+    if (string.IsNullOrWhiteSpace(token))
+    {
+      return null;
+    }
+
+    const string Prefix = "EPSG:";
+    ReadOnlySpan<char> span = token.AsSpan();
+    if (span.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+    {
+      span = span[Prefix.Length..];
+    }
+
+    return
+      int.TryParse(span.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int c)
+      && c > 0
+      ? c
       : null;
+  }
 
   /// <summary>WKT for the source, which always carries it after inspection.</summary>
   private static Projection ToProjection(CrsInfo crs)
@@ -241,4 +253,48 @@ public sealed class SpatialReader : IFeatureSource
     }
     return transformer is null ? points : transformer.Reproject(points);
   }
+
+  private static object? ReadFieldValue(
+    OSGeo.OGR.Feature feat,
+    int i,
+    Nsi.Geospatial.Enums.FieldType type
+  ) =>
+    type switch
+    {
+      Nsi.Geospatial.Enums.FieldType.IntegerFT => feat.GetFieldAsInteger(i),
+      Nsi.Geospatial.Enums.FieldType.DoubleFT
+      or Nsi.Geospatial.Enums.FieldType.FloatFT
+      or Nsi.Geospatial.Enums.FieldType.NumericFT
+      or Nsi.Geospatial.Enums.FieldType.SingleFT => feat.GetFieldAsDouble(i),
+      // Shapefiles have no true date field; the OSGeo binding's GetFieldAsDateTime
+      // returns void, so read the date as a string instead.
+      Nsi.Geospatial.Enums.FieldType.DateFT => feat.IsFieldSet(i) ? feat.GetFieldAsString(i) : null,
+      _ => feat.GetFieldAsString(i),
+    };
+
+  private static ShapeType MapGeomType(wkbGeometryType t) =>
+    t switch
+    {
+      wkbGeometryType.wkbPoint or wkbGeometryType.wkbPoint25D => ShapeType.Point,
+      wkbGeometryType.wkbPointM => ShapeType.PointM,
+      wkbGeometryType.wkbLineString or wkbGeometryType.wkbLineString25D => ShapeType.Line,
+      wkbGeometryType.wkbPolygon
+      or wkbGeometryType.wkbPolygon25D
+      or wkbGeometryType.wkbMultiPolygon => ShapeType.Polygon,
+      _ => ShapeType.Point,
+    };
+
+  private static Nsi.Geospatial.Enums.FieldType MapFieldType(OSGeo.OGR.FieldType t) =>
+    t switch
+    {
+      OSGeo.OGR.FieldType.OFTInteger => Nsi.Geospatial.Enums.FieldType.IntegerFT,
+      OSGeo.OGR.FieldType.OFTReal => Nsi.Geospatial.Enums.FieldType.DoubleFT,
+      OSGeo.OGR.FieldType.OFTString => Nsi.Geospatial.Enums.FieldType.TextFT,
+      OSGeo.OGR.FieldType.OFTDate or OSGeo.OGR.FieldType.OFTDateTime => Nsi.Geospatial
+        .Enums
+        .FieldType
+        .DateFT,
+      _ => Nsi.Geospatial.Enums.FieldType.TextFT,
+    };
 }
+
