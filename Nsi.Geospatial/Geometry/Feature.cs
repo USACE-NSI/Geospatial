@@ -1,4 +1,6 @@
+using System.Globalization;
 using Nsi.Geospatial.Enums;
+using Nsi.Geospatial.Projections;
 
 namespace Nsi.Geospatial.Geometry;
 
@@ -15,6 +17,11 @@ public sealed class Feature
   public string? Path { get; set; }
   public string? Name { get; set; }
 
+  /// <summary>Set by FeatureCollection.AddFeature.</summary>
+  internal FeatureCollection? Owner { get; set; }
+
+  /// <summary>The dependable CRS source for this feature's geometry.</summary>
+  public CrsInfo Crs => Owner?.Crs ?? Projections.CrsInfo.Unknown;
   public List<Part> Parts { get; } = new();
   public BoundingBox BoundingBox { get; private set; } = BoundingBox.Empty;
 
@@ -25,6 +32,7 @@ public sealed class Feature
 
   public void AddPart(Part part)
   {
+    part.Owner = this;
     Parts.Add(part);
     BoundingBox = BoundingBox.Union(part.BoundingBox);
   }
@@ -43,9 +51,34 @@ public sealed class Feature
       return default;
     if (raw is T typed)
       return typed;
-    return (T)Convert.ChangeType(raw, typeof(T));
+    return (T)Convert.ChangeType(raw, typeof(T), CultureInfo.InvariantCulture);
   }
 
   public string GetAttributeAsString(string name) =>
     GetAttribute<object?>(name)?.ToString() ?? string.Empty;
+
+  /// <summary>
+  /// Area in square metres: exterior ring minus every part flagged IsHole.
+  /// Null when the CRS is unknown.
+  /// </summary>
+  public double? AreaSquareMeters
+  {
+    get
+    {
+      if (Parts.Count == 0 || Crs.Kind == Projections.CrsKind.Unknown)
+        return null;
+
+      double? total = Parts[0].AreaSquareMeters;
+      if (total is null)
+        return null;
+
+      for (int i = 1; i < Parts.Count; i++)
+      {
+        if (Parts[i].IsHole)
+          total -= Parts[i].AreaSquareMeters ?? 0;
+      }
+      return total;
+    }
+  }
 }
+
