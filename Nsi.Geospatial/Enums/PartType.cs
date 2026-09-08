@@ -1,9 +1,9 @@
 namespace Nsi.Geospatial.Enums;
 
-public enum FieldType
+public enum PartType
 {
   Point,
   Polyline,
-  Polygon,
+  Ring,
 }
 

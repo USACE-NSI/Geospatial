@@ -194,31 +194,31 @@ public sealed class SpatialReader : IFeatureSource
       for (int r = 0; r < geom.GetGeometryCount(); r++)
       {
         using var ring = geom.GetGeometryRef(r);
-        bool clockwise = ring.IsClockwise();
-        var part = new Part { Direction = clockwise };
-        foreach ((double x, double y) in Points(ring, transformer))
+        var part = new Part
         {
+          Kind = PartKind.Ring,
+          Direction = ring.IsClockwise(), // meaningful only on a ring — keep it here
+          IsHole = r > 0, // ← NEW, see §4
+        };
+        foreach ((double x, double y) in Points(ring, transformer))
           part.AddVertex(new Vertex(x, y));
-        }
-        part.CloseRing();
+        part.Seal();
         parts.Add(part);
       }
     }
     else if (type is wkbGeometryType.wkbLineString or wkbGeometryType.wkbLineString25D)
     {
-      var part = new Part { Direction = geom.IsClockwise() };
+      var part = new Part { Kind = PartKind.Polyline }; // no IsClockwise() on an open line
       foreach ((double x, double y) in Points(geom, transformer))
-      {
         part.AddVertex(new Vertex(x, y));
-      }
-      part.CloseRing();
+      part.Seal();
       parts.Add(part);
     }
     else if (
       type is wkbGeometryType.wkbPoint or wkbGeometryType.wkbPoint25D or wkbGeometryType.wkbPointM
     )
     {
-      var part = new Part();
+      var part = new Part { Kind = PartKind.Point };
       double x = geom.GetX(0);
       double y = geom.GetY(0);
       if (transformer is not null)
@@ -226,7 +226,7 @@ public sealed class SpatialReader : IFeatureSource
         (x, y) = transformer.Reproject([(x, y)])[0];
       }
       part.AddVertex(new Vertex(x, y));
-      part.CloseRing();
+      part.Seal();
       parts.Add(part);
     }
     else if (type is wkbGeometryType.wkbMultiPolygon)
