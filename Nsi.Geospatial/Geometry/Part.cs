@@ -14,6 +14,7 @@ public sealed class Part
   public List<Vertex> Vertices { get; } = new();
   public BoundingBox BoundingBox { get; private set; } = BoundingBox.Empty;
   public bool IsHole { get; set; }
+  public PartKind Kind { get; set; }
   public bool Direction { get; set; }
   public int BeginIndex { get; set; }
   public int EndIndex { get; set; }
@@ -22,7 +23,7 @@ public sealed class Part
 
   /// <summary>Planar area in the square linear units of Crs. Null-safe interpretation
   /// via AreaSquareMeters.</summary>
-  public double Area { get; private set; }
+  public double? Area { get; private set; }
 
   /// <summary>Planar perimeter in the linear units of Crs.</summary>
   public double Perimeter { get; private set; }
@@ -61,42 +62,60 @@ public sealed class Part
 
   public Part() { }
 
-  public void AddVertex(Vertex vertex, bool updateBoundingBox = true)
+  /// <summary>
+  /// Append a vertex, maintaining the incremental open-walk Perimeter and the MBR.
+  /// Ring closure is deliberately NOT handled here — GeometryMath closes implicitly,
+  /// and the closing edge is added once by Seal().
+  /// </summary>
+  public void AddVertex(Vertex vertex)
   {
     if (Vertices.Count > 0)
     {
       var last = Vertices[^1];
       Perimeter += GeometryMath.Distance((last.X, last.Y), (vertex.X, vertex.Y));
     }
-    else
-    {
-      // fix: the original set BeginIndex/EndIndex to 0 and derived IsHole from
-      // Direction *before* any real geometry existed; keep the intent but make it explicit.
-      BeginIndex = 0;
-      EndIndex = 0;
-      IsHole = !Direction;
-    }
 
     Vertices.Add(vertex);
-
-    if (updateBoundingBox)
-    {
-      BoundingBox =
-        Vertices.Count == 1
-          ? BoundingBox.Point(vertex.X, vertex.Y)
-          : BoundingBox.Union(BoundingBox.Point(vertex.X, vertex.Y));
-    }
+    BoundingBox = BoundingBox.Union(BoundingBox.Point(vertex.X, vertex.Y));
   }
 
-  public void CloseRing()
+  // public void CloseRing()
+  // {
+  //   EndIndex = IsHole ? 0 : Vertices.Count - 1;
+  //   if (Vertices.Count > 0)
+  //   {
+  //     var first = Vertices[0];
+  //     AddVertex(new Vertex(first.X, first.Y), updateBoundingBox: false);
+  //     (CentroidX, CentroidY) = GeometryMath.Centroid(Vertices.Select(v => (v.X, v.Y)));
+  //     Area = GeometryMath.Area(Vertices.Select(v => (v.X, v.Y)));
+  //   }
+  // }
+
+  /// Finalise after the last vertex. Never mutates the vertex list: GeometryMath
+  /// closes implicitly. Idempotent with respect to authored closure.
+  public void Seal()
   {
-    EndIndex = IsHole ? 0 : Vertices.Count - 1;
-    if (Vertices.Count > 0)
+    if (Vertices.Count == 0)
+      return;
+
+    // Canonical form: strip a trailing duplicate so Vertices.Count is the
+    // unique-vertex count, whether the source arrived open or closed.
+    if (IsRing && Vertices.Count > 1 && Vertices[^1].Coordinates == Vertices[0].Coordinates)
+      Vertices.RemoveAt(Vertices.Count - 1);
+
+    if (IsRing)
     {
-      var first = Vertices[0];
-      AddVertex(new Vertex(first.X, first.Y), updateBoundingBox: false);
-      (CentroidX, CentroidY) = GeometryMath.Centroid(Vertices.Select(v => (v.X, v.Y)));
-      Area = GeometryMath.Area(Vertices.Select(v => (v.X, v.Y)));
+      if (Vertices.Count > 1) // the one legitimate use of today's behaviour
+        Perimeter += GeometryMath.Distance(Vertices[^1].XY, Vertices[0].XY);
+      if (Vertices.Count >= 3)
+      {
+        Area = GeometryMath.Area(Vertices.Select(v => (v.X, v.Y)));
+        (CentroidX, CentroidY) = GeometryMath.Centroid(Vertices.Select(v => (v.X, v.Y)));
+      }
+    }
+    else
+    {
+      Area = null; // a polyline has no area; 0 is a lie
     }
   }
 }
