@@ -1,4 +1,6 @@
+using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
+using Nsi.Geospatial.Projections;
 using Xunit;
 
 namespace Nsi.Geospatial.Tests;
