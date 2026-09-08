@@ -1,3 +1,4 @@
+using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Projections;
 using Xunit;
@@ -30,12 +31,12 @@ public class CrsInfoAndAreaTests
 
   private static Part Build(bool exterior, params (double X, double Y)[] points)
   {
-    var part = new Part { Direction = exterior };
+    var part = new Part(PartType.Ring) { Direction = exterior };
     foreach ((double x, double y) in points)
     {
       part.AddVertex(new Vertex(x, y));
     }
-    part.CloseRing();
+    //part.Seal();
     return part;
   }
 
@@ -63,9 +64,13 @@ public class CrsInfoAndAreaTests
   private static (double X, double Y)[] Rect(double w = 100, double h = 50) =>
     [(0, 0), (w, 0), (w, h), (0, h)];
 
-  private static void Rel(double expected, double actual, double tol = 1e-9)
+  private static void Rel(double expected, double? actual, double tol = 1e-9)
   {
-    double diff = Math.Abs(expected - actual);
+    Assert.True(
+      actual.HasValue,
+      $"expected {expected:R}, got null (no such measure for this PartType)"
+    );
+    double diff = Math.Abs(expected - actual.Value);
     Assert.True(
       diff <= Math.Abs(expected) * tol,
       $"expected {expected:R}, actual {actual:R}, rel diff {diff / Math.Abs(expected):E}"

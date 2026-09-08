@@ -14,6 +14,8 @@ public readonly struct Vertex
   }
 
   public (double X, double Y, double Z) Coordinates => (X, Y, Z);
+  public (double X, double Y) XY => (X, Y);
 
   public override string ToString() => $"({X}, {Y}, {Z})";
 }
+

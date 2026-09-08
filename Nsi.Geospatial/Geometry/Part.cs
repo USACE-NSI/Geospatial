@@ -14,7 +14,11 @@ public sealed class Part
   public List<Vertex> Vertices { get; } = new();
   public BoundingBox BoundingBox { get; private set; } = BoundingBox.Empty;
   public bool IsHole { get; set; }
-  public PartKind Kind { get; set; }
+  public PartType Kind { get; set; }
+
+  /// <summary>Rings close for length and area; polylines and points never do.</summary>
+  public bool IsRing => Kind == PartType.Ring;
+
   public bool Direction { get; set; }
   public int BeginIndex { get; set; }
   public int EndIndex { get; set; }
@@ -60,7 +64,7 @@ public sealed class Part
       _ => null,
     };
 
-  public Part() { }
+  public Part(PartType kind) => Kind = kind;
 
   /// <summary>
   /// Append a vertex, maintaining the incremental open-walk Perimeter and the MBR.
@@ -79,18 +83,6 @@ public sealed class Part
     BoundingBox = BoundingBox.Union(BoundingBox.Point(vertex.X, vertex.Y));
   }
 
-  // public void CloseRing()
-  // {
-  //   EndIndex = IsHole ? 0 : Vertices.Count - 1;
-  //   if (Vertices.Count > 0)
-  //   {
-  //     var first = Vertices[0];
-  //     AddVertex(new Vertex(first.X, first.Y), updateBoundingBox: false);
-  //     (CentroidX, CentroidY) = GeometryMath.Centroid(Vertices.Select(v => (v.X, v.Y)));
-  //     Area = GeometryMath.Area(Vertices.Select(v => (v.X, v.Y)));
-  //   }
-  // }
-
   /// Finalise after the last vertex. Never mutates the vertex list: GeometryMath
   /// closes implicitly. Idempotent with respect to authored closure.
   public void Seal()
@@ -100,7 +92,7 @@ public sealed class Part
 
     // Canonical form: strip a trailing duplicate so Vertices.Count is the
     // unique-vertex count, whether the source arrived open or closed.
-    if (IsRing && Vertices.Count > 1 && Vertices[^1].Coordinates == Vertices[0].Coordinates)
+    if (IsRing && (Vertices.Count > 1) && (Vertices[^1].Coordinates == Vertices[0].Coordinates))
       Vertices.RemoveAt(Vertices.Count - 1);
 
     if (IsRing)

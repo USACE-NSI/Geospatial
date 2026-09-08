@@ -65,22 +65,34 @@ public class SphericalMetricsTests
     * (lonSpan * Math.PI / 180.0)
     * (Math.Sin(lat2 * Math.PI / 180.0) - Math.Sin(lat1 * Math.PI / 180.0));
 
-  private static void Rel(double expected, double actual, double relTol, string what)
+  /// <summary>Relative-tolerance compare. A null actual is a failure, not a skip —
+  /// null means "this geometry kind has no such measure", which is exactly what
+  /// these tests are asserting against.</summary>
+  private static void Rel(double expected, double? actual, double relTol, string what)
   {
-    double err =
-      expected == 0 ? Math.Abs(actual) : Math.Abs(actual - expected) / Math.Abs(expected);
     Assert.True(
-      err <= relTol,
-      $"{what}: expected {expected:R}, got {actual:R} (relative error {err:E3} exceeds {relTol:E3})"
+      actual.HasValue,
+      $"{what}: expected {expected:R}, got null (no such measure for this PartType)"
+    );
+
+    RelD(expected, actual.Value, relTol);
+  }
+
+  private static void RelD(double expected, double actual, double relTol)
+  {
+    double diff = Math.Abs(expected - actual);
+    Assert.True(
+      diff <= Math.Abs(expected) * relTol,
+      $"expected {expected:R}, actual {actual:R}, rel diff {diff / Math.Abs(expected):E}"
     );
   }
 
   private static Part Ring(IEnumerable<(double X, double Y)> ring, bool exterior)
   {
-    var part = new Part { Direction = exterior }; // first AddVertex derives IsHole from this
+    var part = new Part(PartType.Ring) { Direction = exterior }; // first AddVertex derives IsHole from this
     foreach (var (x, y) in ring)
       part.AddVertex(new Vertex(x, y));
-    part.CloseRing();
+    part.Seal();
     return part;
   }
 
@@ -492,7 +504,7 @@ public class SphericalMetricsTests
   )]
   public void LengthMetersMeansTheSameThingInBothCrsKinds()
   {
-    var part2 = new Part();
+    var part2 = new Part(PartType.Polyline);
     part2.AddVertex(new Vertex(0, 0));
     part2.AddVertex(new Vertex(1, 0));
 
@@ -500,7 +512,7 @@ public class SphericalMetricsTests
     geographic.AddFeature(IntoFeature(part2));
 
     var projected = Projected(1.0);
-    var planar = new Part();
+    var planar = new Part(PartType.Polyline);
     planar.AddVertex(new Vertex(0, 0));
     planar.AddVertex(new Vertex(OneDegree, 0));
     projected.AddFeature(IntoFeature(planar));
@@ -671,7 +683,7 @@ public class SphericalMetricsTests
     Rel(CellAt44N, part.AreaSquareMeters!.Value, 1e-12, "geographic area");
 
     // And it must not be the cached planar figure, which is square degrees.
-    Assert.Equal(1.0, part.Area, 9);
+    Assert.Equal(1.0, part.Area!.Value, 9);
     Assert.NotEqual(part.Area, part.AreaSquareMeters!.Value);
   }
 
@@ -737,11 +749,11 @@ public class SphericalMetricsTests
   {
     // SpatialReader sets Direction from ring.IsClockwise() and CloseRing keys
     // EndIndex off IsHole, so this derivation is load-bearing for hole handling.
-    var shell = new Part { Direction = true };
+    var shell = new Part(PartType.Ring) { Direction = true };
     shell.AddVertex(new Vertex(0, 44));
     Assert.False(shell.IsHole);
 
-    var hole = new Part { Direction = false };
+    var hole = new Part(PartType.Ring) { Direction = false };
     hole.AddVertex(new Vertex(0, 44));
     Assert.True(hole.IsHole);
   }

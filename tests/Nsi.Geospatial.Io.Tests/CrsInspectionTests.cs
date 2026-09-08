@@ -100,10 +100,10 @@ public class CrsInspectionTests
 
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part { Direction = true };
+      var ring = new Part(PartType.Ring) { Direction = true };
       foreach (var (x, y) in Cell(0, 44))
         ring.AddVertex(new Vertex(x, y));
-      ring.CloseRing();
+      ring.Seal();
       f.AddPart(ring);
       fc.AddFeature(f);
 
@@ -123,7 +123,8 @@ public class CrsInspectionTests
       Assert.True(rel < 1e-9, $"area {area:E6} differs from {expected:E6} (rel {rel:E3})");
 
       // The planar cache is still square degrees; only the new property is usable.
-      Assert.Equal(1.0, read[0].Parts[0].Area, 6);
+      Assert.NotNull(read[0].Parts[0].Area); // a ring must have an area
+      Assert.Equal(1.0, read[0].Parts[0].Area!.Value, 6); // still square degrees
     }
     finally
     {
@@ -154,10 +155,10 @@ public class CrsInspectionTests
 
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part { Direction = true };
+      var ring = new Part(PartType.Ring) { Direction = true };
       foreach (var (x, y) in new[] { (0.0, 0.0), (1000.0, 0.0), (1000.0, 1000.0), (0.0, 1000.0) })
         ring.AddVertex(new Vertex(x, y));
-      ring.CloseRing();
+      ring.Seal();
       f.AddPart(ring);
       fc.AddFeature(f);
 
@@ -192,10 +193,10 @@ public class CrsInspectionTests
       fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part { Direction = true };
+      var ring = new Part(PartType.Ring) { Direction = true };
       foreach (var (x, y) in Cell(0, 44))
         ring.AddVertex(new Vertex(x, y));
-      ring.CloseRing();
+      ring.Seal();
       f.AddPart(ring);
       fc.AddFeature(f);
 
@@ -236,7 +237,7 @@ public class CrsInspectionTests
       fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
       var p = new Feature { ShapeType = ShapeType.Point };
       p.Attributes["id"] = 1;
-      var part = new Part();
+      var part = new Part(PartType.Point);
       part.AddVertex(new Vertex(-93.0, 44.0));
       p.AddPart(part);
       fc.AddFeature(p);
@@ -283,10 +284,10 @@ public class CrsInspectionTests
       fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part { Direction = true };
+      var ring = new Part(PartType.Ring) { Direction = true };
       foreach (var (x, y) in Cell(-93.0, 44.0))
         ring.AddVertex(new Vertex(x, y));
-      ring.CloseRing();
+      ring.Seal();
       f.AddPart(ring);
       fc.AddFeature(f);
 
@@ -303,10 +304,10 @@ public class CrsInspectionTests
       double planar = read[0].Parts[0].AreaSquareMeters!.Value;
 
       // Spherical answer for the same cell, computed from the source vertices.
-      var src = new Part { Direction = true };
+      var src = new Part(PartType.Ring) { Direction = true };
       foreach (var (x, y) in Cell(-93.0, 44.0))
         src.AddVertex(new Vertex(x, y));
-      src.CloseRing();
+      src.Seal();
       var srcFc = new FeatureCollection
       {
         ShapeType = ShapeType.Polygon,

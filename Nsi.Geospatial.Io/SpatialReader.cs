@@ -194,9 +194,8 @@ public sealed class SpatialReader : IFeatureSource
       for (int r = 0; r < geom.GetGeometryCount(); r++)
       {
         using var ring = geom.GetGeometryRef(r);
-        var part = new Part
+        var part = new Part(PartType.Ring)
         {
-          Kind = PartKind.Ring,
           Direction = ring.IsClockwise(), // meaningful only on a ring — keep it here
           IsHole = r > 0, // ← NEW, see §4
         };
@@ -208,7 +207,7 @@ public sealed class SpatialReader : IFeatureSource
     }
     else if (type is wkbGeometryType.wkbLineString or wkbGeometryType.wkbLineString25D)
     {
-      var part = new Part { Kind = PartKind.Polyline }; // no IsClockwise() on an open line
+      var part = new Part(PartType.Polyline); // no IsClockwise() on an open line
       foreach ((double x, double y) in Points(geom, transformer))
         part.AddVertex(new Vertex(x, y));
       part.Seal();
@@ -218,7 +217,7 @@ public sealed class SpatialReader : IFeatureSource
       type is wkbGeometryType.wkbPoint or wkbGeometryType.wkbPoint25D or wkbGeometryType.wkbPointM
     )
     {
-      var part = new Part { Kind = PartKind.Point };
+      var part = new Part(PartType.Point);
       double x = geom.GetX(0);
       double y = geom.GetY(0);
       if (transformer is not null)
