@@ -260,12 +260,6 @@ tuple. A source ring whose closing vertex has an unset Z does not match vertex 0
 writer appends a **second** closing point and the ring grows by one vertex per round
 trip. Closure is a planar property: compare `XY`.
 
-### P-59 `.editorconfig` indent rules conflict for C#  *(new)*
-`[*]` sets 4, then `[*.{csproj,sln,props,targets,xml,yml,yaml,json,cs}]` sets 2 — and
-that brace list includes `cs`, so `.cs` resolves to 2 (the `[*.cs]` section sets no
-`indent_size`). The committed files appear to use 1 space. `dotnet format` will therefore
-want to reindent the whole solution, and CI runs it as a hard gate. Pick one width and
-land it as a single formatting-only commit.
 
 ---
 
