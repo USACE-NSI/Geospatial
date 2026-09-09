@@ -194,11 +194,7 @@ public sealed class SpatialReader : IFeatureSource
       for (int r = 0; r < geom.GetGeometryCount(); r++)
       {
         using var ring = geom.GetGeometryRef(r);
-        var part = new Part(PartType.Ring)
-        {
-          Direction = ring.IsClockwise(), // meaningful only on a ring — keep it here
-          IsHole = r > 0, // ← NEW, see §4
-        };
+        var part = new Part(PartType.Ring) { IsHole = r > 0 };
         foreach ((double x, double y) in Points(ring, transformer))
           part.AddVertex(new Vertex(x, y));
         part.Seal();

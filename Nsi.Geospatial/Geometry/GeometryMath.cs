@@ -13,6 +13,41 @@ public static class GeometryMath
     return Math.Sqrt(dx * dx + dy * dy);
   }
 
+  /// <summary>
+  /// Length of the CLOSED walk over the points: every consecutive pair plus the
+  /// edge from the last back to the first. Invariant to whether the caller stored
+  /// the ring open or closed — a repeated first vertex contributes zero, so
+  /// [A,B,C] and [A,B,C,A] give the same answer. Planar counterpart of
+  /// SphericalPerimeter; for the open walk (polylines) use OpenWalk.
+  /// </summary>
+  public static double ClosedWalk(IEnumerable<(double X, double Y)> ring)
+  {
+    var pts = ring.ToList();
+    if (pts.Count < 2)
+      return 0;
+
+    double total = 0;
+    for (int i = 0; i < pts.Count; i++)
+      total += Distance(pts[i], pts[(i + 1) % pts.Count]);
+    return total;
+  }
+
+  /// <summary>
+  /// Length of the OPEN walk over the points: n-1 consecutive edges, no closing
+  /// edge. Planar counterpart of SphericalLength.
+  /// </summary>
+  public static double OpenWalk(IEnumerable<(double X, double Y)> line)
+  {
+    var pts = line.ToList();
+    if (pts.Count < 2)
+      return 0;
+
+    double total = 0;
+    for (int i = 1; i < pts.Count; i++)
+      total += Distance(pts[i - 1], pts[i]);
+    return total;
+  }
+
   /// <summary>Shoelace area of a polygon ring (absolute value).</summary>
   public static double Area(IEnumerable<(double X, double Y)> ring)
   {

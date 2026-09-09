@@ -100,7 +100,7 @@ public class CrsInspectionTests
 
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part(PartType.Ring) { Direction = true };
+      var ring = new Part(PartType.Ring) { IsHole = false };
       foreach (var (x, y) in Cell(0, 44))
         ring.AddVertex(new Vertex(x, y));
       ring.Seal();
@@ -155,7 +155,7 @@ public class CrsInspectionTests
 
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part(PartType.Ring) { Direction = true };
+      var ring = new Part(PartType.Ring) { IsHole = false };
       foreach (var (x, y) in new[] { (0.0, 0.0), (1000.0, 0.0), (1000.0, 1000.0), (0.0, 1000.0) })
         ring.AddVertex(new Vertex(x, y));
       ring.Seal();
@@ -193,7 +193,7 @@ public class CrsInspectionTests
       fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part(PartType.Ring) { Direction = true };
+      var ring = new Part(PartType.Ring) { IsHole = false };
       foreach (var (x, y) in Cell(0, 44))
         ring.AddVertex(new Vertex(x, y));
       ring.Seal();
@@ -284,7 +284,7 @@ public class CrsInspectionTests
       fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
-      var ring = new Part(PartType.Ring) { Direction = true };
+      var ring = new Part(PartType.Ring) { IsHole = false };
       foreach (var (x, y) in Cell(-93.0, 44.0))
         ring.AddVertex(new Vertex(x, y));
       ring.Seal();
@@ -304,7 +304,7 @@ public class CrsInspectionTests
       double planar = read[0].Parts[0].AreaSquareMeters!.Value;
 
       // Spherical answer for the same cell, computed from the source vertices.
-      var src = new Part(PartType.Ring) { Direction = true };
+      var src = new Part(PartType.Ring) { IsHole = false };
       foreach (var (x, y) in Cell(-93.0, 44.0))
         src.AddVertex(new Vertex(x, y));
       src.Seal();

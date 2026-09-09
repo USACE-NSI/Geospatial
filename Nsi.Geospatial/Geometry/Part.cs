@@ -19,9 +19,6 @@ public sealed class Part
   /// <summary>Rings close for length and area; polylines and points never do.</summary>
   public bool IsRing => Kind == PartType.Ring;
 
-  public bool Direction { get; set; }
-  public int BeginIndex { get; set; }
-  public int EndIndex { get; set; }
   public double CentroidX { get; private set; }
   public double CentroidY { get; private set; }
 
@@ -85,7 +82,6 @@ public sealed class Part
     if (Vertices.Count > 0)
     {
       var last = Vertices[^1];
-      Perimeter += GeometryMath.Distance((last.X, last.Y), (vertex.X, vertex.Y));
     }
 
     Vertices.Add(vertex);
@@ -98,24 +94,21 @@ public sealed class Part
   {
     if (Vertices.Count == 0)
       return;
-
-    // Canonical form: strip a trailing duplicate so Vertices.Count is the
-    // unique-vertex count, whether the source arrived open or closed.
-    if (IsRing && (Vertices.Count > 1) && (Vertices[^1].Coordinates == Vertices[0].Coordinates))
-      Vertices.RemoveAt(Vertices.Count - 1);
-
     if (IsRing)
     {
-      if (Vertices.Count > 1) // the one legitimate use of today's behaviour
-        Perimeter += GeometryMath.Distance(Vertices[^1].XY, Vertices[0].XY);
+      if (Vertices.Count > 1)
+        Perimeter = GeometryMath.ClosedWalk(Vertices.Select(v => v.XY));
       if (Vertices.Count >= 3)
       {
-        Area = GeometryMath.Area(Vertices.Select(v => (v.X, v.Y)));
-        (CentroidX, CentroidY) = GeometryMath.Centroid(Vertices.Select(v => (v.X, v.Y)));
+        Area = GeometryMath.Area(Vertices.Select(v => v.XY));
+        (CentroidX, CentroidY) = GeometryMath.Centroid(Vertices.Select(v => v.XY));
       }
     }
     else
     {
+      if (Vertices.Count > 1)
+        Perimeter = GeometryMath.OpenWalk(Vertices.Select(v => v.XY));
+
       Area = null; // a polyline has no area; 0 is a lie
     }
   }

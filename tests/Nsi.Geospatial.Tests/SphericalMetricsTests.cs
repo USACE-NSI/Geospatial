@@ -78,18 +78,21 @@ public class SphericalMetricsTests
     RelD(expected, actual.Value, relTol);
   }
 
-  private static void RelD(double expected, double actual, double relTol)
+  private static void RelD(double expected, double actual, double relTol, double absTol = 1e-9)
   {
     double diff = Math.Abs(expected - actual);
+    // Relative tolerance is meaningless at expected == 0 (and prints rel diff ∞),
+    // so fall back to an absolute floor. Callers comparing metres should pass an
+    // absTol in metres; comparing degrees needs a much smaller one.
     Assert.True(
-      diff <= Math.Abs(expected) * relTol,
-      $"expected {expected:R}, actual {actual:R}, rel diff {diff / Math.Abs(expected):E}"
+      diff <= Math.Max(Math.Abs(expected) * relTol, absTol),
+      $"expected {expected:R}, actual {actual:R}, diff {diff:E}, rel {diff / Math.Abs(expected):E}"
     );
   }
 
   private static Part Ring(IEnumerable<(double X, double Y)> ring, bool exterior)
   {
-    var part = new Part(PartType.Ring) { Direction = exterior, IsHole = !exterior };
+    var part = new Part(PartType.Ring) { IsHole = !exterior };
     foreach (var (x, y) in ring)
       part.AddVertex(new Vertex(x, y));
     part.Seal();
@@ -505,7 +508,7 @@ public class SphericalMetricsTests
     var part2 = new Part(PartType.Polyline);
     part2.AddVertex(new Vertex(0, 0));
     part2.AddVertex(new Vertex(1, 0));
-
+    part2.Seal();
     var geographic = Geographic(ShapeType.Line);
     geographic.AddFeature(IntoFeature(part2));
 
@@ -514,7 +517,7 @@ public class SphericalMetricsTests
     planar.AddVertex(new Vertex(0, 0));
     planar.AddVertex(new Vertex(OneDegree, 0));
     projected.AddFeature(IntoFeature(planar));
-
+    planar.Seal();
     Rel(
       projected.Features[0].Parts[0].LengthMeters!.Value,
       geographic.Features[0].Parts[0].LengthMeters!.Value,
