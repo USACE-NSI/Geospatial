@@ -499,9 +499,7 @@ public class SphericalMetricsTests
     Assert.Equal(2, twoPointLine.Count);
   }
 
-  [Fact(
-    Skip = "Part.LengthMeters means different things per CRS branch: for a Projected part it is Part.Perimeter (open), for a Geographic part it is SphericalPerimeter (closed). An unclosed 2-vertex part therefore reports one edge in metres and two edges in degrees. Either SphericalPerimeter must stop closing, or LengthMeters should use an open walk for both."
-  )]
+  [Fact]
   public void LengthMetersMeansTheSameThingInBothCrsKinds()
   {
     var part2 = new Part(PartType.Polyline);

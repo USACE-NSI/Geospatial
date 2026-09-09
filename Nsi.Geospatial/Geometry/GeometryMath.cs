@@ -140,7 +140,7 @@ public static class GeometryMath
     return radiusMeters * 2 * Math.Atan2(Math.Sqrt(h), Math.Sqrt(1 - h));
   }
 
-  /// <summary>Great-circle length, metres, of a (lon, lat) degree polyline.</summary>
+  /// Great-circle perimeter, metres, of a CLOSED ring of (X=longitude, Y=latitude) degrees.
   public static double SphericalPerimeter(
     IEnumerable<(double X, double Y)> ring,
     double radiusMeters = EarthRadiusMeanMeters
@@ -212,4 +212,21 @@ public static class GeometryMath
       Math.Cos(phi1) * Math.Sin(phi2) - Math.Sin(phi1) * Math.Cos(phi2) * Math.Cos(dLon)
     );
   }
+
+  /// <summary>Great-circle length, metres, of an OPEN (lon, lat) polyline:
+  /// n-1 edges, no closing edge.</summary>
+  public static double SphericalLength(
+    IEnumerable<(double X, double Y)> line,
+    double radiusMeters = EarthRadiusMeanMeters
+  )
+  {
+    var pts = line.ToList();
+    if (pts.Count < 2)
+      return 0;
+    double total = 0;
+    for (int i = 1; i < pts.Count; i++)
+      total += SphericalDistance(pts[i - 1], pts[i], radiusMeters);
+    return total;
+  }
 }
+

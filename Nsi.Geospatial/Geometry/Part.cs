@@ -45,22 +45,24 @@ public sealed class Part
   /// rings use the declared unit, no transform needed.
   /// </summary>
   public double? AreaSquareMeters =>
-    Crs.Kind switch
-    {
-      Projections.CrsKind.Projected => Area * Crs.UnitToMetersOrMeter * Crs.UnitToMetersOrMeter,
-      Projections.CrsKind.Geographic => GeometryMath.SphericalArea(
-        Vertices.Select(v => (v.X, v.Y))
-      ),
-      _ => null,
-    };
+    Area is null
+      ? null
+      : Crs.Kind switch
+      {
+        Projections.CrsKind.Projected => Area * Crs.UnitToMetersOrMeter * Crs.UnitToMetersOrMeter,
+        Projections.CrsKind.Geographic => GeometryMath.SphericalArea(
+          Vertices.Select(v => (v.X, v.Y))
+        ),
+        _ => null,
+      };
 
   public double? LengthMeters =>
     Crs.Kind switch
     {
       Projections.CrsKind.Projected => Perimeter * Crs.UnitToMetersOrMeter,
-      Projections.CrsKind.Geographic => GeometryMath.SphericalPerimeter(
-        Vertices.Select(v => (v.X, v.Y))
-      ),
+      Projections.CrsKind.Geographic => IsRing
+        ? GeometryMath.SphericalPerimeter(Vertices.Select(v => v.XY))
+        : GeometryMath.SphericalLength(Vertices.Select(v => v.XY)),
       _ => null,
     };
 
