@@ -48,6 +48,7 @@ public class SphericalMetricsTests
 
   private const double QuarterMeridian = 10007557.1760931872; // pi/2 * Rmean
   private const double OneDegree = 111195.0797343687; // pi/180 * Rmean
+  private const double Deg2Rad = Math.PI / 180.0;
 
   // ---------------------------------------------------------------- helpers
 
@@ -57,6 +58,14 @@ public class SphericalMetricsTests
     double w = 1,
     double h = 1
   ) => new() { (lon, lat), (lon + w, lat), (lon + w, lat + h), (lon, lat + h) };
+
+  /// <summary>Axis-aligned lon/lat rectangle, CCW from (lonMin,latMin).</summary>
+  private static List<(double X, double Y)> LonLatCell(
+    double lonMin,
+    double lonMax,
+    double latMin,
+    double latMax
+  ) => [(lonMin, latMin), (lonMax, latMin), (lonMax, latMax), (lonMin, latMax)];
 
   /// <summary>Closed-form sphere area of a graticule cell — the reference the code is checked against.</summary>
   private static double AnalyticCell(double lonSpan, double lat1, double lat2) =>
@@ -137,6 +146,33 @@ public class SphericalMetricsTests
     };
 
   // ============================================================ SphericalArea
+  [Fact]
+  public void SphericalPerimeterIsTheSumOfGreatCircleEdges()
+  {
+    var ring = LonLatCell(0, 1, 44, 45);
+    double expected = 0;
+    for (int i = 0; i < ring.Count; i++)
+    {
+      expected += GeometryMath.SphericalDistance(ring[i], ring[(i + 1) % ring.Count]);
+    }
+
+    Rel(expected, GeometryMath.SphericalPerimeter(ring), 1e-12, "what");
+  }
+
+  [Fact]
+  public void PointToSegmentEastOfNorthSouthSegmentIsOneDegreeOfLongitude()
+  {
+    // Segment runs north along lon 0 from the equator; the perpendicular from
+    // (1E, 0N) is the equator itself, meeting the segment at its endpoint.
+    double expected = GeometryMath.EarthRadiusMeanMeters * Deg2Rad;
+
+    Rel(
+      expected,
+      GeometryMath.SphericalPointToSegmentDistance((1, 0), (0, 0), (0, 1)),
+      1e-9,
+      "what"
+    );
+  }
 
   [Fact]
   public void SphericalAreaOfGraticuleCellMatchesClosedFormExactly()
