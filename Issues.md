@@ -1,308 +1,445 @@
-# ISSUES — consolidated backlog
+# Issues — living tracker
 
-**Repository:** [USACE-NSI/Geospatial](https://github.com/USACE-NSI/Geospatial)
-**Branch reviewed:** `feature/spherical` @ `56c8005` (PR #6, "initial spherical math")
-**Supersedes:** `CHANGES_08312026.md`, `CHANGES_09012026.md`, `CHANGES_09082026.md`
-**Review date:** 2026-09-08 · **Revised:** 2026-09-08 (post `16585ef` reconciliation)
+Single source of truth for known defects and open work. 
 
-Single source of truth for known defects and open work. The three `CHANGES_*` files are
-dated review artefacts, not a live tracker — move them to `docs/reviews/` unedited and
-record new work only here. See §7 N-7 for why that matters more than it sounds.
+Reviewed against `feature/spherical` @ `3f62485` (PR #6).
+
+## How to use this file
+
+- `P-xx` numbers are stable. Never reuse one. Do not renumber.
+- Commit with `fix(P-xx)` in the message. The old `fix(#N)` markers in source refer to
+  `CHANGES_08312026.md`'s numbering, **not** these numbers — see N-6.
+- An item is closed only when a passing, un-skipped test guards the fix. Comments and
+  commit messages are not evidence.
+- Section 10 is the recommended work order, not a priority list.
 
 ---
 
-## 1. How to use this file
+## 0. Standing decisions
 
-**Status values** (use exactly these so the file stays greppable):
-
-| Status | Meaning |
+| ID | Decision |
 |---|---|
-| `open` | Confirmed present at HEAD. No work started. |
-| `open (partial)` | Later work reduced the scope; remainder described in the row. |
-| `blocked` | Cannot be estimated until a named decision or spike lands. |
-| `closed` | Verified fixed in code. Listed in §6, never deleted. |
-
-**Priorities:** **P0** correctness / data loss · **P1** robustness / latent crashes ·
-**P2** minor / consistency · **P3** housekeeping.
-
-**Numbering.** `P-xx` IDs are assigned once and never reused, including after closure or
-retraction. When you close an item, set Status to `closed` and add `Closed by <sha>`. Do
-not delete the row — the `0901` file *deleted* its P1-10 row instead of resolving it, and
-the P/Invoke layer it referred to survived being "resolved".
-
-**ID map.** `RTreeManager` and `RTreeNode` are **foundational and permanent** — see §2
-D-A. All R-tree work is fix work; deletion and replacement were considered and rejected.
+| D-A | **The R-tree stays.** It is foundational, supports bulk add, and outperforms RBush and other .NET implementations. Every R-tree item below is fix work; deletion and replacement are off the table. |
+| D-B | Skipped tests assert behaviour the library *should* have and does not. They are deliberate and are the spec for P-03 and P-04. |
+| D-C | Spike needed: confirm the GDAL 3.11.3 binding surface (`Layer.FieldIndex`, object overloads, `CoordinateTransformationOptions`). Gates P-06 and P-20. |
+| D-D | Decide the CRS token/authority model. `Reprojector.CrsToken` prepends `"EPSG:"`, so `"ESRI:102003"` becomes `"EPSG:ESRI:102003"`. GDAL now warns about this on every run (see the `EPSG:102003` line in test output). Gates P-14. |
+| D-E | Decide whether the R-tree may index a geographic CRS. Its MBR math is planar; a degree-space box is not a metric box. Gates P-02 and P-47. |
 
 ---
 
-## 2. Resolved decisions
+## 1. P0 — wrong answers today
 
-### D-A · RESOLVED — the R-tree stays. All R-tree work is fix work.
+### P-03 `SphericalPointToSegmentDistance` cannot detect a foot behind `a`  *(skipped test)*
+`deltaAT = acos(cos(d13)/cos(dXT))` is non-negative by construction, so only the far
+side (`deltaAT > delta12`) is ever detected. A perpendicular foot behind `a` returns
+the cross-track distance instead of `R * delta13`, understating the result — measured
+1000.786 m where the truth is 1057.160 m.
+**Fix:** reject when `cos(bearing(a,p) - bearing(a,b)) < 0` and return `R * delta13`.
+**Guard:** un-skip `PointToSegmentWhenFootIsBehindTheNearEndpointReturnsDistanceToA`.
 
-`RTreeManager`/`RTreeNode` are a foundational feature of this library and will not be
-removed or replaced. They already support bulk adding, and they have been benchmarked
-against other .NET R-tree implementations (including RBush) and are more performant.
-Earlier framing in this review that treated "no production caller" as an argument for
-removal was mistaken: it is simply `P-02`, and given the above it is a requirement rather
-than a judgement call. **`P-02` is now mandatory: the spatial joins must use the R-tree, or
-expose an explicit option to.**
+### P-04 `EarthRadiusFeet` is the wrong radius in the wrong unit  *(skipped test)*
+Value `20925524.9` is the **equatorial** radius in feet (6378137 m), but the docstring
+calls it "6,371,000 m in feet" and `SphericalArea`'s docstring tells callers to pass it
+for square feet. Wrong scale *and* wrong unit — and `SphericalArea` squares it, so the
+error is ~0.22% plus the unit factor.
+This is also the entire subject of PR #6 ("right now it outputs meters instead of feet").
+**Fix:** `EarthRadiusAuthalicFeet = EarthRadiusAuthalicMeters / MetersPerFoot`
+(20,902,254.53) for areas, plus a mean-radius-in-feet for distances; rename the current
+constant to `EarthRadiusEquatorialFeet` and forbid its use in area math.
+**Guard:** un-skip `EarthRadiusFeetIsTheAuthalicRadiusInFeet`.
 
-### D-B · RESOLVED — the R-tree tests pass, and deliberately so
+### P-05 Hole accounting — authoring path closed, read path and edge cases open
+`IsHole` is now explicit everywhere (the reader sets `IsHole = r > 0`; helpers set
+`IsHole = !exterior`), and the old `AddVertex` derivation is gone. Still open:
+- `Feature.AreaSquareMeters` treats `Parts[0]` as exterior unconditionally and never
+  checks `Parts[0].IsHole`. A feature built hole-first reports a **positive** area.
+  One line: `if (Parts[0].IsHole) return null;` — or sum non-holes, subtract holes.
+- `total -= Parts[i].AreaSquareMeters ?? 0` silently treats a null (unmeasurable) hole
+  as zero area. `Part`'s docstring now warns callers about exactly this; the library's
+  own caller does not heed it.
+- **No test exercises the read path.** `IsHole = r > 0` has zero coverage. A reader
+  change that dropped it would ship green and double-count every donut. See T-5.
+- Multipolygon flattening restarts `r` per sub-polygon, so a two-part multipolygon
+  marks hole 1 of each — verify that is intended.
 
-`16585ef` (AlexRyanUSACE, 2026-09-01 17:31 UTC) converted
-`[Fact(Skip = "Fails by design: asserts correct behavior that the original (unfixed) RTree
-split/overlap defects violate…")]` into a live `[Fact]` as the proof that its MBR
-propagation fix worked. CI is green because that fix works. `CHANGES_08312026.md` still
-claims these tests "fail (or are skipped with a reason) … that's evidence, not a
-regression" — it was written the previous day and never revised. **House rule settled:
-`RTreeTests` asserts correct behaviour.** The leftover `//(Skip = ...)` comment is debris
-and should be deleted (`P-48`).
+### P-06 Writer field typing  *(needs D-C)*
+`SpatialWriter` does not type fields to match `AttributeColumn`, and carries a comment
+claiming "no object overload, and no `Layer.FieldIndex` in 3.11.3" which contradicts
+the fix prescribed in the 0901 changelog. Resolve D-C, then fix or document.
 
-### D-C · OPEN — spike: what can the gdal 3.11.3 C# binding actually do?
+### P-08 CSV newlines
+Values containing CR/LF corrupt the CSV round trip. Quote or reject.
 
-Gates `P-06` and `P-20`. `0901 P0-4` prescribes `SetField(name, l)` plus `OFTInteger64`,
-but `SpatialWriter` carries an in-code comment stating the binding has "no object overload,
-and no `Layer.FieldIndex` in 3.11.3", that "the string setter works for any OGR field
-type", and that `P0-4` is "intentionally left unchanged in this class". The changelog and
-the code comment disagree about what is possible. Establish the real surface — `SetField`
-overloads, `OFTInteger64`, and `Geometry`/`Feature` ownership for `P-20` — before
-estimating either. `tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs` is a commented-out
-tool built to answer exactly this question for P1-10; run it once, capture the output,
-then delete it (`P-37`).
+### P-09 `RenameColumn`
+Does not update the column's identity consistently; renamed columns lose their data or
+their type after a write.
 
-### D-D · OPEN — design: one CRS-token and authority model
+### P-10 `JoinType.Average`
+Not implemented / produces wrong results for multi-match joins.
 
-Gates `P-14`. `CHANGES_09082026.md` P2-15 recommends changing
-`Projection.AlbersUsa.EpsgCode` from `"EPSG:102003"` to `"ESRI:102003"`. **Applying that
-recommendation as written introduces a new bug:** `Reprojector.CrsToken` prepends `"EPSG:"`
-to any token not already starting with that exact prefix, producing
-`"EPSG:ESRI:102003"`, which OSR cannot resolve. Token builder, parser
-(`SpatialReader.ParseEpsg`) and comparison (`SameCrs`) must be redesigned together.
+### P-11 `Vertices[0]` on an empty part
+Still reachable: `Measure()` handles `Count == 0`, but external callers (joins, writer,
+`SpatialIoTests`' `Parts[0].Vertices[0]`) index without checking. Note `Part` can now be
+legitimately empty and unmeasurable — `AddVertex` is the only mutator, so nothing forces
+at least one vertex.
 
-### D-E · OPEN — policy: may the R-tree index geographic (lon/lat) collections?
-
-Gates `P-02` and `P-47`. Axis-aligned boxes in degrees have two problems the tree cannot
-solve internally:
-
-1. `BoundingBox`'s constructor **normalises** (`MinX = Math.Min(minX, maxX)`), so any
-   footprint spanning the antimeridian is silently inverted into a box covering most of
-   the globe.
-2. A degree of longitude is not a degree of latitude (roughly half by 65°N), so
-   box-distance is not monotone in ground distance and kNN pruning is unsound in degrees
-   without a latitude-aware bound.
-
-Choose: **(a)** require projected input and throw when `Crs.Kind == CrsKind.Geographic`, or
-**(b)** accept geographic input and pad the search window conservatively
-(`dLat = d/111320`, `dLon = d/(111320 · cos φ)`) — over-fetches candidates, never misses
-the true nearest. (b) is safer for callers; either way, dateline data needs explicit
-handling regardless.
-
----
-
-## 3. P0 — correctness / data loss
-
-| ID | Title | Component | Legacy | Status | Fix / acceptance |
-|---|---|---|---|---|---|
-| `P-39` | **`BoundingBox.Empty` is the entire double plane, not an empty box.** `Empty` is built as `(MaxValue, MaxValue, MinValue, MinValue)` and the constructor normalises, yielding `[-1.8e308 … +1.8e308]` in both axes. The `== Empty` guards in `Overlaps`/`Contains`/`Union` hide this; the unguarded members are wrong: `Area()` overflows to `+∞`, `ContainsPoint` returns true for every point, `RTreeNode.getArea` is `+∞` (its `MaxX < MinX` guard can never fire), `getMBRoverlap` returns `+∞` against everything. `Empty` is the **initial value of every tree node**, and `addFeature` validates nothing — one feature with an unset box hands the tree `+∞` costs and insertion ranking becomes arbitrary | `Geometry/BoundingBox.cs`, `Spatial/RTreeManager.cs` | absorbs `0901 P1-4` | `open` | Add `public readonly bool IsEmpty` set by a private ctor; `Area()` and `ContainsPoint` return 0/false when set; switch `Overlaps`/`Contains`/`Union` from `== Empty` to `IsEmpty`; `addFeature` throws `ArgumentException` on an empty box. `FromVertices`' unreachable `IsPositiveInfinity` check then becomes unnecessary. **Prerequisite for `P-01` and `P-02`.** |
-| `P-02` | **Both joins build an R-tree and immediately discard it** (`_ = pointTree ?? BuildTree(points)`). The public API advertises tree-based candidate selection it does not perform; joins are O(n·m). Also `NearestPolygonsToPoints` leaves destination fields unset when nothing matched, and takes no `JoinType` (asymmetric with its sibling) | `Spatial/SpatialJoins.cs` | `0901 P0-2`, `0831` | `blocked` on `P-39` → `P-01` → `P-47` → `P-44` → **D-E** | **Mandatory per D-A.** Tree-driven candidate selection by default, with an explicit opt-out retained (brute-force overload or `useTree: false`) so results can be verified. Acceptance: `SpatialJoinTests` **fails if the tree is broken** — assert tree-assisted and brute-force results are identical on random data, so the discarded-parameter problem cannot silently return. Delete `_ = tree ?? BuildTree(…)`. Fix `BuildTree`'s docstring, which still describes the argument order `a6f3def` deleted. |
-| `P-03` | `SphericalPointToSegmentDistance` cannot detect a perpendicular foot behind `a`; `deltaAT = acos(cos d13 / cos dXT)` is non-negative by construction, so the case is unreachable | `Geometry/GeometryMath.cs` | `0908 P0-10` | `open` | Guard `cos(InitialBearing(a,p) - InitialBearing(a,b)) < 0` → return `radius * delta13`. Measured today: returns 1000.786 m where the nearest point is `a` at 1057.160 m. Un-skip `PointToSegment_WhenFootIsBehindTheNearEndpoint_ReturnsDistanceToA`. **On the join path** — nearest-line joins currently prefer segments they should not. |
-| `P-04` | **Units contract.** `EarthRadiusFeet = 20925524.9` is documented as "6,371,000 m in feet" but × 0.3048 = 6,378,099.99 m — the WGS84 **equatorial** radius. `SphericalArea`'s docstring warns that the equatorial radius "inflates them ~0.22%" and then instructs callers to pass this constant for square feet | `Geometry/GeometryMath.cs` | `0908 P0-11`, PR #6 body | `open` | Don't merely correct the constant. PR #6's stated goal is *"right now it outputs meters instead of feet - we should probably change that"*, so expose `AreaSquareFeet` / `LengthFeet` (or a unit-tagged quantity) and delete the pass-a-magic-radius advice. Acceptance: `EarthRadiusFeet_IsTheAuthalicRadiusInFeet` un-skipped and green; no caller needs to know a radius. |
-| `P-05` | `Feature.AreaSquareMeters` hole accounting depends on a flag known to be inverted: treats `Parts[0]` as exterior and subtracts every later part flagged `IsHole`, where `IsHole` is derived `!Direction` | `Geometry/Feature.cs`, `Geometry/Part.cs` | `0901 P2-1` **+ new** | `open` | `P2-1` was rated P2 because `IsHole`/`Direction` were "dead except inside `CloseRing`". No longer true — the field is load-bearing in a headline metric, and `SphericalMetricsTests.Ring()` relies on the derivation. Fix polarity to the shapefile convention (outer rings CCW) or decide holes by containment rather than a flag. Acceptance: an exterior+hole polygon returns exterior-minus-hole. |
-| `P-06` | Writer field typing: `SetOgrField` casts `long` → `int`; `FieldType.LongFT` → `OFTString`; bools written `"1"`/`"0"` but read through `bool.TryParse` (coerce to null) | `Io/SpatialWriter.cs` | `0901 P0-4` | `blocked` on **D-C** | Acceptance: a 64-bit ID greater than 2³¹ and a `bool` survive write-then-read unchanged; one bool representation end to end. |
-| `P-07` | `CloseRing()` is called on linestrings and points — appends the first vertex to open lines (inflating perimeter, polluting distances) and duplicates point vertices | `Io/SpatialReader.cs` | `0901 P0-5` | `open` | Call `CloseRing` only for polygon rings. The defect is currently **pinned by test**: `SpatialIoTests.LinesShapefileRoundTrip` comments "The reader closes every part, so assert on the leading (real) vertices" — that assertion must be rewritten, not preserved. Acceptance: `LengthMeters` on a read line equals the sum of its edges. |
-| `P-08` | CSV round-trip corrupts values containing newlines: the writer quotes them, `ReadAll`/`ParseLine` reset state per line | `Io/Csv/CsvHelper.cs` | `0901 P0-8` | `open` | Accumulate lines while a quote is open, **or** declare the writer write-only and stop quoting `\n`. Acceptance: round-trip test for embedded newline, comma, doubled quote. |
-| `P-09` | `AttributeTable.RenameColumn` moves only the schema key; per-feature `Attributes` keep the old key, so `CoerceRow` silently drops the renamed column | `Attributes/AttributeTable.cs` | `0901 P0-9` | `open` | Propagate the rename to rows, or rename `RenameColumnSchemaOnly` and delete `AddField`'s now-empty backfill comment. |
-| `P-10` | `JoinType.Average` still throws when values exist but none are numeric, and returns a silent `0` when no values exist | `Spatial/SpatialJoins.cs` | `0901 P0-6` | `open (partial)` | Current code is `values.Count == 0 ? 0d : values.Where(v => ToDouble(v) is not null).Average(...)` — the guard was moved, not fixed. Filter to numerics first, then guard; decide empty-vs-zero explicitly. |
-| `P-11` | `DistanceFeatureToFeature` indexes `Vertices[0]` when `Vertices.Count == 0` (the `< 2` branch still dereferences), and reads point coordinates off `BoundingBox` with no `Empty` check | `Spatial/SpatialJoins.cs` | `0901 P0-7` | `open` | Skip empty parts; refuse when `BoundingBox.IsEmpty` (after `P-39`). Note this is also the route by which an empty box enters the tree — see `P-39`. |
+### P-39 `BoundingBox.Empty` is the full-range box
+`Empty = new(MaxValue, MaxValue, MinValue, MinValue)` and the constructor normalises, so
+`Empty` spans `[-1.8e308, +1.8e308]` on both axes. Consequences, all live:
+- `Area()` overflows to `+infinity`; `RTreeNode.getArea` returns `+infinity` (its
+  `MaxX < MinX` guard can never fire); `getMBRoverlap` returns `+infinity` against
+  everything.
+- `ContainsPoint` returns true for every point; `ContainsPoint` and `Area` have no
+  `== Empty` guard, while `Overlaps`/`Contains`/`Union` do.
+- `Empty` is every node's initial box and every empty `Part`/`Feature` box, and
+  `addFeature` validates nothing. `Feature.AddPart` unions it, so **one empty part
+  swallows its feature's entire MBR**; `Feature.ComputeBoundingBox` on a feature with
+  zero parts returns the full-range box.
+**Fix:** an explicit `IsEmpty` flag, or a normalisation that keeps `MinX > MaxX`
+inverted, with `Empty` short-circuits in `Area`/`ContainsPoint`.
 
 ---
 
-## 4. P1 — robustness, latent crashes, and the R-tree's pruning defect
+## 2. P1 — correctness under load, or blocked features
 
-| ID | Title | Component | Legacy | Status | Fix / acceptance |
-|---|---|---|---|---|---|
-| `P-01` | **`getMBRoverlap` reports 0 for a node MBR fully contained in the query box.** Verified: query inside node → works; point query → works; node fully contained (`bbox.MinX < MinX && bbox.MaxX > MaxX`) → both clauses false → returns 0. `CHANGES_08312026.md` #15 has this right; `CHANGES_09012026.md` P0-1 states it inverted. **Dormant today** because the only reachable shapes dodge it: `findByXY` builds a degenerate box (`MinX == MaxX`) so both clauses collapse to a correct containment test, and the insert path is caught by the all-leaves fallback. It becomes live the moment `Query(BoundingBox)` or kNN exists — where an expanding window swallows whole node MBRs and prunes them | `Spatial/RTreeNode.cs` | `0901 P0-1` (mis-attributed, see N-7), `0831` #15 | `open` — **P0 → P1**, see §5 | Delegate to the existing, tested, **uncalled** `BoundingBox.Overlaps`; delete the `Math.Max(…, 1)` floor (a correct closed-interval test makes it unnecessary, and it is actively harmful — see `P-41`); split into `Intersects(q)` (predicate) and `OverlapArea(q)` (split scoring). Keep a deprecated `getMBRoverlap` shim if the API must survive. **Blocks `P-02`.** |
-| `P-40` | Insertion falls back to scanning **every leaf**: `getCandidateEndNodesByMBR` prunes with the buggy gate, and `if (candidateKids.Count == 0) candidateKids = TreeManager.getEndNodes;` fires whenever a feature intersects no existing leaf MBR — which is most of the time. Placement quality is fine (min-enlargement over all leaves); the cost is quadratic build. **Not a correctness bug** | `Spatial/RTreeNode.cs` | new | `open` | Add Guttman `ChooseSubtree` — descend to the leaf minimising enlargement, tie-break on least area — returning exactly one leaf, and delete the fallback. `BoundingBox.EnlargementToContain` is already implemented and **has no callers**; use it. Because bulk adding is a supported, benchmarked path, **measure before and after**: split the benchmark into build and query, since a comparison against `RBush.Load()` (bulk STRtree) versus incremental `addFeature` compares different workloads. If build already wins, this is a refinement, not a fix. |
-| `P-41` | `getAddedSizeToAccomodate` returns `getArea + featArea - getMBRoverlap(bbox)` — that is **union area**, not enlargement, despite the name; and the `max(overlap, 1)` floor is a bare `1` in raw CRS units (1 m² in metres; ~12,000 km² in degrees, swamping genuine overlaps) | `Spatial/RTreeNode.cs` | `0831` (`Math.Max` floor) | `open` | Split into `Enlargement(b)` = `BoundingBox.EnlargementToContain(b)` for insertion cost, and `OverlapArea` used only for split scoring, with no floor. If union-area is the intended criterion, name and document it — it changes which leaf wins, which is benchmark-visible. |
-| `P-42` | `buildChildOptions` **re-parents live children while scoring discarded split options**: `node1.addChild(Child, false, false)` executes `child.Parent = this` onto a throwaway candidate. Self-healing only because `split()` calls `UpdateParents` on the winning pair; the losers leave every child's `Parent` pointing at a discarded object until then | `Spatial/RTreeNode.cs` | new — **confirmed by `16585ef`** | `open` | `16585ef` added `canPropagateMBRup: false` at exactly these call sites, i.e. it suppressed the *second* symptom (ancestor MBR corruption) while leaving the mutation in place. Fix the cause: score candidates by accumulating `BoundingBox` locally (or a small `SplitCandidate` holding a child slice and two boxes) and construct `RTreeNode`s only for the winner. Also removes O(children × options) pointless writes per split. |
-| `P-43` | `Options.First()` throws for legal-looking constructor arguments. `for (split = MinChidrens; split <= Children.Count - MinChidrens; split++)` is empty when `Count < 2·min`, and `Count` at split time is `max + 1`, so the invariant is **`max >= 2·min − 1`**. Defaults 4/10 (10 ≥ 7) and the tests' 3/6 (6 ≥ 5) are safe; `new RTreeManager(4, 6)` throws from inside `split()`, far from the cause | `Spatial/RTreeManager.cs`, `Spatial/RTreeNode.cs` | `0901 P1-1` | `open` | Validate in the `RTreeManager` constructor with a message naming the rule; additionally guard `split()` with an explicit `InvalidOperationException`. |
-| `P-47` | **The tree cannot be used by the joins — the API doesn't expose what they need.** `RTreeManager` offers `findByXY` (point → end nodes), `findByInd` (index → node path) and `getEndNodes`. **None returns feature indices**, and there is no rectangular range query, no kNN, no `Count`, no removal. `NearestPointsToPolygons` cannot be wired without the caller re-implementing child re-testing using the same buggy predicate — which is exactly what `RTreeTests.FeatureIndicesAt` has to do by hand | `Spatial/RTreeManager.cs`, `Spatial/RTreeNode.cs` | new | `open` — **promoted P2 → P1** (gates the P0 `P-02`) | Add: `IEnumerable<int[]> Query(BoundingBox)` (≈15 lines once `P-01`/`P-46` land); `List<(int[] FeatureIndex, double Distance)> Nearest(point, k, distanceFn)` as branch-and-bound over a priority queue keyed by min-distance-to-MBR, pruning once the queue head exceeds the k-th best; `int Count`; a bulk entry point over `FeatureCollection` that validates boxes (`P-39`). kNN soundness in geographic CRS is **D-E**. |
-| `P-44` | **`SpatialJoins.DistanceFeatureToFeature` ranks candidates with planar `GeometryMath.Distance` / `PointToSegmentDistance` regardless of CRS kind.** A nearest-join on a lon/lat collection ranks by degree-distance, where a degree of longitude ≠ a degree of latitude. Wrong today, independent of the tree | `Spatial/SpatialJoins.cs` | new | `open` | Dispatch on `Crs.Kind` to the spherical primitives. Must land in the **same change** as `P-02`, or the tree prunes by one metric while survivors are ranked by another. |
-| `P-48` | **The R-tree test suite cannot see any of these defects.** Every case uses uniformly spaced, pairwise-disjoint boxes on a diagonal, queried by a point inside the feature's own box — the easiest configuration an R-tree can be given, structurally incapable of triggering `P-01`, `P-41` or depth problems. `SpatialJoinTests` gives the tree **zero** coverage: it passes `pointTree: SpatialJoins.BuildTree(pnts)` into a parameter the implementation discards, so it would pass identically if `BuildTree` returned `null` or threw after construction | `tests/Nsi.Geospatial.Tests/RTreeTests.cs` | new | `open` | In priority order: **(1) a regression test for upward MBR propagation** — insert a feature that expands a deep leaf, assert every ancestor's box covers it; this is the invariant `16585ef` established and **nothing currently protects it** against a refactor dropping `canPropagateMBRup`. **(2)** dense random and nested (big-box-containing-small-boxes) geometry — the direct `P-01` guard. **(3)** a `Query(box)` vs LINQ full-scan equivalence property test over random data — subsumes the hand-picked cases and would have caught `P-01` immediately. **(4)** `new RTreeManager(4, 6)` validation. **(5)** empty-box insert. **(6)** a depth/fanout assertion. Also delete the fossil `//(Skip = ...)` comment — a reader cannot tell whether it is a live TODO or debris. |
-| `P-12` | `Ogr.RegisterAll()` called unconditionally on every `Read`/`Write`. Not idempotent, not thread-safe: two threads double-register plugin drivers and abort the process. Worked around in tests by `[assembly: CollectionBehavior(DisableTestParallelization = true)]`, which serialises the suite but does not fix production | `Io/SpatialReader.cs`, `Io/SpatialWriter.cs` | `0908 P1-16`, `0901 P2-9` | `open` | One-time guard (`internal static class GdalBootstrap` with `Lazy<bool>` — `ExecutionAndPublication` is the right default). Then delete the assembly attribute, whose own comment says to remove it together with this fix. Acceptance: Io.Tests run in parallel. |
-| `P-13` | `LengthMeters` means different things per CRS branch: Projected uses `Part.Perimeter` (open walk), Geographic uses `SphericalPerimeter` (which **closes** the ring). A 3-vertex 1-degree line reports 379,639.757 m against a true 222,390.159 m (+70.7%) | `Geometry/Part.cs`, `Geometry/GeometryMath.cs` | `0908 P1-15` + `P2-11` | `open` | Make both branches an open walk, or stop `SphericalPerimeter` closing. Fix the `SphericalPerimeter` docstring in the same commit — it describes an open walk while the loop indexes `% pts.Count`. Un-skip `LengthMeters_MeansTheSameThingInBothCrsKinds`. |
-| `P-14` | Retire the surviving P/Invoke layer and unify CRS-token handling. `Reprojector.cs` is still in the tree, still public, still P/Invokes **private** OGR symbols (`OGRNewCoordinateTransformation`, `OGR_CT_Transform`), and `CrsToken` still prefers the EPSG token over WKT. Meanwhile `SameCrs`/`ParseEpsg` discard the authority, so `ESRI:102003` compares equal to `"EPSG:102003"` | `Reprojection/Reprojector.cs`, `Io/SpatialReader.cs`, `Projections/Projection.cs` | `0901 P1-10` (remainder), `0908 P2-15`, `0908` "P1-10 follow-on" | `open (partial)`, `blocked` on **D-D** | `0908` marks P1-10 "Resolved", but only `CoordinateTransformer` migrated to the managed binding; `Reprojector` survives as a duplicate second implementation of the same job. Land together: authority-aware token builder and parser, authority-checked `SameCrs`, `"ESRI:102003"`, removal of `Reprojector.Native`. Also add `Transformer_EatsLonLatNotLatLon` — the axis-order fix (closed, §6) has **no test guarding it**, so a refactor can silently re-transpose every geographic transform. |
-| `P-15` | R-tree encapsulation and hardening: `Root` has a **public setter** (`split()` does `TreeManager.Root = newRoot` on root split, so any caller that cached the root holds a detached subtree); `addFeature` performs no box validation | `Spatial/RTreeManager.cs` | `0901 P1-3` (remainder) | `open` | `{ get; private set; }` with the assignment performed by an `internal` method (or have `split()` return the new root and let the manager swap it). Validate boxes on insert alongside `P-39`. The `FeatureIndex` null-guard formerly in this row was re-rated — see `P-51`. |
-| `P-17` | `Feature.Parts` is a public `List<Part>` while `BoundingBox` only advances in `AddPart`, so a direct `Parts.Add` leaves a stale box — `SpatialJoinTests` itself calls `Parts.Add` then `ComputeBoundingBox()` | `Geometry/Feature.cs` | `0901 P1-6` | `open (partial)` | `Mbr` renamed to `BoundingBox` and `ComputeBoundingBox()` added; encapsulation not done. Expose `IReadOnlyList<Part>` or compute lazily. Feeds `P-11`/`P-39` — a stale box is how garbage reaches the tree. |
-| `P-18` | Identity model: `RemoveFeature` renumbers every surviving `Id` (desyncing any tree built earlier, while the removed feature keeps its old `Id`), and `BuildTree` keys on `f.Id` rather than collection position, so `findByInd` is useless for features not added via `AddFeature` (all `Id == 0`) | `Geometry/FeatureCollection.cs`, `Spatial/SpatialJoins.cs` | `0901 P1-7`, `P1-8` | `open` | Give features stable identity, or rebuild indexes on mutation, or document both at the call site. Grows in importance once `P-02` makes the tree load-bearing — and pairs naturally with a removal API in `P-47`. |
-| `P-19` | `AttributeColumn.Coerce` parses with current-culture `ToString`/`TryParse` for double, float, int, long and DateTime | `Attributes/AttributeColumn.cs` | `0901 P1-9` | `open` | `CultureInfo.InvariantCulture` plus explicit `NumberStyles`/`DateTimeStyles`. Acceptance: under a `de-DE` culture, `1,5` reads correctly and `1.5` as intended. |
-| `P-20` | OGR ownership unverified: `using var defn = feat.GetFieldDefnRef(i)` may free shared layer state; `using var of` passed to `CreateFeature` may double-free; `of.SetGeometry(geom); geom.Dispose();` rests on an unverified "OGR copies the geometry" comment | `Io/SpatialReader.cs`, `Io/SpatialWriter.cs` | `0901 P1-11` | `blocked` on **D-C** | Verify against the 3.11.3 binding; add focused tests. Native memory corruption is silent. |
-| `P-21` | Geometry-type coverage is asymmetric. `MapGeomType` (reader) and `MapShapeTypeToOgr` (writer) both silently default unknown types to Point; multipolygon rings flatten into one part list losing exterior↔hole association; and `BuildOgrGeometry` **emits** `wkbMultiLineString` which `ProcessGeometry` cannot **read** | `Io/SpatialReader.cs`, `Io/SpatialWriter.cs` | `0901 P1-13` + new | `open` | Handle types explicitly (throw on unmapped); handle `wkbMultiLineString`/`wkbMultiPoint`/collections; preserve ring grouping. Acceptance: write a multi-part line, read it back. |
+### P-01 `getMBRoverlap` containment gate  *(downgraded from P0, dormant)*
+`getMBRoverlap` only tests whether a *corner* of the query lies inside the node. A node
+fully contained by the query returns 0 overlap. Verified dormant today: `findByXY`
+builds a degenerate box (`MinX == MaxX`) so both clauses collapse to a correct
+containment test, and the insert path is caught by the all-leaves fallback. It becomes
+live the moment a rectangular query exists — **hard prerequisite for P-02.**
+`CHANGES_09012026.md` P0-1 states this defect inverted; `CHANGES_08312026.md` #15 states
+it correctly.
+
+### P-02 Spatial joins discard the tree  *(mandatory)*
+`SpatialJoins` enumerates features instead of descending the index. Blocked on P-01,
+P-47 (no usable query API) and D-E.
+
+### P-12 `Ogr.RegisterAll()` thread-safety
+Called on every `Read`. Not idempotent-safe under concurrent reads.
+
+### P-14 Retire `Reprojector`'s hand-rolled P/Invoke  *(needs D-D)*
+Also fix the authority model. Folded in: P-29 (`CoordinateTransformationOptions` /
+area-of-interest, re-rated P2 → merged here so reprojection correctness is done once).
+
+### P-15 `Root` public setter; no box validation
+`RTreeManager.Root { get; set; }` accepts any node, and `addFeature` validates no box.
+See P-39 for what an empty box does. Split out: P-51.
+
+### P-17 `Parts` public; cached boxes go stale
+`Feature.Parts` is a public `List<Part>`. `Feature.BoundingBox` is maintained
+incrementally by `AddPart`, so `feature.Parts.Clear()` or `.RemoveAt()` silently leaves
+a stale MBR. `Part` now defends against exactly this pattern (`Vertices` is read-only,
+`AddVertex` is the sole mutator) — `Feature` has not received the same treatment, and
+`Part` has no channel to notify its owner. Apply the same shape: private list +
+`IReadOnlyList<Part>` facade + `AddPart`/`RemovePart`.
+
+### P-18 Identity and `RemoveFeature`
+`RemoveFeature` renumbers surviving ids and leaves the detached feature's `Owner`
+pointing at the collection, so it still resolves the old CRS. `RemoveFeatureLeavesThe
+DetachedFeatureResolvingTheOldCrs` pins this deliberately. It also means the detached
+feature is outside `FeatureCollection.Crs`'s invalidation sweep — currently rescued only
+by `Part`'s `CrsInfo` identity check, which is now the sole defence. Pin that with a
+test. `SpatialJoins.BuildTree` keys on `f.Id`, which mutates under `RemoveFeature`.
+
+### P-19 Culture
+Number formatting/parsing is not `InvariantCulture` in every path (`CsvHelper`,
+`SpatialWriter` string fields). `Feature.GetAttribute` does use invariant — the others
+do not.
+
+### P-21 Geometry-type coverage
+`SpatialWriter` emits `wkbMultiLineString`, which `SpatialReader.ProcessGeometry` cannot
+read: its `if`/`else if` chain has no `else`, so the geometry is **silently dropped** and
+the feature ends up with zero parts. Same for `wkbMultiPoint`. Combined with P-11 an
+empty part then flows into every consumer.
+
+### P-40 All-leaves fallback makes the build quadratic
+`insert` falls back to scanning all leaves; with P-41's enlargement metric this is
+quadratic in feature count.
+
+### P-41 `getAddedSizeToAccomodate` measures union area, not enlargement
+Chooses the child with the smallest *union* area, which biases toward already-large
+children — the R-tree heuristic is enlargement (`union − existing`). The tie-break floor
+is also in raw CRS units, so it means different things in metres and degrees.
+
+### P-42 `buildChildOptions` re-parents live children
+While scoring candidate placements it re-parents children of the *real* node, then
+discards the options. Mutates the tree during a read-only decision.
+
+### P-43 `Options.First()` throws; no min/max invariant
+The split loop `for (split = MinChidrens; split <= Count - MinChidrens; split++)` is
+empty when `Count < 2*min`. At split time `Count == max + 1`, so the invariant is
+**`max >= 2*min - 1`**. Defaults (10, 4) and the tests' (6, 3) satisfy it; `new
+RTreeManager(4, 6)` throws from inside `split()`. Validate in the constructor with a
+clear message.
+
+### P-44 `SpatialJoins` uses planar distance regardless of CRS
+Near-endpoint and proximity joins call planar `PointToSegmentDistance`/`Distance` even
+when the collection is geographic. Should dispatch on `Crs.Kind` (the `Part` accessors
+now show the pattern) or refuse.
+
+### P-47 R-tree API gaps
+No `Query(BoundingBox)`, no k-NN, no `Count`, and no way to get feature indices back out
+of a traversal. `findByXY` is the only entry point and returns node-scoped results.
+Prerequisite for P-02 and P-44.
+
+### P-48 The R-tree test suite cannot detect a regression
+Six gaps; the first is the important one:
+1. **No regression test for MBR propagation** (`16585ef`, closed as P-49). The fix that
+   made the index return all features is unguarded.
+2. No test asserts query results against a brute-force oracle at scale.
+3. No test for `min`/`max` invariant (P-43).
+4. No test for the containment gate (P-01) — needs a rectangular query, so needs P-47.
+5. No test that the tree's boxes match the features they index.
+6. `RTreeTests`' class docstring still claims the tests do not assert correct behaviour,
+   which was made false by `16585ef`.
 
 ---
 
-## 5. Retracted and relocated — do not re-report
+## 3. P2 — measurable defects, bounded impact
 
-| ID | Disposition | Why |
+### P-23 `GeometryMath` docstring errors (four)
+Great-circle triangle error is −0.8491%, not as documented; the 65°N figure is −0.6614%,
+not 0.63%; the pole-crossing ring is 64.8× out (2.511583e14 vs 3.874521e12). **Do not
+densify** — the docstring suggestion to densify before measuring makes it worse.
+
+### P-24 `1e-9` tolerances are in CRS units
+Degenerate-segment and centroid guards compare against `1e-12`/`1e-9` in whatever the
+CRS's units are. Meaningless in degrees, trivially large in metres. Take an epsilon
+parameter or scale by the CRS.
+
+### P-25 Aggregate results into the Text column
+Join aggregations have no output home.
+
+### P-26 `interiorOnly` / `ContainsIndex`; delete `Feature.Wkt`
+`Feature.Wkt` is dead state that goes stale the moment vertices change.
+
+### P-27 DBF column order
+Round-tripped schema order differs from the source.
+
+### P-28 Null semantics: `""` vs `null`
+Reader and writer disagree; a null text field comes back as empty string.
+
+### P-46 `getCandidateEndNodesByMBR` performs no MBR test at the leaf
+Descends using MBRs then accepts every leaf entry, so the pruning is illusory below one
+level.
+
+### P-50 `getIsEndNode` inspects only `Children[0]`
+Assumes all children of a node are at the same level. True today because splits only
+produce same-level siblings; unguarded and will silently mis-classify if that changes.
+Assert it.
+
+### P-53 `Rel` cannot compare against zero  *(both test files)*
+`diff <= Math.Abs(expected) * tol` degenerates to `diff <= 0` when `expected == 0`, and
+the message divides by zero (`rel diff ∞` — observed). Several planned acceptance tests
+assert zero lengths and zero areas and will silently demand bit-exactness.
+**Fix:** `Assert.True(diff <= Math.Max(Math.Abs(expected) * relTol, absTol), ...)` with an
+explicit `absTol` chosen per unit (≈1e-6 m, not 1e-9 scaled from degrees). Belongs in the
+shared helper from P-36.
+
+### P-55 `Feature._crs` is a dead field  *(new, `3f62485`)*
+`private CrsInfo _crs = Projections.CrsInfo.Unknown;` in `Feature.cs` is never read —
+`Feature.Crs` is still `Owner?.Crs ?? CrsInfo.Unknown`. Expect `CS0414`. Delete it: it
+was copied from the `FeatureCollection` snippet, and it implies features can carry their
+own CRS, which is not the design.
+
+### P-56 Ring storage is mixed open/closed  *(new, `44fbf06`)*
+`Seal()` no longer strips a duplicate closing vertex and the reader does not normalise,
+so **authored rings are stored open (`Count == n`) and read-back rings closed
+(`Count == n + 1`)**. Every metric agrees (the `%n` primitives are invariant to it) but
+the vertex list does not, so any consumer walking consecutive pairs without wrapping is
+correct on read-back geometry and wrong on authored geometry.
+- `PointInPolygon` in the Io test helpers is the exposure. If it iterates `i` to
+  `Count - 1` it silently drops the closing edge on an open ring — and
+  `PointDatasetIntersectsPolygonDataset` only feeds it read-back polygons, so it cannot
+  catch this. Make it wrap (`for (int i = 0, j = Count - 1; i < Count; j = i++)`).
+- Decide the convention and enforce it in one place. Recommended: keep `Seal()`
+  non-mutating and strip the duplicate in `SpatialReader` (compare `XY`, not
+  `Coordinates` — shapefile Z on the closing vertex is often unset).
+- Until then, polygon vertex-count assertions must state `+ 1` explicitly rather than
+  hiding behind `Assert.True(b.Count >= o.Count)`.
+
+### P-57 `SpatialWriter` compares Z when deciding to close a ring  *(new)*
+`if (verts[^1].Coordinates != first.Coordinates) ring.AddPoint(...)` compares the full
+tuple. A source ring whose closing vertex has an unset Z does not match vertex 0, so the
+writer appends a **second** closing point and the ring grows by one vertex per round
+trip. Closure is a planar property: compare `XY`.
+
+### P-59 `.editorconfig` indent rules conflict for C#  *(new)*
+`[*]` sets 4, then `[*.{csproj,sln,props,targets,xml,yml,yaml,json,cs}]` sets 2 — and
+that brace list includes `cs`, so `.cs` resolves to 2 (the `[*.cs]` section sets no
+`indent_size`). The committed files appear to use 1 space. `dotnet format` will therefore
+want to reindent the whole solution, and CI runs it as a hard gate. Pick one width and
+land it as a single formatting-only commit.
+
+---
+
+## 4. P3 — hygiene
+
+### P-22 Naming and dead code
+`MaxChidrens`/`MinChidrens` misspelling (`Children`) and `addFeatureChild` unreachable;
+`cumulativeOverlap`/`siblingOverlap` written and never read; unused `System.Xml`,
+`System.Xml.Linq`, `System.Text`, `System.Threading.Tasks`.
+**Deleted in `44fbf06`:** `Part.Direction` (write-only after the `IsHole` derivation was
+removed; winding survives as vertex order, and one fewer `IsClockwise()` P/Invoke per
+ring), `Part.BeginIndex`, `Part.EndIndex`.
+**Remaining:** `Feature._crs` (P-55), plus `FeatureCollection.Crs`'s setter reaching
+through `f.Parts` to call `Part.InvalidateMetrics()` — add `Feature.InvalidateMetrics()`
+and forward, so the collection does not enumerate another type's internals.
+
+### P-30 README and warnings-as-errors
+Four factual errors in the README; the spherical feature is undocumented.
+`TreatWarningsAsErrors=false` is legitimately required because the GDAL NuGet package's
+own generated `obj/.../GdalConfiguration.cs` emits 3× `CS8600`. Note that
+`[obj/**/*] generated_code = true` suppresses **CA analyzers only** — compiler
+diagnostics still fire, which is why no `CA` warnings appear from that file but three
+`CS` ones do. Scope `<NoWarn>$(NoWarn);CS8600</NoWarn>` to `Nsi.Geospatial.Io.csproj`
+only — a global one would silence the real `CS8600`s in `RTreeNode.cs`.
+
+### P-31 SDK policy
+The pinned SDK version is stated five inconsistent ways across `global.json`,
+`ci.yml`, `release.yml`, the README and `Directory.Build.props`.
+
+### P-32 `IsPackable`
+Test projects are packable.
+
+### P-33 `gdal` → `GDAL` naming.
+
+### P-34 `release.yml` references `@main`.
+
+### P-35 CI runs `Io.Tests` twice.
+
+### P-36 Test project duplication
+Three overlapping test files, two namespaces (`Nsi.Geospatial.Tests` and
+`Nsi.Geospatial.Core.Tests`), and **two independent copies of `Rel`** plus two copies of
+`PointInPolygon`. Every fix has to be applied twice (P-53 already does). Hoist one
+`TestAssert` and shared geometry helpers.
+
+### P-37 Delete probes and dead writer helpers
+`ProbeOsrBinding.cs`; `SpatialWriter.ClosedRing`, `.RingWkt`, `.Fmt`.
+
+### P-38 `Feature.ShapeType` vs `FeatureCollection.ShapeType`
+Two sources of truth, free to disagree.
+
+### P-51 `FeatureIndex` unguarded `[0]`  *(P1 → P3)*
+`getChildrenContainingInd` dereferences `FeatureIndex[0]` without a guard, but it is
+unreachable through the public API: it needs mixed-level children, and splits always
+produce same-level siblings. Add the guard while in the file; do not prioritise.
+
+### P-60 `PartType` lives in a namespace its consumers guess wrong  *(was N-9)*
+`PartType` is in `Nsi.Geospatial.Enums` while its only consumer `Part` is in
+`Nsi.Geospatial.Geometry`, so IDEs auto-suggest `Nsi.Geospatial.Geometry.Enums` — which
+cost a real compile error during this branch. Decide the convention across `Enums/`.
+
+---
+
+## 5. Partially complete — in flight
+
+### P-07 Open vs closed geometry  *(substantially done)*
+Done: `PartType` enum; required `Part(PartType)` constructor; `Kind` get-only;
+`IsRing`; `Seal()` derives `Perimeter` via `ClosedWalk`/`OpenWalk` and is idempotent;
+the trailing-duplicate `RemoveAt` removed; `ClosedWalk`/`OpenWalk`/`SphericalLength`
+added; `Area` is `double?` and `null` for a polyline; `AddVertex` no longer computes
+metrics; `Vertices` read-only; `Measure()` the single writer.
+Remaining: **P-56** (storage convention), **P-57** (writer `XY` compare), the T-1…T-7
+acceptance tests, and the degenerate `[A,B,A]` case (now reports `Area == 0.0` rather
+than `null` — defensible, but pin it in a test so it is a decision, not an artefact).
+
+### P-13 `LengthMeters` per CRS  *(done)*
+Both branches now sum the same edge set and differ only in metric. Keep
+`LengthMetersMeansTheSameThingInBothCrsKinds` un-skipped and add the order-independence
+test T-8.
+
+### P-05, P-15, P-48 — see their sections for what remains.
+
+---
+
+## 7. Test backlog
+
+| ID | Test | Guards |
 |---|---|---|
-| `P-45` | **RETRACTED — not a defect.** Claimed "a split cannot cascade (`canSplit: false`), so fanout silently exceeds `MaxChidrens`" | I read only the first `addChild` call. `16585ef` pairs them deliberately: `Parent.addChild(kid[0], false, true)` then `Parent.addChild(kid[1], true, true)`. Net +1 on the parent, and the **second** add has `canSplit: true`, so the parent splits if it overflows. The asymmetry avoids splitting on the intermediate state and predates the commit, which translated it faithfully into the three-argument signature. **The `maxChildren` invariant holds.** |
-| `P-01` | **Relocated P0 → P1** | See N-7. `16585ef` fixed the defect that actually lost data (MBR propagation, now `P-49`). The containment gate remains, but is provably dormant for point queries and inserts, and no rectangular or kNN query API exists yet. It is a prerequisite for `P-02`, not an active data-loss bug. |
-| `P-16` | **Merged into `P-39`** | The `BoundingBox` empty-sentinel item was the same root cause, seen from `BoundingBox.cs` rather than from its effect on the tree. `P-39` is the complete statement. |
-| `P-51` | **Split out of `P-15`, re-rated P1 → P3** | `getChildrenContainingInd`'s unguarded `node.FeatureIndex[0]` only NREs if an *internal* node sits under a node reporting `getIsEndNode`. Since `getIsEndNode` tests only `Children[0].FeatureIndex`, that requires mixed-level children — and it is **not constructible through the public API**: splits always produce same-level siblings, and `addFeatureChildEnforceIntersect` appends feature nodes only to nodes from `getEndNodes`. Defensive hardening, not a reachable crash. Keep the guard (`node.FeatureIndex is { Length: > 0 } fi && fi[0] == ind`); stop calling it a bug. |
+| T-1 | `LineLengthIsTheSumOfItsEdges` — `(0,0),(5,5),(10,0)` in metres → `2*sqrt(50)`, `Area is null` | P-07 |
+| T-2 | Same in a geographic collection | P-13 |
+| T-3 | `ReadLinePreservesVertexCount` / `ReadPointHasASingleVertex` — exact counts, replacing `Assert.True(b.Count >= o.Count, "line lost vertices on round-trip")` | P-07, P-21 |
+| T-4 | `SealIsIdempotent` — `Seal(); Seal();` twice leaves `Perimeter` unchanged, and `[A,B,C,D]` vs `[A,B,C,D,A]` give identical area and perimeter | P-07 |
+| T-5 | **`PolygonHoleIsSubtractedAfterRead`** — exterior + hole through a real shapefile; `IsHole == true` on ring 1; `Feature.AreaSquareMeters == exterior − hole` | **P-05 — the only guard for a live production behaviour; nothing covers the read path today** |
+| T-6 | `LineInGeographicCrsHasNoArea` → `AreaSquareMeters is null` | P-07 |
+| T-7 | `OpenRingRoundTripsStably` — vertex count constant across write/read/re-read | P-56, P-57 |
+| T-8 | `MetricsDoNotDependOnWhetherOrWhenSealWasCalled` — reading `LengthMeters` must not change what `AreaSquareMeters` reports; sealed-attach-later and attach-later-unsealed agree | P-54 invariant |
+| T-9 | `AddingAVertexAfterMeasuringReMeasures` — read length, `AddVertex`, read again | cache invalidation |
+| T-10 | `ReplacingTheCollectionsCrsInvalidatesPartMetrics` | cascade + identity key |
+| T-11 | `DetachedFeatureRemainsMeasurable` — `RemoveFeature` then change `fc.Crs`; the removed feature must still recompute | P-18 |
+| T-12 | `EmptyPartDoesNotInflateFeatureBoundingBox` | P-39 |
+| T-13 | Degenerate ring `[A,B,A]` — assert whichever of `0.0` / `null` is chosen, in both CRS kinds | P-07 |
 
 ---
 
-## 6. Already fixed — do not re-report
+## 8. Notes
 
-Verified in code at `56c8005`.
-
-| Legacy ID | Item | Evidence |
-|---|---|---|
-| **`P-49`** | **R-tree MBR upward propagation — the defect that actually lost data.** An MBR that did not propagate upward left every ancestor's box **too small**, so a query pruned a subtree genuinely containing matches: features silently went missing as the tree grew. **No changelog ever named this bug.** `0831`'s inventory of "defects preserved on purpose" lists four items (split double-parenting, the containment gate, stale `cumulativeOverlap`/`siblingOverlap`, the `Math.Max` floor) — propagation is not among them, and `0901` has no propagation row | **Closed by `16585ef`** (AlexRyanUSACE, 2026-09-01 17:31): `addChild(child, bool canSplit, bool canPropagateMBRup)` with `else if (canPropagateMBRup) RecomputeMBR();`. Fully preserved at HEAD — `a6f3def`, `42ac0c9`, `ac3bb82`, `1cd383a` only reshaped it (`BoundingBox.Union` replaced the four field-wise `if`s; same semantics). Un-skipped `BulkInsert_AllFeaturesFindableByPoint` as its proof. **Guard with the `P-48` regression test.** |
-| `0831 #9` | `AttributeColumn.Coerce` threw NRE on null | `if (raw is null) return null;` with the `fix(#9)` comment in place |
-| `0831 #10` | `FindUniques` replaced by `Distinct` | `CsvHelper.ReadUniqueColumn` uses `.Distinct(StringComparer.OrdinalIgnoreCase)` |
-| `0831 #11` | `ReadCSVtoDict` naive split and trailing-null NRE | Gone; quote-aware `ParseLine` present |
-| `0831 #15` | `BoundingBox.Overlaps` closed-interval test | Present with `fix(#15)` comment plus `Empty` guards — but still has **no production caller** (N-1); `P-01`/`P-47` consume it |
-| `0831 fix:` | `Feat` parallel lists replaced | `Feature` holds `Parts` + `Attributes` + `Owner` together |
-| `0831 fix:` | Deterministic OGR disposal; no hardcoded `C:\Software\GDAL GISInternals` | `using var` throughout reader/writer; CI exports `GDAL_DATA`/`PROJ_LIB`/`LD_LIBRARY_PATH` |
-| `0901 P1-5` | `addFeature(featInd, Xmax, Xmin, Ymax, Ymin)` reversed argument order | Now `addFeature(int[] featInd, BoundingBox bbox)` — closed by `a6f3def`. **Docs still describe the old signature** — see N-3 |
-| `0901 P1-3` | `public _root` field reassigned on split | Now `public RTreeNode Root { get; set; }`; the still-public setter is `P-15` |
-| `0901 P3-3` | `--filter Category!=Gdal` was a no-op | Filter removed from `ci.yml`; the trait now exists — successor problem is `P-35` |
-| `0908 P1-14` | Axis order unpinned; geographic transforms silently transposed | `srs.SetAxisMappingStrategy(AxisMappingStrategy.OAMS_TRADITIONAL_GIS_ORDER)` on both SRSes. **Unguarded** — the recommended `Transformer_EatsLonLatNotLatLon` test was never added; tracked in `P-14` |
-| `0908 P1-10` | P/Invoke threw `EntryPointNotFoundException` | Half-closed: `CoordinateTransformer` uses the managed binding; `Reprojector`'s layer survives. Remainder is `P-14` |
-
-**Partially fixed** (kept above with `open (partial)`): `P-17` (was `P1-6`), `P-26` (was
-`P2-4`), remainder of `P-22` (was `P2-5`/`P2-7`), `P-28` (was `P2-9`), `P-35` (was `P3-3`),
-`P-14` (was `P1-10`).
-
----
-
-## 7. P2 / P3 — consistency, docs, CI
-
-### P2
-
-| ID | Title | Component | Legacy | Status | Fix / acceptance |
-|---|---|---|---|---|---|
-| `P-23` | One consolidated docstring pass over `GeometryMath`: (a) `SphericalArea` claims "Exact on a sphere; the only error is sphere-vs-ellipsoid", true only for rings whose edges follow meridians and parallels — a great-circle 1-degree triangle is −0.8491%; (b) the "0.63% low at 65N" figure measures −0.6614%; (c) a pole-enclosing ring sweeps the full longitude range and returns an area off by 64.8× (2.511583e14 against a true 3.874521e12) | `Geometry/GeometryMath.cs` | `0908 P2-11`–`P2-14` | `open` | One commit, four docstring fixes. State the curve (+0.4489% at 0°, +0.1029% at 30°, −0.2106% at 44°, −0.5671% at 60°, −0.6614% at 65°). Document the pole limitation or detect longitude wrap and throw. **Do not densify** — `0908` shows the error is orders of magnitude below the accepted ellipsoid term at NSI footprint scale. |
-| `P-24` | Nearest-neighbour tie-break epsilon `1e-9` is in absolute CRS units — meaningless across CRS kinds | `Spatial/SpatialJoins.cs` | `0901 P2-2` | `open` | Relative tolerance or an explicit parameter. Revisit with `P-44`/`P-02`, since it is the same comparison. |
-| `P-25` | Sum/Average/Count write numbers into columns backfilled with the **source** column's type, which may be Text | `Spatial/SpatialJoins.cs` | `0901 P2-3` | `open` | Widen the backfilled column type for aggregate joins. |
-| `P-26` | Dead API surface: `interiorOnly` accepted and never read; `ContainsIndex` wraps a single `==`; `Feature.Wkt` is never written by Io at all | `Spatial/SpatialJoins.cs`, `Geometry/Feature.cs` | `0901 P2-6`, remainder of `P2-4` | `open (partial)` | `P2-4` is half-done: `FeatureCollection` and `Part` no longer expose `Wkt`, and `CrsInfo.Wkt` is now the one authoritative copy — so `Feature.Wkt` should be **deleted**, not renamed to `SrsWkt` as `0901` recommended. |
-| `P-27` | Column order relies on `Dictionary` insertion order, so DBF field order depends on an implementation detail; `Reorder` rebuilds a `Dictionary` | `Attributes/AttributeTable.cs` | `0901 P2-8` | `open` | Back with `List<AttributeColumn>` plus a name index. |
-| `P-28` | Reader null semantics inconsistent: unset text → `""`, unset date → `null` | `Io/SpatialReader.cs` | `0901 P2-9` (remainder) | `open (partial)` | `LayerIndex` was added (multi-layer data now addressable); null semantics unsettled. Pick one convention. |
-| `P-29` | `CoordinateTransformationOptions` is available (`SetAreaOfInterest`, `SetBallparkAllowed`, `SetDesiredAccuracy`, `SetOnlyBest`) but unused, so PROJ may pick a global ballpark transform over a grid-based one. NAD83/conus grid shifts are cm–m; ballpark reaches tens of m | `Reprojection/CoordinateTransformer.cs` | `0908 P3-3` | `open` — **re-rated P3 → P2** | Fold into `P-14` so reprojection is made correct once. Pass an area of interest for conus NSI work. |
-| `P-46` | `getCandidateEndNodesByMBR` applies **no MBR test at leaf level** (`if (getIsEndNode) nodeWalk.Add(this);`). Pruning happens only at intermediate levels, so returned leaves may not intersect the query. Harmless for insertion, wrong for any *query* use — which is why `RTreeTests.FeatureIndicesAt` must re-test every child by hand | `Spatial/RTreeNode.cs` | new | `open` | Test `Intersects(bbox)` before adding, and let `P-47`'s `Query` return feature indices so re-verification isn't the caller's job. |
-| `P-50` | `getIsEndNode` inspects only `Children[0].FeatureIndex`, so mixed-level children would break `getEndNodes`/`getCandidateEndNodesByMBR`. Not reachable through the current API (see `P-51`) | `Spatial/RTreeNode.cs` | new | `open` | Assert uniform child depth as an invariant rather than inferring leaf-ness from the first child — this also makes `P-48`'s depth assertion meaningful. |
-
-### P3
-
-| ID | Title | Component | Legacy | Status | Fix / acceptance |
-|---|---|---|---|---|---|
-| `P-22` | R-tree naming and dead code: `MaxChidrens`/`MinChidrens` typos; lowerCamelCase public members; `cumulativeOverlap`/`siblingOverlap` are **written by `buildChildOptions` and read by nothing** (the sort uses `metrics[0..2]`, and `cumulativeOverlap = overlap + siblingOverlap` reads *the splitting node's* property, not the candidate's — so even if consumed it would be meaningless); `addFeatureChild` unreachable; unused `System.Xml`, `System.Xml.Linq`, `System.Text`, `System.Threading.Tasks` usings; `int[] featInd = null` on a non-nullable parameter, a warning suppressed only by `TreatWarningsAsErrors=false` | `Spatial/RTreeManager.cs`, `Spatial/RTreeNode.cs` | `0901 P2-5`, `P2-7`, `0831` | `open` | Rename to `MaxChildren`/`MinChildren`, PascalCase members, delete the dead pair and `addFeatureChild`, drop unused usings. Resolve C2 in the process: `0831` calls the overlap properties a live defect and `0901` calls them dead code — **they are dead**, confirmed by reading the sort keys. |
-| `P-30` | README carries four inaccuracies — the project is `Nsi.Geospatial`, not `Nsi.Geospatial.Core`; `TreatWarningsAsErrors` is claimed but `Directory.Build.props` sets `false`; CSV is claimed behind `IFeatureSource`/`IFeatureSink` but `CsvHelper` is a static class wired to neither; ".NET 8 is enough" conflicts with the SDK pin. **Additionally: the feature this branch exists for is undocumented** — `CrsInfo`, `CrsInspector`, `AreaSquareMeters`, `LengthMeters`, `ReprojectTo`, `RequireInspectableCrs` appear nowhere | `README.md` | `0901 P3-1`, `P2-5` (docs half) | `open` | Fix the four claims; document the spherical/CRS surface with a worked example. |
-| `P-31` | The SDK/target-framework policy is stated five inconsistent ways: `global.json` pins `9.0.100` (`rollForward: latestFeature`, which will not cross a major), `Directory.Build.props` targets `net8.0`, README says ".NET 8 is enough", `ci.yml` installs 8.0.x **and** 9.0.x, `release.yml` requests `dotnet-version: 8.0.x` | `global.json`, `Directory.Build.props`, `README.md`, `ci.yml`, `release.yml` | `0901 P2-10`, `P3-1` | `open` | Choose one floor and express it once. The `release.yml`/`global.json` conflict postdates the changelogs and is a release-pipeline failure waiting to happen. |
-| `P-32` | `tests/Nsi.Geospatial.Tests/*.csproj` missing `<IsPackable>false</IsPackable>` (Io.Tests has it) — a solution-wide `dotnet pack` emits test packages | `tests/**` | `0901 P3-2` | `open` | Add the property. |
-| `P-33` | `PackageReference Include="gdal"` (lowercase) is a non-canonical package id | `Nsi.Geospatial.Io.csproj` | `0901 P3-4` | `open` | Use `GDAL`. |
-| `P-34` | `release.yml` invokes a reusable workflow pinned to a mutable `@main` in another org | `.github/workflows/release.yml` | `0901 P3-5` | `open` | Pin to a tag or commit SHA. |
-| `P-35` | CI runs `Nsi.Geospatial.Io.Tests` twice — `dotnet test Geospatial.slnx` already includes it, and a following step runs the project again. The `Category=Gdal` trait is now declared on `SpatialIoTests`/`CrsInspectionTests` but consumed by no filter | `.github/workflows/ci.yml` | successor to `0901 P3-3` | `open (partial)` | Split into a GDAL-free job and a native-GDAL job, or drop the trait. |
-| `P-36` | Three test files cover the same spherical/CRS surface with divergent helpers and two namespaces. `SphericalMathTests.cs` (8.6 KB) and `SphericalMetricsTests.cs` (31.4 KB) both assert closed-form graticule area, antimeridian crossing, winding independence, degenerate rings, haversine distance, perimeter summation and point-to-segment — with two private `Rel` helpers of different signatures and two cell builders (`LonLatCell` vs `Cell`) — declaring `Nsi.Geospatial.Tests` vs `Nsi.Geospatial.Core.Tests`. `CrsInfoAndAreaTests.cs` (12.7 KB) and `CrsInspectionTests.cs` likely overlap the same way | `tests/**` | new | `open` | Merge by function, not authoring session. One namespace. One tolerance idiom — `SpatialIoTests` passes `const double Tol = 1e-9` to `Assert.Equal` while `CrsInspectionTests` uses digit counts (`Assert.Equal(1.0, …, 12)`), which is the very overload confusion `P-37`/`0908 P3-4` describes; unify before closing that. |
-| `P-37` | Dead test and writer code: `ProbeOsrBinding.cs` is 100% commented out, self-labelled "TEMPORARY diagnostic for P1-10 … Delete once settled" — P1-10 is settled; and `SpatialWriter.ClosedRing`/`RingWkt`/`Fmt` are orphaned by the switch to the programmatic OGR geometry API | `tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs`, `Io/SpatialWriter.cs` | new | `open` | Run the probe once first if its output is still wanted (**D-C**), then delete. |
-| `P-38` | `Feature.ShapeType` and `FeatureCollection.ShapeType` are duplicated state; Io reads only the collection's while tests set both | `Geometry/Feature.cs`, `Geometry/FeatureCollection.cs` | new | `open` | Drop the per-feature copy, or make it authoritative and validate consistency. |
+- **N-1** Three correct `BoundingBox` primitives are never called: `Overlaps`,
+  `Contains`, `EnlargementToContain`. They are the fixes for P-01, P-41 and P-46.
+- **N-2** `Transformer_EatsLonLatNotLatLon` was described but never added.
+- **N-3** Three docstrings describe signatures that no longer exist. Verified still
+  stale: `SpatialJoins.BuildTree` (documents the `addFeature` argument order `a6f3def`
+  deleted). Verify with `grep -rn "CloseRing" --include=*.cs .` — expected hits are only
+  the `SpatialReader.ProcessGeometry` docstring ("*CloseRing runs after any transform*",
+  "*Direction must come from the source*", both about removed code) and `P-37`'s
+  `SpatialWriter.ClosedRing`.
+- **N-5** `CHANGES_09012026.md` below P3-5 and parts of `CHANGES_09082026.md`'s narrative
+  have never been readable through any fetch path. Do not assume they are empty.
+- **N-6** Keep `CHANGES_08312026.md`'s `fix(#N)` legend: those markers live in
+  `BoundingBox.Overlaps`, `AttributeColumn.Coerce`, `CsvHelper`, `Part.AddVertex` and
+  `Feature`, and they index *that* file, not this one. `CHANGES_08312026.md` also claims
+  the R-tree files are "restored verbatim from master, all original typos included" —
+  that has been false since `16585ef` and `ac3bb82`.
+- **N-7** Timeline rule: `CHANGES_09012026.md`'s P0-1 blamed the containment gate for
+  missing features; `16585ef` fixed the actual cause (MBR propagation) four and a half
+  hours later and the changelog was never reconciled. Any row citing 0901 P0-1 must be
+  re-read against P-49.
+- **N-8** Benchmark build and query separately. The RBush comparison may have measured
+  `Load()` (bulk STR-style) rather than incremental `addFeature`, which would explain
+  part of the gap and is exactly what P-40 will change.
+- **N-10** `Part`'s metric cache depends on the invariant that geometry cannot change
+  behind its back. That holds for `Part` (`Vertices` is read-only) but **not** for
+  `Feature.Parts` (P-17) or `FeatureCollection.Features` (also a public `List`). Fixing
+  P-17 should close the last hole.
+- **N-11** `dotnet test` currently reports 2 skips: `EarthRadiusFeetIsTheAuthalicRadiusIn
+  Feet` (P-04) and `PointToSegmentWhenFootIsBehindTheNearEndpointReturnsDistanceToA`
+  (P-03). Those two are the entire skip budget; a new skip is a new defect being hidden.
 
 ---
 
-## 8. Duplicate clusters collapsed
+## 9. Build hygiene
 
-Eleven root causes were reported more than once, sometimes with different IDs **and
-different recommended fixes**. Each is now one row.
-
-| Cluster | Root cause | Reported as | Now |
-|---|---|---|---|
-| C1 | R-tree containment gate | `0831` #15 + "intentionally unfixed"; `0901 P0-1` | `P-01` — and `0901` mis-attributed the *symptom* to it; the real cause was propagation (`P-49`). See N-7 |
-| C2 | `cumulativeOverlap`/`siblingOverlap` | `0831` "live defect"; `0901 P2-7` "dead code" | `P-22` — **resolved: dead.** The sort keys on `metrics[0..2]`; nothing reads them |
-| C3 | Join builds a tree and discards it | `0831`; `0901 P0-2` | `P-02` |
-| C4 | `Ogr.RegisterAll()` per call | `0901 P2-9`; `0908 P1-16` | `P-12` (kept the P1; retired the P2) |
-| C5 | `SphericalPerimeter` closes the ring | `0908 P1-15`; `0908 P2-11` | `P-13` (+ docstring half in `P-23`) |
-| C6 | CRS authority confusion | `0901 P1-10` (row deleted); `0908` "P1-10 follow-on"; `0908 P2-15` | `P-14` — **the two prescribed fixes contradict each other**; see **D-D** |
-| C7 | R-tree dead code | `0831`; `0901 P2-7` | `P-22` |
-| C8 | `TreatWarningsAsErrors=false` | `0901 P2-5`; `0901 P3-1` | `P-30` (docs claim) |
-| C9 | .NET 8 vs SDK pin | `0901 P2-10`; `0901 P3-1` | `P-31` (now also collides with `release.yml`) |
-| C10 | R-tree style and typos | `0831` "typos preserved on purpose"; `0901 P2-5` | `P-22` — and **both descriptions are stale**: `42ac0c9`/`ac3bb82`/`1cd383a` already refactored these files |
-| C11 | CSV correctness | `0831` #10, #11 (**done**); `0901 P0-8` (**open**) | `P-08`; #10/#11 in §6. Not duplicates, but adjacent rows in one file invite conflation |
-
-**Numbering is not a citable scheme.** `0831` states #1–#8 and #12–#14 are unreferenced;
-`0901` has no P0-3 and no P1-12; `0908` has no P0-12, P1-12 or P2-16. Cite `P-xx` from now
-on.
+- **Warnings (10 known, `Nsi.Geospatial` only).** Six are real: `CS8625` (RTreeNode.cs:26,
+  `null` default on a non-nullable parameter) and `CS8600` ×3 (80, 153, 184) and `CS8602`
+  (295) — read all four before annotating; a wrong `!` is a latent NRE inside the index.
+  `CA1854` (`AttributeTable.cs:57`, use `TryGetValue`). `CA1805` ×2 (`RTreeNode.cs:18,19`,
+  `Max/MinChidrens` explicitly `= 0` — check which is the real default, against P-43).
+- **`CA1829` at `RTreeNode.cs:104` may be a hot path.** If line 104 is the split loop's
+  bound, `Children.Count()` allocates an enumerator on every iteration of a loop that
+  runs on every insert. Hoist it.
+- **`CA1711` (`FeatureCollection` naming) is a design opinion and a breaking rename.**
+  Suppress with a rationale in `.editorconfig`, do not rename.
+- These have been visible on every clean build; incremental builds hid them because
+  `Nsi.Geospatial` was not recompiling. Once the six are fixed, flip
+  `TreatWarningsAsErrors` to `true` with the scoped `NoWarn` from P-30.
+- `dotnet format Geospatial.slnx --verify-no-changes --no-restore` is a hard CI step and
+  has been failing. See P-59 for why the diff may be much larger than expected.
 
 ---
 
-## 9. Cross-cutting notes
+## 10. Recommended order
 
-- **N-1 — three correct primitives sit uncalled.** `BoundingBox.Overlaps` (the correct
-  closed-interval test, `fix(#15)`), `BoundingBox.Contains`, and
-  `BoundingBox.EnlargementToContain` (the correct insertion cost function) have **no
-  production caller**. `0831` instructs "new geometry code should use the corrected
-  `BoundingBox.Overlaps`" while `RTreeManager` still queries `getMBRoverlap`. `P-01`,
-  `P-40`/`P-41` and `P-47` exist largely to connect them. Either connect or delete.
-- **N-2 — the axis-order fix is unguarded.** `0908` recommended
-  `Transformer_EatsLonLatNotLatLon` as the guard for `P1-14`. The fix landed; no such test
-  exists. Tracked in `P-14`.
-- **N-3 — three docs describe a signature that no longer exists.**
-  `SpatialJoins.BuildTree`'s docstring says "Note the original addFeature argument order:
-  (featInd, Xmax, Xmin, Ymax, Ymin)" about a signature `a6f3def` deleted; `RTreeTests`
-  carries the same stale `// Xmax=10, Xmin=0` inline comments; and `RTreeTests`' class
-  docstring claims the tests "deliberately do NOT assert correct behavior" while its
-  method names assert exactly that (and `16585ef` made that intentional). Fix all three in
-  `P-02`/`P-48`.
-- **N-4 — `0908`'s own summary is not reconcilable with its table.** It claims "11 open …
-  1 hypothesis refuted", but the refuted hypothesis appears nowhere in the readable table.
-- **N-5 — coverage caveat for this consolidation.** `CHANGES_09012026.md` and
-  `CHANGES_09082026.md` exceed my fetch limit and their prose tails were unreadable through
-  every mirror attempted: `0908`'s full "Resolved: P1-10" narrative and the refuted
-  hypothesis, and `0901`'s rows below `P3-5`. Everything in the readable portion of both
-  tables is accounted for above. **Re-read those two tails and reconcile before treating §6
-  as exhaustive.**
-- **N-6 — keep `0831`'s numbering legend readable.** `fix(#N)` and `fix:` markers are still
-  in the source (`BoundingBox.Overlaps`, `AttributeColumn.Coerce`, `CsvHelper`,
-  `Part.AddVertex`, `Feature`). Keep `0831` at `docs/reviews/` so those in-code markers stay
-  decodable, or migrate the legend into §6 and re-tag the comments.
-- **N-7 — the process lesson, and a standing instruction.** A fix that stopped data loss
-  (`16585ef`, MBR propagation) landed on 2026-09-01 and appears in **none** of the three
-  review files. `0901` was written 4 h 38 min *before* it, and pinned the correct symptom —
-  "features silently go missing once the tree grows" — on the wrong cause (the containment
-  gate). The `0908` review then read the changelogs as its map rather than the history as
-  its record and never mentioned it. The files were **written between fixes and never
-  reconciled**, so their causal claims misdirect fixes, not just their status columns.
-  **Standing rule: any row citing `0901 P0-1` must be re-read against `16585ef` first.**
-  Corollary: when closing an item, name the commit; when reviewing, read
-  `git log -- Nsi.Geospatial/Spatial/` before trusting a changelog.
-- **N-8 — benchmark hygiene for the R-tree.** Build cost and query cost are separate numbers
-  here: the all-leaves fallback (`P-40`) makes *build* quadratic while leaving *query*
-  quality untouched. If the RBush comparison used `RBush.Load()` (bulk STRtree) against
-  incremental `addFeature`, it compared a bulk loader to a per-item insert. Re-run as two
-  series before and after `P-40`/`P-41` so the perf claim stays defensible and any
-  regression is visible.
-
----
-
-## 10. Suggested sequencing
-
-1. **`P-39`** — `BoundingBox.IsEmpty`. Everything R-tree-adjacent reads a box; the sentinel
-   is wrong today and `P-01`'s guards depend on it.
-2. **`P-01` → `P-43` → `P-48` (items 1–3)** — fix pruning, validate configuration, then land
-   the propagation regression test and the `Query`-vs-LINQ equivalence test. Fix and guard
-   together.
-3. **`P-40` / `P-41`** — cost-function correctness and the fallback removal, with the
-   split build/query benchmark from N-8.
-4. **`P-47`** — `Query`, `Nearest`, `Count`, bulk add. Decide **D-E** first.
-5. **`P-44` → `P-02`** — CRS-correct distance, then wire the joins, with the
-   tree-vs-brute-force equivalence test so `SpatialJoinTests` actually covers the tree.
-6. **`P-42`, `P-46`, `P-50`, `P-15`, `P-22`, `P-51`** — the remaining R-tree hardening and
-   cleanup pass, once behaviour is locked by tests.
-7. **The two spikes (`D-C`, `D-D`)** as timeboxed work, then estimate `P-06`, `P-14`, `P-20`,
-   `P-29`.
-8. **`P-03`, `P-04`, `P-05`** — the spherical-math P0s, independent of all of the above.
-   `P-04` is what PR #6 set out to ship.
-9. **`P-12`** — small, unblocks test parallelism, removes a workaround the code explicitly
-   asks to have removed.
-10. **`P-36`, `P-37`, `P-30`, `P-31`, `P-32`, `P-33`, `P-34`, `P-35`** — consolidation and
-    housekeeping. Cheap, and they reduce the odds of another divergent set of review files.
+1. Green build and format: P-55, the six real warnings, `CA1711` suppression, P-59, then
+   `TreatWarningsAsErrors=true`.
+2. P-53 (shared `Rel`, part of P-36) — needed *before* the zero-assertion tests land.
+3. P-56 + P-57 together (storage convention), then T-1…T-4, T-7, T-13.
+4. **T-5** — the read-path hole test. Highest value per line in this file.
+5. P-05 remainder (`Parts[0].IsHole` check, null-hole handling), P-21 (silent geometry
+   drop — likely to surface as T-3 failures).
+6. T-8…T-12, then P-17 so the cache invariant has no remaining hole (N-10).
+7. P-04 and P-03 — the two remaining skips, and P-04 is PR #6's stated purpose.
+8. R-tree cluster: **P-39 → P-01 → P-43 → P-48 → P-40/P-41 → P-47 → P-44 → P-02 →
+   P-42/P-46/P-50/P-15/P-51**, with D-E resolved before P-02.
+9. Everything else as touched.
