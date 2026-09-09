@@ -32,8 +32,6 @@ public sealed class Feature
   }
   private FeatureCollection? _owner;
 
-  private CrsInfo _crs = Projections.CrsInfo.Unknown;
-
   /// <summary>The dependable CRS source for this feature's geometry.</summary>
   public CrsInfo Crs => Owner?.Crs ?? Projections.CrsInfo.Unknown;
   public List<Part> Parts { get; } = new();

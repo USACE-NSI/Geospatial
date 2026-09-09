@@ -237,11 +237,6 @@ assert zero lengths and zero areas and will silently demand bit-exactness.
 explicit `absTol` chosen per unit (≈1e-6 m, not 1e-9 scaled from degrees). Belongs in the
 shared helper from P-36.
 
-### P-55 `Feature._crs` is a dead field  *(new, `3f62485`)*
-`private CrsInfo _crs = Projections.CrsInfo.Unknown;` in `Feature.cs` is never read —
-`Feature.Crs` is still `Owner?.Crs ?? CrsInfo.Unknown`. Expect `CS0414`. Delete it: it
-was copied from the `FeatureCollection` snippet, and it implies features can carry their
-own CRS, which is not the design.
 
 ### P-56 Ring storage is mixed open/closed  *(new, `44fbf06`)*
 `Seal()` no longer strips a duplicate closing vertex and the reader does not normalise,
@@ -431,7 +426,7 @@ test T-8.
 
 ## 10. Recommended order
 
-1. Green build and format: P-55, the six real warnings, `CA1711` suppression, P-59, then
+1. Green build and format: the six real warnings, `CA1711` suppression, P-59, then
    `TreatWarningsAsErrors=true`.
 2. P-53 (shared `Rel`, part of P-36) — needed *before* the zero-assertion tests land.
 3. P-56 + P-57 together (storage convention), then T-1…T-4, T-7, T-13.
