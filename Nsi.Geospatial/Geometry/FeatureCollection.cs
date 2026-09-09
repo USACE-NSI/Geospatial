@@ -1,5 +1,6 @@
 using Nsi.Geospatial.Attributes;
 using Nsi.Geospatial.Enums;
+using Nsi.Geospatial.Projections;
 
 namespace Nsi.Geospatial.Geometry;
 
@@ -8,7 +9,24 @@ public sealed class FeatureCollection
 {
   public string? Name { get; set; }
   public ShapeType ShapeType { get; set; }
-  public string? Wkt { get; set; }
+
+  /// <summary>The single CRS for everything in this collection.</summary>
+  public CrsInfo Crs
+  {
+    get => _crs;
+    set
+    {
+      if (ReferenceEquals(_crs, value))
+        return;
+      _crs = value;
+      foreach (var f in Features)
+      {
+        foreach (var p in f.Parts)
+          p.InvalidateMetrics();
+      }
+    }
+  }
+  private CrsInfo _crs = Projections.CrsInfo.Unknown;
 
   public AttributeTable Schema { get; } = new();
   public List<Feature> Features { get; } = new();
@@ -18,6 +36,7 @@ public sealed class FeatureCollection
 
   public int AddFeature(Feature feature)
   {
+    feature.Owner = this;
     feature.Id = Features.Count;
     Features.Add(feature);
     return feature.Id;
@@ -30,3 +49,4 @@ public sealed class FeatureCollection
       Features[i].Id = i;
   }
 }
+

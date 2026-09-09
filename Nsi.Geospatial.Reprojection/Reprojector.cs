@@ -57,7 +57,7 @@ public static class Reprojector
     }
   }
 
-  private static string CrsToken(Projection p, string argName)
+  internal static string CrsToken(Projection p, string argName)
   {
     string? epsg = p.EpsgCode;
     if (!string.IsNullOrWhiteSpace(epsg))
@@ -67,7 +67,7 @@ public static class Reprojector
     throw new ArgumentException($"{argName} must supply an EpsgCode or Wkt.", argName);
   }
 
-  private static class Native
+  internal static class Native
   {
     // The OSGeo.GDAL managed assembly has already loaded the native GDAL
     // library into this process; resolve it by the usual names.
@@ -161,3 +161,4 @@ public static class Reprojector
     }
   }
 }
+

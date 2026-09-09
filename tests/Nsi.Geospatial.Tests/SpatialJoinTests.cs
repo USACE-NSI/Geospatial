@@ -13,19 +13,19 @@ public class SpatialJoinTests
   {
     var polys = new FeatureCollection { ShapeType = ShapeType.Polygon };
     var p1 = new Feature { ShapeType = ShapeType.Polygon };
-    p1.Parts.Add(new Part { IsHole = false });
+    p1.Parts.Add(new Part(PartType.Ring) { IsHole = false });
     p1.Parts[0].AddVertex(new Vertex(0, 0));
     p1.Parts[0].AddVertex(new Vertex(10, 0));
     p1.Parts[0].AddVertex(new Vertex(0, 10));
     p1.Parts[0].AddVertex(new Vertex(0, 0));
-    p1.Parts[0].CloseRing();
+    p1.Parts[0].Seal();
     p1.ComputeBoundingBox();
     polys.AddFeature(p1);
     polys.Schema.AddField("VALUE", FieldType.DoubleFT, 12, 2);
 
     var pnts = new FeatureCollection { ShapeType = ShapeType.Point };
     var pp = new Feature();
-    pp.Parts.Add(new Part());
+    pp.Parts.Add(new Part(PartType.Point));
     pp.Parts[0].AddVertex(new Vertex(1, 1));
     pp.ComputeBoundingBox();
     pp.Attributes["VALUE"] = 42.0;

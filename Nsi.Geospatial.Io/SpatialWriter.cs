@@ -53,7 +53,10 @@ public sealed class SpatialWriter : IFeatureSink
       target = baseName + ".shp";
     }
 
-    var srs = new SpatialReference(string.IsNullOrEmpty(collection.Wkt) ? null : collection.Wkt);
+    string? collectionWkt = collection.Crs.Wkt;
+    using var srs = new SpatialReference(
+      string.IsNullOrEmpty(collectionWkt) ? null : collectionWkt
+    );
     using var ds = driver.CreateDataSource(target, Array.Empty<string>());
     using var layer = ds.CreateLayer(
       collection.Name ?? "layer",
@@ -261,3 +264,4 @@ public sealed class SpatialWriter : IFeatureSink
       _ => OSGeo.OGR.FieldType.OFTString,
     };
 }
+

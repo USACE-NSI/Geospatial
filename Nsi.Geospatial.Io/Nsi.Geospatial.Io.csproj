@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\Nsi.Geospatial\Nsi.Geospatial.csproj" />
+    <ProjectReference Include="..\Nsi.Geospatial.Reprojection\Nsi.Geospatial.Reprojection.csproj" />
   </ItemGroup>
 
   <!-- GDAL managed assemblies. Native GDAL runtime must be on PATH / via GDAL_DATA & PROJ_LIB.

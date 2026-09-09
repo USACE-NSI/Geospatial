@@ -288,7 +288,7 @@ public class SpatialIoTests
     f.Attributes["id"] = id;
     f.Attributes["name"] = name;
     f.Attributes["value"] = value;
-    var p = new Part();
+    var p = new Part(PartType.Point);
     p.AddVertex(new Vertex(x, y));
     f.AddPart(p);
     fc.AddFeature(f);
@@ -306,7 +306,7 @@ public class SpatialIoTests
     f.Attributes["id"] = id;
     f.Attributes["name"] = name;
     f.Attributes["value"] = value;
-    var part = new Part();
+    var part = new Part(PartType.Polyline);
     foreach (var (x, y) in verts)
       part.AddVertex(new Vertex(x, y));
     f.AddPart(part);
@@ -328,7 +328,7 @@ public class SpatialIoTests
     f.Attributes["id"] = id;
     f.Attributes["name"] = name;
     f.Attributes["value"] = value;
-    var ring = new Part();
+    var ring = new Part(PartType.Ring);
     ring.AddVertex(new Vertex(x0, y0));
     ring.AddVertex(new Vertex(x1, y0));
     ring.AddVertex(new Vertex(x1, y1));
@@ -340,7 +340,7 @@ public class SpatialIoTests
   // --------------------------------------------------------------- helpers
 
   /// <summary>Even-odd point-in-polygon. Tolerates closed / double-closed rings.</summary>
-  private static bool PointInPolygon((double X, double Y) p, List<Vertex> ring)
+  private static bool PointInPolygon((double X, double Y) p, IReadOnlyList<Vertex> ring)
   {
     bool inside = false;
     int n = ring.Count;
@@ -372,3 +372,4 @@ public class SpatialIoTests
       Directory.Delete(dir, recursive: true);
   }
 }
+
