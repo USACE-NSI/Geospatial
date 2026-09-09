@@ -185,22 +185,6 @@ public sealed class SpatialWriter : IFeatureSink
     }
   }
 
-  /// A WKT ring must be closed: repeat the first vertex unless the ring already is.
-  private static List<Vertex> ClosedRing(Part part)
-  {
-    var verts = new List<Vertex>(part.Vertices);
-    if (verts.Count > 1 && verts[0].Coordinates != verts[^1].Coordinates)
-      verts.Add(verts[0]);
-    return verts;
-  }
-
-  /// "x y, x y, ..." for one ring or line, invariant-culture coordinates.
-  private static string RingWkt(IReadOnlyList<Vertex> ring) =>
-    string.Join(", ", ring.Select(v => $"{Fmt(v.X)} {Fmt(v.Y)}"));
-
-  private static string Fmt(double value) =>
-    value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);
-
   // The OSGeo binding's SetField takes a field NAME plus a typed value (no object
   // overload, and no Layer.FieldIndex in 3.11.3), so resolve by name and dispatch
   // on the CLR value type. The string setter works for any OGR field type.

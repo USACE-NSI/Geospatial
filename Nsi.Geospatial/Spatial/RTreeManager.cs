@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Nsi.Geospatial.Geometry;
 
 namespace Nsi.Geospatial.Spatial;
@@ -52,3 +47,4 @@ public class RTreeManager
     }
   }
 }
+

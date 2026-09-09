@@ -1,7 +1,6 @@
 using System.Globalization;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
-using Nsi.Geospatial.Io;
 using Nsi.Geospatial.Projections;
 using Nsi.Geospatial.Reprojection;
 using OSGeo.OGR;

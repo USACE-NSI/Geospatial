@@ -103,7 +103,7 @@ public sealed class CoordinateTransformer : IDisposable
     return srs;
   }
 
-  internal static string CrsToken(Projection p, string argName)
+  private static string CrsToken(Projection p, string argName)
   {
     string? epsg = p.EpsgCode;
     if (!string.IsNullOrWhiteSpace(epsg))
