@@ -256,6 +256,7 @@ public sealed class SpatialReader : IFeatureSource
     type switch
     {
       Nsi.Geospatial.Enums.FieldType.IntegerFT => feat.GetFieldAsInteger(i),
+      Nsi.Geospatial.Enums.FieldType.LongFT => feat.GetFieldAsInteger64(i),
       Nsi.Geospatial.Enums.FieldType.DoubleFT
       or Nsi.Geospatial.Enums.FieldType.FloatFT
       or Nsi.Geospatial.Enums.FieldType.NumericFT
@@ -282,6 +283,7 @@ public sealed class SpatialReader : IFeatureSource
     t switch
     {
       OSGeo.OGR.FieldType.OFTInteger => Nsi.Geospatial.Enums.FieldType.IntegerFT,
+      OSGeo.OGR.FieldType.OFTInteger64 => Nsi.Geospatial.Enums.FieldType.LongFT,
       OSGeo.OGR.FieldType.OFTReal => Nsi.Geospatial.Enums.FieldType.DoubleFT,
       OSGeo.OGR.FieldType.OFTString => Nsi.Geospatial.Enums.FieldType.TextFT,
       OSGeo.OGR.FieldType.OFTDate or OSGeo.OGR.FieldType.OFTDateTime => Nsi.Geospatial

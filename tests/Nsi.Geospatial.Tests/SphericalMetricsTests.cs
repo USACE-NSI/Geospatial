@@ -474,7 +474,7 @@ public class SphericalMetricsTests
       expected += GeometryMath.SphericalDistance(ring[i], ring[(i + 1) % ring.Count]);
     }
 
-    Rel(expected, GeometryMath.SphericalPerimeter(ring), 1e-12, "peremiter = sum of edges");
+    Rel(expected, GeometryMath.SphericalPerimeter(ring), 1e-12, "perimeter = sum of edges");
   }
 
   [Fact]

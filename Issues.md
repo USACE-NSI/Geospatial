@@ -1,8 +1,8 @@
 # Issues — living tracker
 
-Single source of truth for known defects and open work. 
+Single source of truth for known defects and open work.
 
-Reviewed against `feature/spherical` @ `3f62485` (PR #6).
+Reviewed against `feature/remove-duplication` @ `7b4c6aa` (PR #8).
 
 ## How to use this file
 
@@ -11,7 +11,11 @@ Reviewed against `feature/spherical` @ `3f62485` (PR #6).
   `CHANGES_08312026.md`'s numbering, **not** these numbers — see N-6.
 - An item is closed only when a passing, un-skipped test guards the fix. Comments and
   commit messages are not evidence.
+- Deletions are recorded inline against the item that asked for them, with the commit
+  that performed them (`44fbf06`, PR #8 `051e8d8`, …). Do not delete the entry; mark it.
 - Section 10 is the recommended work order, not a priority list.
+- P-54, P-55, P-59 and P-20 are cited by other entries but are not defined here. See N-12
+  before assuming a number was skipped by accident.
 
 ---
 
@@ -21,8 +25,8 @@ Reviewed against `feature/spherical` @ `3f62485` (PR #6).
 |---|---|
 | D-A | **The R-tree stays.** It is foundational, supports bulk add, and outperforms RBush and other .NET implementations. Every R-tree item below is fix work; deletion and replacement are off the table. |
 | D-B | Skipped tests assert behaviour the library *should* have and does not. They are deliberate and are the spec for P-03 and P-04. |
-| D-C | Spike needed: confirm the GDAL 3.11.3 binding surface (`Layer.FieldIndex`, object overloads, `CoordinateTransformationOptions`). Gates P-06 and P-20. |
-| D-D | Decide the CRS token/authority model. `Reprojector.CrsToken` prepends `"EPSG:"`, so `"ESRI:102003"` becomes `"EPSG:ESRI:102003"`. GDAL now warns about this on every run (see the `EPSG:102003` line in test output). Gates P-14. |
+| D-C | Spike needed: confirm the GDAL 3.11.3 binding surface (`Layer.FieldIndex`, object overloads, `CoordinateTransformationOptions`). Gates P-06 and P-20. **The spike's artifact is gone:** `tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs` was deleted in PR #8 `051e8d8`. It was 100 % commented out and had never answered the question, so nothing was lost — but re-derive the surface against the installed binding rather than looking for that file. Recover the draft with `git show 051e8d8^:tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs`. |
+| D-D | Decide the CRS token/authority model. `Reprojector.CrsToken` moved to `CoordinateTransformer.CrsToken` (private) in PR #8 `051e8d8`, and still prepends `"EPSG:"` to any non-empty `Projection.EpsgCode`, so `"ESRI:102003"` becomes `"EPSG:ESRI:102003"`. GDAL warns about this on every run (see the `EPSG:102003` line in test output). Gates P-14. |
 | D-E | Decide whether the R-tree may index a geographic CRS. Its MBR math is planar; a degree-space box is not a metric box. Gates P-02 and P-47. |
 
 ---
@@ -66,6 +70,12 @@ constant to `EarthRadiusEquatorialFeet` and forbid its use in area math.
 `SpatialWriter` does not type fields to match `AttributeColumn`, and carries a comment
 claiming "no object overload, and no `Layer.FieldIndex` in 3.11.3" which contradicts
 the fix prescribed in the 0901 changelog. Resolve D-C, then fix or document.
+Related, and blocking a correct fix: the `FieldType`↔`OGR`↔`CLR` mapping is spread over
+four hand-maintained tables that nothing keeps in agreement —
+`SpatialReader.MapFieldType`, `SpatialWriter.MapFieldType`, `SpatialReader.ReadFieldValue`
+(which decides that `Double|Float|Numeric|Single` are doubles) and
+`AttributeColumn.FieldTypeToType`. Group both directions of each pair in one internal
+mapper so a divergence is visible in the diff.
 
 ### P-08 CSV newlines
 Values containing CR/LF corrupt the CSV round trip. Quote or reject.
@@ -97,6 +107,8 @@ at least one vertex.
   zero parts returns the full-range box.
 **Fix:** an explicit `IsEmpty` flag, or a normalisation that keeps `MinX > MaxX`
 inverted, with `Empty` short-circuits in `Area`/`ContainsPoint`.
+**Sequencing:** settle P-62 (which of these members survive) in the same change, or the
+guards get written around members that are about to be deleted.
 
 ---
 
@@ -110,17 +122,48 @@ containment test, and the insert path is caught by the all-leaves fallback. It b
 live the moment a rectangular query exists — **hard prerequisite for P-02.**
 `CHANGES_09012026.md` P0-1 states this defect inverted; `CHANGES_08312026.md` #15 states
 it correctly.
+**The correct predicate already exists in this codebase.** `BoundingBox.Overlaps` carries
+a closed-interval test (`fix(#15)`, written specifically so that a query *containing* the
+node still overlaps). `getMBRoverlap` is the unfixed original doing the same job a second
+time. Fix = delete it and call `BoundingBox.Overlaps`, preserving the
+"return ≥ 1 when overlapping" convention at the call sites (it exists so point-shaped
+features are not pruned). Do not fix the corner test in place — that keeps two overlap
+predicates that can drift again.
 
 ### P-02 Spatial joins discard the tree  *(mandatory)*
 `SpatialJoins` enumerates features instead of descending the index. Blocked on P-01,
 P-47 (no usable query API) and D-E.
+The discarding is explicit and worth deleting with the fix: both join directions contain
+`_ = tree ?? BuildTree(features);`, which constructs a whole R-tree and throws it away.
+`pointTree` / `polyTree` are therefore pure cost today.
 
 ### P-12 `Ogr.RegisterAll()` thread-safety
-Called on every `Read`. Not idempotent-safe under concurrent reads.
+Called on every `Read` **and** on every `Write`. Not idempotent-safe under concurrent
+use. `tests/Nsi.Geospatial.Io.Tests/AssemblyInfo.cs` disables test parallelisation as a
+workaround and names the registration guard as the real fix; that guard is this item.
 
-### P-14 Retire `Reprojector`'s hand-rolled P/Invoke  *(needs D-D)*
-Also fix the authority model. Folded in: P-29 (`CoordinateTransformationOptions` /
-area-of-interest, re-rated P2 → merged here so reprojection correctness is done once).
+### P-14 CRS authority/token model and transform options  *(needs D-D)*  *(half closed)*
+**Closed by PR #8 `051e8d8`:** `Nsi.Geospatial.Reprojection/Reprojector.cs` is deleted,
+with its hand-rolled `NativeLibrary` P/Invoke class (−164 lines). `CoordinateTransformer`
+is now the library's only transform path. That removed a live correctness hazard, not
+merely dead code: the P/Invoke path never called
+`SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER)`, so it returned **transposed**
+coordinates for any geographic CRS while `CoordinateTransformer` returned correct ones.
+Two consequences to record: `Reprojector` was `public static` in a packable assembly, so
+this is a breaking public-API removal (note it before 0.1.x is consumed anywhere); and
+the axis-order guarantee now rests on a single code path with **no test** — see T-14.
+
+Still open:
+- `CoordinateTransformer.CrsToken` still prepends `"EPSG:"` unconditionally (D-D).
+  Guard with T-15 once the model is chosen.
+- `Projection.EpsgCode` is a `string?` carrying an authority-prefixed token, and three
+  places independently build or parse that string: `CoordinateTransformer.CrsToken`,
+  `SpatialReader.ParseEpsg`, `CrsInspector.ParseCode`. `SpatialReader` formats
+  `$"EPSG:{code}"` in `ToProjection` and parses it straight back in `SameCrs` — a
+  round-trip through a string inside one method body. Making the field an `int?` (plus a
+  separate authority field if `ESRI:` codes are wanted) deletes all three parsers and the
+  round-trip.
+- Folded in: P-29 (`CoordinateTransformationOptions` / area-of-interest).
 
 ### P-15 `Root` public setter; no box validation
 `RTreeManager.Root { get; set; }` accepts any node, and `addFeature` validates no box.
@@ -133,14 +176,17 @@ a stale MBR. `Part` now defends against exactly this pattern (`Vertices` is read
 `AddVertex` is the sole mutator) — `Feature` has not received the same treatment, and
 `Part` has no channel to notify its owner. Apply the same shape: private list +
 `IReadOnlyList<Part>` facade + `AddPart`/`RemovePart`.
+Also two maintenance paths for one box: `AddPart` unions incrementally *and*
+`ComputeBoundingBox()` rebuilds from scratch. Callers use both. Pick one.
 
 ### P-18 Identity and `RemoveFeature`
 `RemoveFeature` renumbers surviving ids and leaves the detached feature's `Owner`
-pointing at the collection, so it still resolves the old CRS. `RemoveFeatureLeavesThe
-DetachedFeatureResolvingTheOldCrs` pins this deliberately. It also means the detached
-feature is outside `FeatureCollection.Crs`'s invalidation sweep — currently rescued only
-by `Part`'s `CrsInfo` identity check, which is now the sole defence. Pin that with a
-test. `SpatialJoins.BuildTree` keys on `f.Id`, which mutates under `RemoveFeature`.
+pointing at the collection, so it still resolves the old CRS.
+`RemoveFeatureLeavesTheDetachedFeatureResolvingTheOldCrs` pins this deliberately. It also
+means the detached feature is outside `FeatureCollection.Crs`'s invalidation sweep —
+currently rescued only by `Part`'s `CrsInfo` identity check, which is now the sole
+defence. Pin that with a test. `SpatialJoins.BuildTree` keys on `f.Id`, which mutates
+under `RemoveFeature`.
 
 ### P-19 Culture
 Number formatting/parsing is not `InvariantCulture` in every path (`CsvHelper`,
@@ -161,6 +207,8 @@ quadratic in feature count.
 Chooses the child with the smallest *union* area, which biases toward already-large
 children — the R-tree heuristic is enlargement (`union − existing`). The tie-break floor
 is also in raw CRS units, so it means different things in metres and degrees.
+`BoundingBox.EnlargementToContain` is exactly this quantity, already written and never
+called (N-1). Use it rather than re-deriving it.
 
 ### P-42 `buildChildOptions` re-parents live children
 While scoring candidate placements it re-parents children of the *real* node, then
@@ -194,6 +242,15 @@ Six gaps; the first is the important one:
 6. `RTreeTests`' class docstring still claims the tests do not assert correct behaviour,
    which was made false by `16585ef`.
 
+### P-61 `Nsi.Geospatial.Reprojection` is a project holding one class  *(new, PR #8)*
+After `051e8d8` deleted `Reprojector`, the project contains `CoordinateTransformer` plus a
+206-byte csproj — and still costs a `Geospatial.slnx` node, a `ProjectReference` from
+`Io`, and a CI `--include` target. The stated reason for the split (keeping core
+GDAL-free) is already satisfied by `Nsi.Geospatial.Io`, and both projects require the
+same native GDAL runtime, so the boundary buys nothing at build or run time.
+**Fix:** fold into `Nsi.Geospatial.Io`, delete the csproj and the solution entry. Public
+namespace change, same caveat as P-14: 0.x breaking removal, document it.
+
 ---
 
 ## 3. P2 — measurable defects, bounded impact
@@ -211,8 +268,18 @@ parameter or scale by the CRS.
 ### P-25 Aggregate results into the Text column
 Join aggregations have no output home.
 
-### P-26 `interiorOnly` / `ContainsIndex`; delete `Feature.Wkt`
-`Feature.Wkt` is dead state that goes stale the moment vertices change.
+### P-26 `interiorOnly` / `ContainsIndex` / duplicated join bodies; delete `Feature.Wkt`
+- `Feature.Wkt` is dead state that goes stale the moment vertices change.
+- `interiorOnly` is accepted by `NearestPointsToPolygons` and **never read**. Its sibling
+  `exteriorOnly` *is* read, so one filter silently does nothing.
+- `ContainsIndex(int index, long candidate) => candidate == index` is an indirection that
+  only obscures `polyIdx == exteriorOnly.Value`. Delete both with the parameter.
+- `NearestPointsToPolygons` and `NearestPolygonsToPoints` copy-paste the schema-backfill
+  block and the nearest-neighbour scan (one keeps ties within `1e-9`, the other keeps a
+  single best), and copy the matched field two different ways — `Aggregate(...)` versus
+  an inline `Attributes.TryGetValue`. One shared scan + one shared backfill.
+- `FieldCopy` asymmetry: the point→polygon direction has no aggregation path at all, so
+  P-10's `Average` gap is directional, not general. Note it when fixing P-10.
 
 ### P-27 DBF column order
 Round-tripped schema order differs from the source.
@@ -222,25 +289,28 @@ Reader and writer disagree; a null text field comes back as empty string.
 
 ### P-46 `getCandidateEndNodesByMBR` performs no MBR test at the leaf
 Descends using MBRs then accepts every leaf entry, so the pruning is illusory below one
-level.
+level. `BoundingBox.Overlaps`/`Contains` are the missing test (N-1).
 
 ### P-50 `getIsEndNode` inspects only `Children[0]`
 Assumes all children of a node are at the same level. True today because splits only
 produce same-level siblings; unguarded and will silently mis-classify if that changes.
 Assert it.
 
-### P-53 `Rel` cannot compare against zero  *(both test files)*
+### P-53 `Rel` cannot compare against zero  *(half fixed)*
 `diff <= Math.Abs(expected) * tol` degenerates to `diff <= 0` when `expected == 0`, and
 the message divides by zero (`rel diff ∞` — observed). Several planned acceptance tests
 assert zero lengths and zero areas and will silently demand bit-exactness.
-**Fix:** `Assert.True(diff <= Math.Max(Math.Abs(expected) * relTol, absTol), ...)` with an
-explicit `absTol` chosen per unit (≈1e-6 m, not 1e-9 scaled from degrees). Belongs in the
-shared helper from P-36.
-
+**Already correct:** `SphericalMetricsTests.RelD` implements the fix —
+`diff <= Math.Max(Math.Abs(expected) * relTol, absTol)`.
+**Remaining:** `CrsInfoAndAreaTests.Rel` still has the broken form, and
+`CrsInspectionTests` uses no helper at all, hand-rolling
+`Math.Abs(actual - expected) / expected` inline twice plus a bare `< 1e-3`.
+**Fix:** adopt `RelD` as the single shared `AssertRel` (P-36) with an explicit `absTol`
+chosen per unit (≈1e-6 m, not 1e-9 scaled from degrees), and delete the other forms.
 
 ### P-56 Ring storage is mixed open/closed  *(new, `44fbf06`)*
-`Seal()` no longer strips a duplicate closing vertex and the reader does not normalise,
-so **authored rings are stored open (`Count == n`) and read-back rings closed
+`Seal()` no longer strips a duplicate closing vertex and the reader does not normalise, so
+**authored rings are stored open (`Count == n`) and read-back rings closed
 (`Count == n + 1`)**. Every metric agrees (the `%n` primitives are invariant to it) but
 the vertex list does not, so any consumer walking consecutive pairs without wrapping is
 correct on read-back geometry and wrong on authored geometry.
@@ -259,7 +329,24 @@ correct on read-back geometry and wrong on authored geometry.
 tuple. A source ring whose closing vertex has an unset Z does not match vertex 0, so the
 writer appends a **second** closing point and the ring grows by one vertex per round
 trip. Closure is a planar property: compare `XY`.
+Note: `ClosedRing(Part)`, the helper that encoded this rule correctly for a `List<Vertex>`,
+was deleted in PR #8 `7b4c6aa` as unused — the polygon branch had inlined its own copy.
+The deletion was right; the inlined copy still carries the Z bug. Fix it in place.
 
+### P-62 `BoundingBox` public surface with no owner  *(new; extends N-1)*
+Verified across all production source and both test assemblies at `7b4c6aa`: `Overlaps`,
+`Contains`, `ContainsPoint`, `FromVertices` and `EnlargementToContain` have **zero**
+callers. Tellingly, `SpatialIoTests` needed a point-in-region check and hand-rolled
+`PointInPolygon` rather than calling `ContainsPoint`. Split the decision rather than
+treating the five alike:
+- `Overlaps` → consumed by P-01. `EnlargementToContain` → P-41. `Contains` → P-46.
+  **Keep**, and they stop being dead the moment those items land.
+- `ContainsPoint` → homeless, and wrong for every point under P-39. Either give it the
+  `Empty` guard and use it (joins and `findByXY` are candidates), or delete it.
+- `FromVertices` → genuinely unreferenced with no planned consumer
+  (`Part` maintains its MBR incrementally via `Union`; `Feature` recomputes by `Union`).
+  Delete, or justify and test it.
+Resolve inside P-39's change so guards are not written around members about to go.
 
 ---
 
@@ -267,14 +354,40 @@ trip. Closure is a planar property: compare `XY`.
 
 ### P-22 Naming and dead code
 `MaxChidrens`/`MinChidrens` misspelling (`Children`) and `addFeatureChild` unreachable;
-`cumulativeOverlap`/`siblingOverlap` written and never read; unused `System.Xml`,
-`System.Xml.Linq`, `System.Text`, `System.Threading.Tasks`.
+`cumulativeOverlap`/`siblingOverlap` written and never read.
 **Deleted in `44fbf06`:** `Part.Direction` (write-only after the `IsHole` derivation was
 removed; winding survives as vertex order, and one fewer `IsClockwise()` P/Invoke per
 ring), `Part.BeginIndex`, `Part.EndIndex`.
-**Remaining:** `Feature._crs` (P-55), plus `FeatureCollection.Crs`'s setter reaching
-through `f.Parts` to call `Part.InvalidateMetrics()` — add `Feature.InvalidateMetrics()`
-and forward, so the collection does not enumerate another type's internals.
+**Deleted in PR #8 `7b4c6aa`:** unused `using System`, `System.Collections.Generic`,
+`System.Linq`, `System.Text`, `System.Threading.Tasks` from `RTreeManager`/`RTreeNode`,
+plus `System.Xml`, `System.Xml.Linq`, and the redundant `using Nsi.Geospatial.Io;` inside
+`namespace Nsi.Geospatial.Io` in `SpatialReader`. (Safe: `ImplicitUsings` is on.)
+**Corrected:** this entry used to list `Feature._crs` (P-55) as remaining. It is already
+gone — `Feature` resolves CRS through its owner chain and holds no field. P-55 is a
+dangling reference; see N-12.
+**Remaining:**
+- `addFeatureChild` is not merely unreachable, it is *misleading*: it contains an area
+  tie-break (`extensionReq == minExtension && childnode.getArea < …`) that the live path
+  `addFeatureChildEnforceIntersect` lacks, so a reader will assume the tie-break is
+  active. Delete it, or move the tie-break to the live path as its own change.
+- `cumulativeOverlap` / `siblingOverlap` are assigned in `buildChildOptions` and never
+  read — the split sorts on the local `overlap`/`totalArea`/`perimeterTotal` triple. Dead
+  state carried by every node.
+- `RTreeNode.getArea` re-implements `BoundingBox.Area()`;
+  `getAddedSizeToAccomodate` re-implements `BoundingBox.EnlargementToContain` (P-41).
+- `FeatureCollection.Crs`'s setter reaches through `f.Parts` to call
+  `Part.InvalidateMetrics()` — add `Feature.InvalidateMetrics()` and forward, so the
+  collection does not enumerate another type's internals.
+
+### P-23a `GeometryMath` walk loops duplicated four times
+`ClosedWalk`/`SphericalPerimeter` are the same loop over `pts[i], pts[(i+1)%n]` differing
+only in the per-edge metric; `OpenWalk`/`SphericalLength` likewise for the open walk.
+`Area` and `Centroid` are the same shoelace loop, and `Part.Measure` calls **both**, so
+every ring is walked twice to produce two values from one accumulated sum.
+**Fix:** one private `Walk(pts, closed, edgeMetric)` and one
+`Shoelace(pts) → (area, cx, cy)`. Behaviour-preserving: the public entry points stay, and
+`SphericalPerimeterClosesTheRingEvenForAnOpenPolyline` pins the semantics that make the
+merge safe. Also halves `Measure()`'s work.
 
 ### P-30 README and warnings-as-errors
 Four factual errors in the README; the spherical feature is undocumented.
@@ -300,12 +413,43 @@ Test projects are packable.
 
 ### P-36 Test project duplication
 Three overlapping test files, two namespaces (`Nsi.Geospatial.Tests` and
-`Nsi.Geospatial.Core.Tests`), and **two independent copies of `Rel`** plus two copies of
+`Nsi.Geospatial.Core.Tests`), and two independent copies of `Rel` plus two copies of
 `PointInPolygon`. Every fix has to be applied twice (P-53 already does). Hoist one
 `TestAssert` and shared geometry helpers.
+**Reduced by PR #8 `4a0ec8b`:** `SphericalMathTests.cs` deleted (−246). It was a subsumed
+earlier generation of `SphericalMetricsTests.cs` — ~90 % duplicated, each case in a
+weaker form (looser tolerances, `0.3048` literals instead of `CrsInfo.MetersPerFoot`, no
+absolute-floor guard). Both assertions worth keeping were ported first
+(`SphericalPerimeterIsTheSumOfGreatCircleEdges`,
+`PointToSegmentEastOfNorthSouthSegmentIsOneDegreeOfLongitude`), and the D-B spec tests
+survived. Two files remain, still in two namespaces inside one assembly — which is *why*
+the duplicate went unnoticed: the classes could not collide by name.
+**Still duplicated:**
+- `Cell(lon, lat, w, h)` — byte-identical in `SphericalMetricsTests` and
+  `CrsInspectionTests`. (`LonLatCell(lonMin, lonMax, latMin, latMax)`, the incompatible
+  second signature, was removed in `7b4c6aa`; `Cell` is now the one convention. Do not
+  reintroduce a bounds-based variant — the two forms produce different polygons from
+  arguments that look interchangeable.)
+- `IntoFeature(Part)` — identical in `SphericalMetricsTests` and `CrsInspectionTests`.
+- `Ring` / `Polygon` / `Geographic()` / `Projected()` — re-derived per class.
+- `TempDir()` / `Cleanup(dir)` — in both Io test classes.
+- **Golden values duplicated across assemblies:** `8.8187588297044e9` is
+  `SphericalMetricsTests.CellAt44N` *and* a bare literal in `CrsInspectionTests`; ditto
+  `8.8373695264e9` / `EllipsoidCellAt44N`. Changing `EarthRadiusAuthalicMeters` therefore
+  breaks a test project that does not reference the file you edited. Share the constants.
+- `Deg2Rad` was added to `SphericalMetricsTests` in `4a0ec8b` but the rest of that file
+  still writes `Math.PI / 180.0` inline (`AnalyticCell`,
+  `SphericalAreaShrinksWithLatitudeAsCosineOfMidLatitude`, `ToUnitVector`). Use it or
+  drop it.
+- Two surviving typos in test names/messages: `"peremiter = sum of edges"` (added in
+  `7b4c6aa`) and `PointToSegmentOfDepenerateSegmentIsTheDistanceToThePoint`.
 
-### P-37 Delete probes and dead writer helpers
-`ProbeOsrBinding.cs`; `SpatialWriter.ClosedRing`, `.RingWkt`, `.Fmt`.
+### P-37 Delete probes and dead writer helpers  *(done, PR #8)*
+`ProbeOsrBinding.cs` deleted in `051e8d8` (−115); `SpatialWriter.ClosedRing`, `.RingWkt`,
+`.Fmt` deleted in `7b4c6aa`. The WKT emission path those three served is gone for good —
+`BuildOgrGeometry` builds geometry through the OGR API because `CreateFromWkt` rejects
+valid polygon WKT on the 3.11.3 binding. Keep that comment; without it the helpers look
+like an accidental omission.
 
 ### P-38 `Feature.ShapeType` vs `FeatureCollection.ShapeType`
 Two sources of truth, free to disagree.
@@ -320,9 +464,35 @@ produce same-level siblings. Add the guard while in the file; do not prioritise.
 `Nsi.Geospatial.Geometry`, so IDEs auto-suggest `Nsi.Geospatial.Geometry.Enums` — which
 cost a real compile error during this branch. Decide the convention across `Enums/`.
 
+### P-63 Writer/reader local hygiene  *(new, PR #8 review)*
+- `SpatialWriter`'s polygon branch states the degenerate-ring guard twice with different
+  messages and identical conditions (`i == 0 && verts.Count < 3`,
+  `i > 0 && verts.Count < 3`). One guard naming the role in the message.
+- `SpatialReader` and `SpatialWriter` carry ~15 fully-qualified names per file
+  (`global::System.IO.File`, `global::System.Globalization.CultureInfo`,
+  `OSGeo.OGR.Feature`, `Nsi.Geospatial.Enums.FieldType`) to dodge two collisions. Two
+  `using` alias blocks per file remove the noise without changing behaviour.
+- README calls the core project `Nsi.Geospatial.Core` while the assembly is
+  `Nsi.Geospatial` (P-30). The split test namespaces in P-36 are the fossil record of
+  that abandoned rename; settle the name once.
+
 ---
 
 ## 5. Partially complete — in flight
+
+### Closed by PR #8 (`051e8d8`, `4a0ec8b`, `7b4c6aa`) — net −483 lines, no behaviour change
+| Change | Recorded under |
+|---|---|
+| `Reprojector.cs` deleted: duplicate transform engine + hand-rolled P/Invoke (−164) | P-14 (half) |
+| `ProbeOsrBinding.cs` deleted, fully commented-out spike (−115) | P-37 |
+| `SpatialWriter.ClosedRing` / `.RingWkt` / `.Fmt` deleted (−16) | P-37, P-57 |
+| `SphericalMathTests.cs` deleted, subsumed duplicate suite (−246) | P-36 |
+| `LonLatCell` removed in favour of `Cell`; ported tests relocated; `"what"` labels named | P-36 |
+| `CrsToken` `internal` → `private` (one caller, same file) | P-14 |
+| Unused `using`s removed from `RTreeManager`, `RTreeNode`, `SpatialReader` | P-22 |
+
+Residue the PR created, all small: `"peremiter"` label, `Deg2Rad` inconsistency, and the
+axis-order guarantee now resting on one untested path (T-14) — all filed above.
 
 ### P-07 Open vs closed geometry  *(substantially done)*
 Done: `PartType` enum; required `Part(PartType)` constructor; `Kind` get-only;
@@ -360,20 +530,28 @@ test T-8.
 | T-11 | `DetachedFeatureRemainsMeasurable` — `RemoveFeature` then change `fc.Crs`; the removed feature must still recompute | P-18 |
 | T-12 | `EmptyPartDoesNotInflateFeatureBoundingBox` | P-39 |
 | T-13 | Degenerate ring `[A,B,A]` — assert whichever of `0.0` / `null` is chosen, in both CRS kinds | P-07 |
+| T-14 | **`ReprojectToUsesTraditionalGisOrder`** — read a lon/lat fixture into a projected CRS and assert X is still longitude. Also closes N-2 (`Transformer_EatsLonLatNotLatLon`). The only path that pins axis order now, since the P/Invoke path that ignored it was deleted in PR #8 | P-14 |
+| T-15 | `CrsTokenDoesNotDoublePrefixANonEpsgAuthority` — `Projection(epsgCode: "ESRI:102003")` must not produce `"EPSG:ESRI:102003"` | D-D, P-14 |
 
 ---
 
 ## 8. Notes
 
-- **N-1** Three correct `BoundingBox` primitives are never called: `Overlaps`,
-  `Contains`, `EnlargementToContain`. They are the fixes for P-01, P-41 and P-46.
-- **N-2** `Transformer_EatsLonLatNotLatLon` was described but never added.
+- **N-1** Five `BoundingBox` primitives are never called: `Overlaps`, `Contains`,
+  `ContainsPoint`, `FromVertices`, `EnlargementToContain`. Three are the ready-made fixes
+  for P-01, P-41 and P-46; two have no owner. Split decision: P-62.
+- **N-2** `Transformer_EatsLonLatNotLatLon` was described but never added. Filed as T-14;
+  it became *more* important in PR #8, not less.
 - **N-3** Three docstrings describe signatures that no longer exist. Verified still
   stale: `SpatialJoins.BuildTree` (documents the `addFeature` argument order `a6f3def`
-  deleted). Verify with `grep -rn "CloseRing" --include=*.cs .` — expected hits are only
-  the `SpatialReader.ProcessGeometry` docstring ("*CloseRing runs after any transform*",
-  "*Direction must come from the source*", both about removed code) and `P-37`'s
-  `SpatialWriter.ClosedRing`.
+  deleted); `SpatialReader.ProcessGeometry` ("*CloseRing runs after any transform*",
+  "*Direction must come from the source*" — both about removed code);
+  `SpatialReader.ToProjection` ("*WKT for the source, which always carries it after
+  inspection*" — it returns a `Projection`, and the sentence is a copy of `WktOf`'s
+  summary); and `CrsInfoAndAreaTests.Ring`'s doc-comment, which explains that "*AddVertex
+  derives `IsHole = !Direction`*" — `Part.Direction` was deleted in `44fbf06`, so the
+  comment now describes an invariant the code cannot enforce.
+  `grep -rn "CloseRing\|Direction" --include=*.cs .` after each cleanup.
 - **N-5** `CHANGES_09012026.md` below P3-5 and parts of `CHANGES_09082026.md`'s narrative
   have never been readable through any fetch path. Do not assume they are empty.
 - **N-6** Keep `CHANGES_08312026.md`'s `fix(#N)` legend: those markers live in
@@ -395,6 +573,20 @@ test T-8.
 - **N-11** `dotnet test` currently reports 2 skips: `EarthRadiusFeetIsTheAuthalicRadiusIn
   Feet` (P-04) and `PointToSegmentWhenFootIsBehindTheNearEndpointReturnsDistanceToA`
   (P-03). Those two are the entire skip budget; a new skip is a new defect being hidden.
+  (`RTreeTests.BulkInsertAllFeaturesFindableByPoint` carries a commented-out `Skip` from
+  `16585ef`; leave it as history, do not re-enable.)
+- **N-12** Dangling `P-` references: **P-20** (cited by D-C), **P-54** (cited by P-13,
+  T-8, and `Part`'s `_measuredCrs` comment), **P-55** (cited by P-22, and its subject
+  `Feature._crs` no longer exists), **P-59** (cited twice by section 9) have no entry in
+  this file. Either they were closed by deletion without the citations being cleaned, or
+  they live in the unreadable changelogs (N-5). Do not reuse these numbers; restore the
+  definitions or mark the citations dead.
+- **N-13** Duplication tends to arrive as a *second* correct implementation rather than a
+  second broken one. Three cases so far: `BoundingBox.Overlaps` vs
+  `RTreeNode.getMBRoverlap` (P-01), `BoundingBox.EnlargementToContain` vs
+  `getAddedSizeToAccomodate` (P-41), and two reprojection engines with different axis
+  handling (P-14). When adding a predicate, grep for one that already exists — and when
+  deleting a duplicate, check whether the survivor is the *correct* one.
 
 ---
 
@@ -405,6 +597,8 @@ test T-8.
   (295) — read all four before annotating; a wrong `!` is a latent NRE inside the index.
   `CA1854` (`AttributeTable.cs:57`, use `TryGetValue`). `CA1805` ×2 (`RTreeNode.cs:18,19`,
   `Max/MinChidrens` explicitly `= 0` — check which is the real default, against P-43).
+  Line numbers shifted after PR #8 removed the unused `using` blocks — re-run a clean
+  build before annotating.
 - **`CA1829` at `RTreeNode.cs:104` may be a hot path.** If line 104 is the split loop's
   bound, `Children.Count()` allocates an enumerator on every iteration of a loop that
   runs on every insert. Hoist it.
@@ -414,21 +608,33 @@ test T-8.
   `Nsi.Geospatial` was not recompiling. Once the six are fixed, flip
   `TreatWarningsAsErrors` to `true` with the scoped `NoWarn` from P-30.
 - `dotnet format Geospatial.slnx --verify-no-changes --no-restore` is a hard CI step and
-  has been failing. See P-59 for why the diff may be much larger than expected.
+  has been failing. See P-59 for why the diff may be much larger than expected. Note also
+  that PR #8 relocated test bodies by hand (`7b4c6aa`) — hand-moved blocks are the
+  classic csharpier failure, so re-verify the format step on the PR head before assuming
+  the remaining diff predates it.
 
 ---
 
 ## 10. Recommended order
 
 1. Green build and format: the six real warnings, `CA1711` suppression, P-59, then
-   `TreatWarningsAsErrors=true`.
-2. P-53 (shared `Rel`, part of P-36) — needed *before* the zero-assertion tests land.
+   `TreatWarningsAsErrors=true`. Re-run format on the PR #8 head first (section 9).
+2. P-53 + P-36 (one `AssertRel`, shared geometry helpers, shared golden constants) —
+   needed *before* the zero-assertion tests land, or they demand bit-exactness.
 3. P-56 + P-57 together (storage convention), then T-1…T-4, T-7, T-13.
 4. **T-5** — the read-path hole test. Highest value per line in this file.
-5. P-05 remainder (`Parts[0].IsHole` check, null-hole handling), P-21 (silent geometry
+5. **T-14** — axis order. One test, closes N-2, and guards the sole remaining transform
+   path. Cheap enough to fold into step 4.
+6. P-05 remainder (`Parts[0].IsHole` check, null-hole handling), P-21 (silent geometry
    drop — likely to surface as T-3 failures).
-6. T-8…T-12, then P-17 so the cache invariant has no remaining hole (N-10).
-7. P-04 and P-03 — the two remaining skips, and P-04 is PR #6's stated purpose.
-8. R-tree cluster: **P-39 → P-01 → P-43 → P-48 → P-40/P-41 → P-47 → P-44 → P-02 →
-   P-42/P-46/P-50/P-15/P-51**, with D-E resolved before P-02.
-9. Everything else as touched.
+7. T-8…T-12, then P-17 so the cache invariant has no remaining hole (N-10).
+8. P-04 and P-03 — the two remaining skips, and P-04 is PR #6's stated purpose.
+9. R-tree cluster: **P-39 + P-62 → P-01 → P-43 → P-48 → P-40/P-41 → P-47 → P-44 → P-02 →
+   P-42/P-46/P-50/P-15/P-51**, with D-E resolved before P-02. P-62 moves first so P-01
+   and P-41 can consume `Overlaps`/`EnlargementToContain` instead of re-deriving them,
+   and P-22's `addFeatureChild`/dead-field deletions ride along.
+10. Structural cleanups while their files are already open: P-61 (fold the Reprojection
+    project into `Io`), P-23a (`Walk`/`Shoelace`), P-63 (writer/reader hygiene), P-26
+    (join duplication). All behaviour-preserving; all cheapest immediately after the
+    tests in steps 2–7 are green.
+11. Everything else as touched.
