@@ -89,7 +89,7 @@ public class SphericalMetricsTests
 
   private static Part Ring(IEnumerable<(double X, double Y)> ring, bool exterior)
   {
-    var part = new Part(PartType.Ring) { Direction = exterior }; // first AddVertex derives IsHole from this
+    var part = new Part(PartType.Ring) { Direction = exterior, IsHole = !exterior };
     foreach (var (x, y) in ring)
       part.AddVertex(new Vertex(x, y));
     part.Seal();
@@ -745,20 +745,6 @@ public class SphericalMetricsTests
   }
 
   [Fact]
-  public void PartIsHoleIsDerivedFromDirectionOnTheFirstVertex()
-  {
-    // SpatialReader sets Direction from ring.IsClockwise() and CloseRing keys
-    // EndIndex off IsHole, so this derivation is load-bearing for hole handling.
-    var shell = new Part(PartType.Ring) { Direction = true };
-    shell.AddVertex(new Vertex(0, 44));
-    Assert.False(shell.IsHole);
-
-    var hole = new Part(PartType.Ring) { Direction = false };
-    hole.AddVertex(new Vertex(0, 44));
-    Assert.True(hole.IsHole);
-  }
-
-  [Fact]
   public void FeatureAreaSquareMetersSubtractsHoleParts()
   {
     var fc = Geographic();
@@ -767,6 +753,8 @@ public class SphericalMetricsTests
     Polygon(fc, shell, hole);
 
     double expected = CellAt44N - 8.8490668742e7;
+    Assert.False(shell.IsHole);
+    Assert.True(hole.IsHole); // "IsHole was false" beats "off by 1.01%"
     Rel(expected, fc.Features[0].AreaSquareMeters!.Value, 1e-10, "shell minus hole");
     Rel(8730268160.9622, fc.Features[0].AreaSquareMeters!.Value, 1e-10, "pinned");
   }

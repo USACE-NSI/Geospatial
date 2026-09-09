@@ -14,7 +14,7 @@ public sealed class Part
   public List<Vertex> Vertices { get; } = new();
   public BoundingBox BoundingBox { get; private set; } = BoundingBox.Empty;
   public bool IsHole { get; set; }
-  public PartType Kind { get; set; }
+  public PartType Kind { get; }
 
   /// <summary>Rings close for length and area; polylines and points never do.</summary>
   public bool IsRing => Kind == PartType.Ring;

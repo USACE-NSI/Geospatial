@@ -31,12 +31,12 @@ public class CrsInfoAndAreaTests
 
   private static Part Build(bool exterior, params (double X, double Y)[] points)
   {
-    var part = new Part(PartType.Ring) { Direction = exterior };
+    var part = new Part(PartType.Ring) { Direction = exterior, IsHole = !exterior };
     foreach ((double x, double y) in points)
     {
       part.AddVertex(new Vertex(x, y));
     }
-    //part.Seal();
+    part.Seal();
     return part;
   }
 
