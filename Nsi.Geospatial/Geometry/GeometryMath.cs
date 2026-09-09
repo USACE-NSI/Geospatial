@@ -156,6 +156,22 @@ public static class GeometryMath
     return total;
   }
 
+  /// <summary>Great-circle length, metres, of an OPEN (lon, lat) polyline:
+  /// n-1 edges, no closing edge.</summary>
+  public static double SphericalLength(
+    IEnumerable<(double X, double Y)> line,
+    double radiusMeters = EarthRadiusMeanMeters
+  )
+  {
+    var pts = line.ToList();
+    if (pts.Count < 2)
+      return 0;
+    double total = 0;
+    for (int i = 1; i < pts.Count; i++)
+      total += SphericalDistance(pts[i - 1], pts[i], radiusMeters);
+    return total;
+  }
+
   /// <summary>
   /// Cross-track distance, metres, from p to segment [a,b] for (lon, lat) in
   /// DEGREES. Spherical analogue of PointToSegmentDistance. Returns the distance
@@ -211,22 +227,6 @@ public static class GeometryMath
       Math.Sin(dLon) * Math.Cos(phi2),
       Math.Cos(phi1) * Math.Sin(phi2) - Math.Sin(phi1) * Math.Cos(phi2) * Math.Cos(dLon)
     );
-  }
-
-  /// <summary>Great-circle length, metres, of an OPEN (lon, lat) polyline:
-  /// n-1 edges, no closing edge.</summary>
-  public static double SphericalLength(
-    IEnumerable<(double X, double Y)> line,
-    double radiusMeters = EarthRadiusMeanMeters
-  )
-  {
-    var pts = line.ToList();
-    if (pts.Count < 2)
-      return 0;
-    double total = 0;
-    for (int i = 1; i < pts.Count; i++)
-      total += SphericalDistance(pts[i - 1], pts[i], radiusMeters);
-    return total;
   }
 }
 

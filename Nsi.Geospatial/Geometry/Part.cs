@@ -40,9 +40,12 @@ public sealed class Part
   public CrsInfo Crs => Owner?.Crs ?? Projections.CrsInfo.Unknown;
 
   /// <summary>
-  /// Area in square metres, or null when the CRS is unknown. Geographic rings are
-  /// measured spherically (planar shoelace on degrees is square degrees); projected
-  /// rings use the declared unit, no transform needed.
+  /// Area in square metres, or null when the geometry has no area: an unknown CRS,
+  /// a Polyline or Point, an unsealed Part, or fewer than three vertices. Geographic
+  /// rings are measured spherically (planar shoelace on degrees is square degrees);
+  /// projected rings use the declared unit, no transform needed. Null is a real
+  /// answer, not a failure — callers that coalesce it to 0 will silently mis-sum
+  /// holes and mixed-geometry features.
   /// </summary>
   public double? AreaSquareMeters =>
     Area is null
@@ -50,12 +53,16 @@ public sealed class Part
       : Crs.Kind switch
       {
         Projections.CrsKind.Projected => Area * Crs.UnitToMetersOrMeter * Crs.UnitToMetersOrMeter,
-        Projections.CrsKind.Geographic => GeometryMath.SphericalArea(
-          Vertices.Select(v => (v.X, v.Y))
-        ),
+        Projections.CrsKind.Geographic => GeometryMath.SphericalArea(Vertices.Select(v => v.XY)),
         _ => null,
       };
 
+  /// <summary>
+  /// Length in metres, or null when the CRS is unknown. A Ring measures its closed
+  /// perimeter; a Polyline or Point measures the open walk, with no closing edge.
+  /// Both CRS branches sum the same edges — they differ only in metric (planar vs
+  /// great-circle), so a length is comparable across a reprojection.
+  /// </summary>
   public double? LengthMeters =>
     Crs.Kind switch
     {
