@@ -11,7 +11,22 @@ public sealed class FeatureCollection
   public ShapeType ShapeType { get; set; }
 
   /// <summary>The single CRS for everything in this collection.</summary>
-  public CrsInfo Crs { get; set; } = Projections.CrsInfo.Unknown;
+  public CrsInfo Crs
+  {
+    get => _crs;
+    set
+    {
+      if (ReferenceEquals(_crs, value))
+        return;
+      _crs = value;
+      foreach (var f in Features)
+      {
+        foreach (var p in f.Parts)
+          p.InvalidateMetrics();
+      }
+    }
+  }
+  private CrsInfo _crs = Projections.CrsInfo.Unknown;
 
   public AttributeTable Schema { get; } = new();
   public List<Feature> Features { get; } = new();

@@ -340,7 +340,7 @@ public class SpatialIoTests
   // --------------------------------------------------------------- helpers
 
   /// <summary>Even-odd point-in-polygon. Tolerates closed / double-closed rings.</summary>
-  private static bool PointInPolygon((double X, double Y) p, List<Vertex> ring)
+  private static bool PointInPolygon((double X, double Y) p, IReadOnlyList<Vertex> ring)
   {
     bool inside = false;
     int n = ring.Count;
