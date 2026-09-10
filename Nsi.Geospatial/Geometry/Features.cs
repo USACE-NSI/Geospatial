@@ -5,7 +5,7 @@ using Nsi.Geospatial.Projections;
 namespace Nsi.Geospatial.Geometry;
 
 /// <summary>A set of features sharing a common attribute schema.</summary>
-public sealed class FeatureCollection
+public sealed class Features
 {
   public string? Name { get; set; }
   public ShapeType ShapeType { get; set; }
@@ -19,7 +19,7 @@ public sealed class FeatureCollection
       if (ReferenceEquals(_crs, value))
         return;
       _crs = value;
-      foreach (var f in Features)
+      foreach (var f in FeatureSet)
       {
         foreach (var p in f.Parts)
           p.InvalidateMetrics();
@@ -29,24 +29,23 @@ public sealed class FeatureCollection
   private CrsInfo _crs = Projections.CrsInfo.Unknown;
 
   public AttributeTable Schema { get; } = new();
-  public List<Feature> Features { get; } = new();
+  public List<Feature> FeatureSet { get; } = new();
 
-  public int Count => Features.Count;
-  public Feature this[int index] => Features[index];
+  public int Count => FeatureSet.Count;
+  public Feature this[int index] => FeatureSet[index];
 
   public int AddFeature(Feature feature)
   {
     feature.Owner = this;
-    feature.Id = Features.Count;
-    Features.Add(feature);
+    feature.Id = FeatureSet.Count;
+    FeatureSet.Add(feature);
     return feature.Id;
   }
 
   public void RemoveFeature(int index)
   {
-    Features.RemoveAt(index);
-    for (int i = index; i < Features.Count; i++)
-      Features[i].Id = i;
+    FeatureSet.RemoveAt(index);
+    for (int i = index; i < FeatureSet.Count; i++)
+      FeatureSet[i].Id = i;
   }
 }
-

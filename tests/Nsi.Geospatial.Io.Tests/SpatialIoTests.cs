@@ -33,7 +33,7 @@ public class SpatialIoTests
       Assert.Equal(ShapeType.Point, read.ShapeType);
       Assert.Equal(fc.Count, read.Count);
 
-      foreach (var orig in fc.Features)
+      foreach (var orig in fc.FeatureSet)
       {
         var back = read[orig.Id];
         Assert.Equal(orig.GetAttribute<int>("id"), back.GetAttribute<int>("id"));
@@ -69,7 +69,7 @@ public class SpatialIoTests
       Assert.Equal(ShapeType.Line, read.ShapeType);
       Assert.Equal(fc.Count, read.Count);
 
-      foreach (var orig in fc.Features)
+      foreach (var orig in fc.FeatureSet)
       {
         var back = read[orig.Id];
         Assert.Equal(orig.GetAttribute<int>("id"), back.GetAttribute<int>("id"));
@@ -109,7 +109,7 @@ public class SpatialIoTests
       Assert.Equal(ShapeType.Polygon, read.ShapeType);
       Assert.Equal(fc.Count, read.Count);
 
-      foreach (var orig in fc.Features)
+      foreach (var orig in fc.FeatureSet)
       {
         var back = read[orig.Id];
         Assert.Equal(orig.GetAttribute<int>("id"), back.GetAttribute<int>("id"));
@@ -150,7 +150,7 @@ public class SpatialIoTests
       Assert.Equal(ShapeType.Point, read.ShapeType);
       Assert.Equal(fc.Count, read.Count);
 
-      foreach (var orig in fc.Features)
+      foreach (var orig in fc.FeatureSet)
       {
         var back = read[orig.Id];
         Assert.Equal(orig.GetAttribute<string>("name"), back.GetAttribute<string>("name"));
@@ -216,10 +216,10 @@ public class SpatialIoTests
       Assert.Equal(polys.Count, readPolys.Count);
 
       // Every point must classify correctly against the read-back polygons.
-      foreach (var p in readPts.Features)
+      foreach (var p in readPts.FeatureSet)
       {
         var v = p.Parts[0].Vertices[0];
-        bool insideAny = readPolys.Features.Any(poly =>
+        bool insideAny = readPolys.FeatureSet.Any(poly =>
           poly.Parts.Any(part => PointInPolygon((v.X, v.Y), part.Vertices))
         );
 
@@ -240,7 +240,7 @@ public class SpatialIoTests
 
   // ------------------------------------------------------------------ data
 
-  private static FeatureCollection BuildPoints()
+  private static Features BuildPoints()
   {
     var fc = NewFc("points", ShapeType.Point);
     AddPoint(fc, 1, "in-center", 5, 5, 3.5);
@@ -251,7 +251,7 @@ public class SpatialIoTests
     return fc;
   }
 
-  private static FeatureCollection BuildLines()
+  private static Features BuildLines()
   {
     var fc = NewFc("lines", ShapeType.Line);
     AddLine(fc, 1, "diag", 2.5, new[] { (0.0, 0.0), (10.0, 10.0) });
@@ -259,30 +259,23 @@ public class SpatialIoTests
     return fc;
   }
 
-  private static FeatureCollection BuildPolygons()
+  private static Features BuildPolygons()
   {
     var fc = NewFc("polys", ShapeType.Polygon);
     AddSquare(fc, 1, "main", 0, 0, 10, 10, 100.0);
     return fc;
   }
 
-  private static FeatureCollection NewFc(string name, ShapeType shapeType)
+  private static Features NewFc(string name, ShapeType shapeType)
   {
-    var fc = new FeatureCollection { Name = name, ShapeType = shapeType };
+    var fc = new Features { Name = name, ShapeType = shapeType };
     fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
     fc.Schema.AddField("name", FieldType.TextFT, 20, 0);
     fc.Schema.AddField("value", FieldType.DoubleFT, 0, 2);
     return fc;
   }
 
-  private static void AddPoint(
-    FeatureCollection fc,
-    int id,
-    string name,
-    double x,
-    double y,
-    double value
-  )
+  private static void AddPoint(Features fc, int id, string name, double x, double y, double value)
   {
     var f = new Feature { ShapeType = ShapeType.Point };
     f.Attributes["id"] = id;
@@ -295,7 +288,7 @@ public class SpatialIoTests
   }
 
   private static void AddLine(
-    FeatureCollection fc,
+    Features fc,
     int id,
     string name,
     double value,
@@ -314,7 +307,7 @@ public class SpatialIoTests
   }
 
   private static void AddSquare(
-    FeatureCollection fc,
+    Features fc,
     int id,
     string name,
     double x0,

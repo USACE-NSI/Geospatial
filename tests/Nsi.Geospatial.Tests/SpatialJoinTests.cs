@@ -11,7 +11,7 @@ public class SpatialJoinTests
   [Fact]
   public void NearestPointsToPolygonsFirstJoinCopiesValue()
   {
-    var polys = new FeatureCollection { ShapeType = ShapeType.Polygon };
+    var polys = new Features { ShapeType = ShapeType.Polygon };
     var p1 = new Feature { ShapeType = ShapeType.Polygon };
     p1.Parts.Add(new Part(PartType.Ring) { IsHole = false });
     p1.Parts[0].AddVertex(new Vertex(0, 0));
@@ -23,7 +23,7 @@ public class SpatialJoinTests
     polys.AddFeature(p1);
     polys.Schema.AddField("VALUE", FieldType.DoubleFT, 12, 2);
 
-    var pnts = new FeatureCollection { ShapeType = ShapeType.Point };
+    var pnts = new Features { ShapeType = ShapeType.Point };
     var pp = new Feature();
     pp.Parts.Add(new Part(PartType.Point));
     pp.Parts[0].AddVertex(new Vertex(1, 1));
@@ -44,4 +44,3 @@ public class SpatialJoinTests
     Assert.Equal(42.0, p1.Attributes["VALUE"]);
   }
 }
-

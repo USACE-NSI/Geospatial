@@ -18,7 +18,7 @@ public sealed class Feature
   public string? Name { get; set; }
 
   /// <summary>Set by FeatureCollection.AddFeature.</summary>
-  internal FeatureCollection? Owner
+  internal Features? Owner
   {
     get => _owner;
     set
@@ -30,7 +30,7 @@ public sealed class Feature
         p.InvalidateMetrics();
     }
   }
-  private FeatureCollection? _owner;
+  private Features? _owner;
 
   /// <summary>The dependable CRS source for this feature's geometry.</summary>
   public CrsInfo Crs => Owner?.Crs ?? Projections.CrsInfo.Unknown;

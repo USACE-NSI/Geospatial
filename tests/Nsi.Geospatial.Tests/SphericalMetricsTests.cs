@@ -100,7 +100,7 @@ public class SphericalMetricsTests
     return part;
   }
 
-  private static Feature Polygon(FeatureCollection owner, Part exterior, params Part[] holes)
+  private static Feature Polygon(Features owner, Part exterior, params Part[] holes)
   {
     var f = new Feature();
     f.AddPart(exterior);
@@ -110,7 +110,7 @@ public class SphericalMetricsTests
     return f;
   }
 
-  private static FeatureCollection Geographic(ShapeType shape = ShapeType.Polygon) =>
+  private static Features Geographic(ShapeType shape = ShapeType.Polygon) =>
     new()
     {
       ShapeType = shape,
@@ -122,10 +122,7 @@ public class SphericalMetricsTests
       },
     };
 
-  private static FeatureCollection Projected(
-    double unitToMeters,
-    LinearUnit unit = LinearUnit.Meter
-  ) =>
+  private static Features Projected(double unitToMeters, LinearUnit unit = LinearUnit.Meter) =>
     new()
     {
       ShapeType = ShapeType.Polygon,
@@ -532,8 +529,8 @@ public class SphericalMetricsTests
     projected.AddFeature(IntoFeature(planar));
     planar.Seal();
     Rel(
-      projected.Features[0].Parts[0].LengthMeters!.Value,
-      geographic.Features[0].Parts[0].LengthMeters!.Value,
+      projected.FeatureSet[0].Parts[0].LengthMeters!.Value,
+      geographic.FeatureSet[0].Parts[0].LengthMeters!.Value,
       1e-9,
       "same one-edge line, two CRS kinds"
     );
@@ -746,7 +743,7 @@ public class SphericalMetricsTests
   public void PartDerivedMetricsAreNullWhenTheCrsIsUnknown()
   {
     // The point of CrsKind.Unknown: refuse rather than guess a unit.
-    var fc = new FeatureCollection { ShapeType = ShapeType.Polygon };
+    var fc = new Features { ShapeType = ShapeType.Polygon };
     var part = Ring(Cell(0, 44), exterior: true);
     fc.AddFeature(IntoFeature(part));
 
@@ -783,20 +780,20 @@ public class SphericalMetricsTests
     double expected = CellAt44N - 8.8490668742e7;
     Assert.False(shell.IsHole);
     Assert.True(hole.IsHole); // "IsHole was false" beats "off by 1.01%"
-    Rel(expected, fc.Features[0].AreaSquareMeters!.Value, 1e-10, "shell minus hole");
-    Rel(8730268160.9622, fc.Features[0].AreaSquareMeters!.Value, 1e-10, "pinned");
+    Rel(expected, fc.FeatureSet[0].AreaSquareMeters!.Value, 1e-10, "shell minus hole");
+    Rel(8730268160.9622, fc.FeatureSet[0].AreaSquareMeters!.Value, 1e-10, "pinned");
   }
 
   [Fact]
   public void FeatureAreaSquareMetersIsNullWithoutGeometryOrCrs()
   {
-    var noGeometry = new FeatureCollection { ShapeType = ShapeType.Polygon };
+    var noGeometry = new Features { ShapeType = ShapeType.Polygon };
     noGeometry.Crs = Geographic().Crs;
     var empty = new Feature();
     noGeometry.AddFeature(empty);
     Assert.Null(empty.AreaSquareMeters);
 
-    var noCrs = new FeatureCollection { ShapeType = ShapeType.Polygon };
+    var noCrs = new Features { ShapeType = ShapeType.Polygon };
     var f = IntoFeature(Ring(Cell(0, 44), exterior: true));
     noCrs.AddFeature(f);
     Assert.Null(f.AreaSquareMeters);
@@ -860,4 +857,3 @@ public class SphericalMetricsTests
     );
   }
 }
-
