@@ -121,8 +121,8 @@ public class RTreeNode
           - Math.Max(node1.BoundingBox.MinY, node2.BoundingBox.MinY)
       );
       double overlap = overlapWidth * overlapHeight;
-      double totalArea = node1.getArea + node2.getArea;
-      double perimeterTotal = node1.getPerimeter + node2.getPerimeter;
+      double totalArea = node1.Area + node2.Area;
+      double perimeterTotal = node1.Perimeter + node2.Perimeter;
 
       node1.siblingOverlap = overlap;
       node2.siblingOverlap = overlap;
@@ -155,7 +155,7 @@ public class RTreeNode
         }
         else if (
           extensionReq == minExtension
-          && childnode.getArea < (bestCandidate?.getArea ?? double.MaxValue)
+          && childnode.Area < (bestCandidate?.Area ?? double.MaxValue)
         )
         {
           bestCandidate = childnode;
@@ -313,7 +313,7 @@ public class RTreeNode
   public double getAddedSizeToAccomodate(BoundingBox bbox)
   {
     double featArea = (bbox.MaxX - bbox.MinX) * (bbox.MaxY - bbox.MinY);
-    return getArea + featArea - BoundingBox.OverlappingArea(bbox);
+    return Area + featArea - BoundingBox.OverlappingArea(bbox);
   }
 
   public bool getIsEndNode
@@ -333,23 +333,8 @@ public class RTreeNode
       }
     }
   }
-  public double getArea
-  {
-    get
-    {
-      if (BoundingBox.MaxX < BoundingBox.MinX || BoundingBox.MaxY < BoundingBox.MinY)
-      {
-        return 0;
-      }
-      return (BoundingBox.MaxX - BoundingBox.MinX) * (BoundingBox.MaxY - BoundingBox.MinY);
-    }
-  }
-  public double getPerimeter
-  {
-    get
-    {
-      return 2 * ((BoundingBox.MaxX - BoundingBox.MinX) + (BoundingBox.MaxY - BoundingBox.MinY));
-    }
-  }
+  public double Area => BoundingBox.Area();
+
+  public double Perimeter => BoundingBox.Perimeter();
 }
 

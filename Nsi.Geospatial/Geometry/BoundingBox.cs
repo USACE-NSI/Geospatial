@@ -88,6 +88,8 @@ public struct BoundingBox
 
   public double Area() => (MaxX - MinX) * (MaxY - MinY);
 
+  public double Perimeter() => 2 * ((MaxX - MinX) + (MaxY - MinY));
+
   public BoundingBox Union(BoundingBox other)
   {
     if (this == Empty)
