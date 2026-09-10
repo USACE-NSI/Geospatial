@@ -246,7 +246,7 @@ public class RTreeNode
     {
       foreach (RTreeNode node in Children)
       {
-        if (node.getMBRoverlap(bbox) > 0)
+        if (node.BoundingBox.Overlaps(bbox))
         {
           node.getCandidateEndNodesByMBR(bbox, nodeWalk);
         }
@@ -260,7 +260,7 @@ public class RTreeNode
     {
       foreach (RTreeNode node in Children)
       {
-        if (node.getMBRoverlap(bbox) > 0)
+        if (node.BoundingBox.Overlaps(bbox))
         {
           nodeWalk.Add(this);
           break;
@@ -271,7 +271,7 @@ public class RTreeNode
     {
       foreach (RTreeNode node in Children)
       {
-        if (node.getMBRoverlap(bbox) > 0)
+        if (node.BoundingBox.Overlaps(bbox))
         {
           node.getCandidateFeatNodesByMBR(bbox, nodeWalk);
         }
@@ -310,33 +310,10 @@ public class RTreeNode
     }
   }
 
-  public double getMBRoverlap(BoundingBox bbox)
-  {
-    double overlap = 0;
-    if (
-      (bbox.MaxX >= BoundingBox.MinX && bbox.MaxX <= BoundingBox.MaxX)
-      || (bbox.MinX >= BoundingBox.MinX && bbox.MinX <= BoundingBox.MaxX)
-    )
-    {
-      if (
-        (bbox.MaxY >= BoundingBox.MinY && bbox.MaxY <= BoundingBox.MaxY)
-        || (bbox.MinY >= BoundingBox.MinY && bbox.MinY <= BoundingBox.MaxY)
-      )
-      {
-        double xAxisOverlap =
-          Math.Min(bbox.MaxX, BoundingBox.MaxX) - Math.Max(bbox.MinX, BoundingBox.MinX);
-        double YAxisOverlap =
-          Math.Min(bbox.MaxY, BoundingBox.MaxY) - Math.Max(bbox.MinY, BoundingBox.MinY);
-        overlap = Math.Max(xAxisOverlap * YAxisOverlap, 1); //Always return at least one, if top two conditions are met to avoid ignoring point shape overlap
-      }
-    }
-    return overlap;
-  }
-
   public double getAddedSizeToAccomodate(BoundingBox bbox)
   {
     double featArea = (bbox.MaxX - bbox.MinX) * (bbox.MaxY - bbox.MinY);
-    return getArea + featArea - getMBRoverlap(bbox);
+    return getArea + featArea - BoundingBox.OverlappingArea(bbox);
   }
 
   public bool getIsEndNode
