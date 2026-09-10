@@ -114,71 +114,71 @@ public sealed class SpatialWriter : IFeatureSink
     {
       case ShapeType.Point:
       case ShapeType.PointM:
-      {
-        // Both point shapes emit a plain 2D POINT: shapefiles carry no M axis,
-        // so PointM stays representable without a driver-specific variant.
-        var v = parts[0].Vertices[0];
-        var g = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPoint);
-        g.AddPoint(v.X, v.Y, v.Z);
-        return g;
-      }
-
-      case ShapeType.Line:
-      {
-        if (parts.Count == 1)
         {
-          if (parts[0].Vertices.Count < 2)
-            throw new System.IO.InvalidDataException(
-              $"Feature {feat.Id}: line part has fewer than 2 vertices"
-            );
-          var g = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLineString);
-          foreach (var v in parts[0].Vertices)
-            g.AddPoint(v.X, v.Y, v.Z);
+          // Both point shapes emit a plain 2D POINT: shapefiles carry no M axis,
+          // so PointM stays representable without a driver-specific variant.
+          var v = parts[0].Vertices[0];
+          var g = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPoint);
+          g.AddPoint(v.X, v.Y, v.Z);
           return g;
         }
 
-        if (parts.Any(p => p.Vertices.Count < 2))
-          throw new System.IO.InvalidDataException(
-            $"Feature {feat.Id}: multi-part line has a part with fewer than 2 vertices"
-          );
-        var multi = new OSGeo.OGR.Geometry(wkbGeometryType.wkbMultiLineString);
-        foreach (var part in parts)
+      case ShapeType.Line:
         {
-          var seg = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLineString);
-          foreach (var v in part.Vertices)
-            seg.AddPoint(v.X, v.Y, v.Z);
-          multi.AddGeometry(seg);
+          if (parts.Count == 1)
+          {
+            if (parts[0].Vertices.Count < 2)
+              throw new System.IO.InvalidDataException(
+                $"Feature {feat.Id}: line part has fewer than 2 vertices"
+              );
+            var g = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLineString);
+            foreach (var v in parts[0].Vertices)
+              g.AddPoint(v.X, v.Y, v.Z);
+            return g;
+          }
+
+          if (parts.Any(p => p.Vertices.Count < 2))
+            throw new System.IO.InvalidDataException(
+              $"Feature {feat.Id}: multi-part line has a part with fewer than 2 vertices"
+            );
+          var multi = new OSGeo.OGR.Geometry(wkbGeometryType.wkbMultiLineString);
+          foreach (var part in parts)
+          {
+            var seg = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLineString);
+            foreach (var v in part.Vertices)
+              seg.AddPoint(v.X, v.Y, v.Z);
+            multi.AddGeometry(seg);
+          }
+          return multi;
         }
-        return multi;
-      }
 
       case ShapeType.Polygon:
-      {
-        // Ring 0 is the exterior ring; the rest are holes. A WKT/OGR ring must be
-        // closed: repeat the first vertex unless the ring already is.
-        var poly = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPolygon);
-        for (int i = 0; i < parts.Count; i++)
         {
-          var verts = parts[i].Vertices;
-          if (i == 0 && verts.Count < 3)
-            throw new System.IO.InvalidDataException(
-              $"Feature {feat.Id}: polygon exterior ring has fewer than 3 unique vertices"
-            );
-          if (i > 0 && verts.Count < 3)
-            throw new System.IO.InvalidDataException(
-              $"Feature {feat.Id}: polygon hole {i} has fewer than 3 unique vertices"
-            );
+          // Ring 0 is the exterior ring; the rest are holes. A WKT/OGR ring must be
+          // closed: repeat the first vertex unless the ring already is.
+          var poly = new OSGeo.OGR.Geometry(wkbGeometryType.wkbPolygon);
+          for (int i = 0; i < parts.Count; i++)
+          {
+            var verts = parts[i].Vertices;
+            if (i == 0 && verts.Count < 3)
+              throw new System.IO.InvalidDataException(
+                $"Feature {feat.Id}: polygon exterior ring has fewer than 3 unique vertices"
+              );
+            if (i > 0 && verts.Count < 3)
+              throw new System.IO.InvalidDataException(
+                $"Feature {feat.Id}: polygon hole {i} has fewer than 3 unique vertices"
+              );
 
-          var ring = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLinearRing);
-          foreach (var v in verts)
-            ring.AddPoint(v.X, v.Y, v.Z);
-          var first = verts[0];
-          if (verts[^1].Coordinates != first.Coordinates)
-            ring.AddPoint(first.X, first.Y, first.Z); // close the ring
-          poly.AddGeometry(ring);
+            var ring = new OSGeo.OGR.Geometry(wkbGeometryType.wkbLinearRing);
+            foreach (var v in verts)
+              ring.AddPoint(v.X, v.Y, v.Z);
+            var first = verts[0];
+            if (verts[^1].Coordinates != first.Coordinates)
+              ring.AddPoint(first.X, first.Y, first.Z); // close the ring
+            poly.AddGeometry(ring);
+          }
+          return poly;
         }
-        return poly;
-      }
 
       default:
         return null;
