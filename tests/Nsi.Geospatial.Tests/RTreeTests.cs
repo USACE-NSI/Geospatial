@@ -213,6 +213,65 @@ public class RTreeTests
     Assert.True(Findable(tree, 2, 3, 7));
   }
 
+  [Fact]
+  public void FindByIndReturnsAPathToTheFeature()
+  {
+    var tree = new RTreeManager();
+    for (int i = 0; i < 30; i++)
+    {
+      tree.addFeature([i], BoundingBox.Point(i, i));
+    }
+
+    var path = tree.findByInd(7);
+
+    Assert.NotEmpty(path);
+    Assert.Same(tree.Root, path[^1]); // getPathReverse walks to the top
+    Assert.Contains(
+      path,
+      n => n.Children.Any(c => c.FeatureIndex is { Length: > 0 } id && id[0] == 7)
+    );
+  }
+
+  /// <summary>
+  /// The line the compiler warns about (RTreeNode.cs:288 CS8602) is reached here. A fresh
+  /// tree must return nothing rather than dereference FeatureIndex on a childless node --
+  /// P-51's guard is for mixed-level children, which this is not.
+  /// </summary>
+  [Fact]
+  public void FindByIndOnAnEmptyTreeReturnsNothing()
+  {
+    var tree = new RTreeManager();
+
+    Assert.Empty(tree.findByInd(0));
+    Assert.Empty(tree.findByXY(0, 0));
+  }
+
+  [Fact]
+  public void FindByIndForAnAbsentIdReturnsNothing()
+  {
+    var tree = new RTreeManager();
+    tree.addFeature(Id0, BoundingBox.Point(1, 1));
+
+    Assert.Empty(tree.findByInd(999));
+  }
+
+  /// <summary>
+  /// Area/Perimeter now delegate to BoundingBox (P-67). They feed split()'s second and
+  /// third sort keys, so a wrong value silently picks a worse split.
+  /// </summary>
+  [Fact]
+  public void NodeAreaAndPerimeterAreTheBoundingBoxes()
+  {
+    var tree = new RTreeManager();
+    var box = new BoundingBox(0, 0, 10, 5);
+    tree.addFeature(Id0, box);
+
+    Assert.Equal(box.Area(), tree.Root.Area);
+    Assert.Equal(box.Perimeter(), tree.Root.Perimeter);
+    Assert.Equal(50, tree.Root.Area);
+    Assert.Equal(30, tree.Root.Perimeter);
+  }
+
   /// <summary>
   /// Deliberately does NOT call BoundingBox.Overlaps -- see P-48.2 / T-23. The existing
   /// FeatureIndicesAt oracle now calls the same predicate the traversal under test calls, so

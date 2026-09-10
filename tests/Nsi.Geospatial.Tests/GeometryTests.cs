@@ -158,4 +158,137 @@ public class GeometryTests
     Assert.True(double.IsFinite(nearly.MinX) && double.IsFinite(nearly.MaxX));
     Assert.True(double.IsPositiveInfinity(nearly.Area())); // 2e308 > double.MaxValue
   }
+
+  /// <summary>
+  /// P-41's guard. The fix is `return BoundingBox.EnlargementToContain(bbox);` -- a
+  /// one-line swap into a member with no test. Hand goldens, not the inclusion-exclusion
+  /// identity: Union returns the bounding box of the two, so this is MBR growth, not the
+  /// area added by the geometry.
+  /// </summary>
+  [Theory]
+  [InlineData(0, 0, 10, 10, 2, 2, 8, 8, 0)] //    nested: no growth at all
+  [InlineData(0, 0, 10, 10, 5, 5, 15, 15, 125)] // [0,15]^2=225 minus 100
+  [InlineData(0, 0, 10, 10, 20, 30, 30, 20, 800)] // [0,30]^2=900 minus 100, not 100
+  [InlineData(0, 0, 10, 10, 0, 0, 10, 10, 0)] //   identical
+  [InlineData(5, 5, 5, 5, 0, 0, 10, 10, 100)] //   point growing to a box
+  public void EnlargementToContainIsMbrGrowth(
+    double ax,
+    double ay,
+    double bx,
+    double by,
+    double cx,
+    double cy,
+    double dx,
+    double dy,
+    double expected
+  )
+  {
+    var a = new BoundingBox(ax, ay, bx, by);
+    var b = new BoundingBox(cx, cy, dx, dy);
+
+    Assert.Equal(expected, a.EnlargementToContain(b));
+  }
+
+  /// <summary>
+  /// The two Empty directions are NOT symmetric, and P-41 depends on knowing that.
+  /// Empty as the argument: Union short-circuits to this, so growth is Area - Area = 0.
+  /// Empty as the receiver: Union short-circuits to the argument, then Area() is +inf, so
+  /// the result is -infinity -- which sorts FIRST, so an Empty node would win every
+  /// insertion and then prune the feature on search. Unreachable while addFeature's gate
+  /// holds; that is exactly why the gate needs T-18 and P-15 needs closing.
+  /// </summary>
+  [Fact]
+  public void EnlargementToContainIsAsymmetricAboutEmpty()
+  {
+    var box = new BoundingBox(1, 2, 3, 4); // area 4
+
+    Assert.Equal(0, box.EnlargementToContain(BoundingBox.Empty));
+    Assert.True(double.IsNegativeInfinity(BoundingBox.Empty.EnlargementToContain(box)));
+  }
+
+  /// <summary>
+  /// P-66's mitigation rests entirely on this. addFeature's gate stops Empty LEAVES, but
+  /// every fresh RTreeNode starts Empty and addChild does
+  /// `BoundingBox = BoundingBox.Union(child.BoundingBox)` -- so a node only acquires a
+  /// real box because Union treats Empty as the identity. Delete either guard in Union and
+  /// the invariant dies silently; buildChildOptions passes canPropagateMBRup: false, so
+  /// RecomputeMBR never papers over it there.
+  /// </summary>
+  [Fact]
+  public void UnionTreatsEmptyAsTheIdentityElement()
+  {
+    var box = new BoundingBox(0, 0, 10, 10);
+
+    Assert.Equal(box, BoundingBox.Empty.Union(box));
+    Assert.Equal(box, box.Union(BoundingBox.Empty));
+    Assert.NotEqual(BoundingBox.Empty, box.Union(BoundingBox.Empty)); // not swallowed
+    Assert.Equal(BoundingBox.Empty, BoundingBox.Empty.Union(BoundingBox.Empty));
+  }
+
+  [Fact]
+  public void UnionIsCommutativeAndNeverSmallerThanEitherSide()
+  {
+    var a = new BoundingBox(0, 0, 10, 10);
+    var b = new BoundingBox(5, 5, 15, 15);
+
+    Assert.Equal(a.Union(b), b.Union(a)); // both [0,15]^2
+    Assert.Equal(new BoundingBox(0, 0, 15, 15), a.Union(b));
+    Assert.True(a.Union(b).Area() >= a.Area());
+    Assert.True(a.Union(b).Area() >= b.Area());
+  }
+
+  /// <summary>
+  /// New member, reached only through RTreeNode.Perimeter, untested. Also corrects this
+  /// file's claim that Empty's perimeter is "~7.2e308": MaxX - MinX is DBL_MAX + DBL_MAX,
+  /// which is +infinity before the doubling, so there is no finite large value.
+  /// </summary>
+  [Theory]
+  [InlineData(0, 0, 10, 10, 40)] //  2*(10+10)
+  [InlineData(0, 0, 10, 5, 30)] //   2*(10+5)
+  [InlineData(5, 5, 5, 5, 0)] //     point
+  [InlineData(0, 0, 10, 0, 20)] //   horizontal segment: 2*(10+0)
+  public void PerimeterIsTwiceTheSumOfTheExtents(
+    double a,
+    double b,
+    double c,
+    double d,
+    double expected
+  )
+  {
+    Assert.Equal(expected, new BoundingBox(a, b, c, d).Perimeter());
+  }
+
+  [Fact]
+  public void PerimeterOfEmptyOverflows()
+  {
+    Assert.True(double.IsPositiveInfinity(BoundingBox.Empty.Perimeter()));
+    Assert.True(double.IsPositiveInfinity(BoundingBox.Empty.Area()));
+  }
+
+  /// <summary>
+  /// P-62 characterisation. The `double.IsPositiveInfinity(minX)` ternary can never fire
+  /// (minX starts at MaxValue and only ever decreases), yet the empty-input path still
+  /// lands on Empty because the constructor normalises (MaxValue,MaxValue,MinValue,MinValue)
+  /// to the same four values Empty holds. So the ternary is dead code, not a bug.
+  /// </summary>
+  [Fact]
+  public void FromVerticesOfNothingIsTheSentinel()
+  {
+    Assert.Equal(BoundingBox.Empty, BoundingBox.FromVertices(Array.Empty<(double X, double Y)>()));
+  }
+
+  /// <summary>
+  /// P-62 / P-39. A NaN vertex fails both `x < minX` and `x > maxX`, so it is dropped
+  /// without a trace and the box is too small -- a finite box addFeature will accept,
+  /// indexing the feature somewhere it is not. Latent only because nothing calls this.
+  /// If FromVertices is kept, this is the behaviour it must stop having.
+  /// </summary>
+  [Fact]
+  public void FromVerticesSilentlyDropsNonFiniteVertices()
+  {
+    var box = BoundingBox.FromVertices([(0, 0), (double.NaN, double.NaN)]);
+
+    Assert.Equal(new BoundingBox(0, 0, 0, 0), box); // the NaN point vanished
+    Assert.True(double.IsFinite(box.MinX)); // and addFeature would wave it through
+  }
 }
