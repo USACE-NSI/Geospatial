@@ -109,13 +109,17 @@ public class RTreeTests
   {
     var tree = new RTreeManager();
 
-    var ex = Assert.Throws<ArgumentException>(() =>
-      tree.addFeature(new[] { 0 }, BoundingBox.Empty)
-    );
+    var ex = Assert.Throws<ArgumentException>(() => tree.addFeature(Id0, BoundingBox.Empty));
 
     Assert.Contains("no extent", ex.Message);
     Assert.Empty(tree.Root.Children); // rejected before mutating, not after
   }
+
+  // CA1861. addFeature only stores the reference (RTreeNode.FeatureIndex = featInd, never
+  // mutated) and each test builds its own tree, so one shared array per id is safe.
+  private static readonly int[] Id0 = [0];
+  private static readonly int[] Id7 = [7];
+  private static readonly int[] Id99 = [99];
 
   /// <summary>
   /// T-18b. A non-finite corner is worse than an Empty one: Union propagates NaN into every
@@ -132,9 +136,7 @@ public class RTreeTests
   {
     var tree = new RTreeManager();
 
-    Assert.Throws<ArgumentException>(() =>
-      tree.addFeature(new[] { 0 }, new BoundingBox(a, b, c, d))
-    );
+    Assert.Throws<ArgumentException>(() => tree.addFeature(Id0, new BoundingBox(a, b, c, d)));
 
     Assert.Empty(tree.Root.Children);
   }
@@ -156,7 +158,7 @@ public class RTreeTests
     {
       tree.addFeature(new[] { i }, BoundingBox.Point(i, i));
     }
-    tree.addFeature(new[] { 99 }, BoundingBox.Point(15, 15)); // inserted after the splits
+    tree.addFeature(Id99, BoundingBox.Point(15, 15)); // inserted after the splits
 
     for (int i = 0; i < count; i++)
     {
@@ -200,7 +202,7 @@ public class RTreeTests
     var tree = new RTreeManager();
     var box = new BoundingBox(1, 2, 3, 4);
 
-    tree.addFeature(new[] { 7 }, box);
+    tree.addFeature(Id7, box);
 
     Assert.Single(tree.Root.Children);
     Assert.Equal(box, tree.Root.Children[0].BoundingBox);
