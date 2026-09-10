@@ -85,7 +85,7 @@ public class CrsInspectionTests
     string dir = TempDir();
     try
     {
-      var fc = new FeatureCollection
+      var fc = new Features
       {
         Name = "cells",
         ShapeType = ShapeType.Polygon,
@@ -138,7 +138,7 @@ public class CrsInspectionTests
     string dir = TempDir();
     try
     {
-      var fc = new FeatureCollection
+      var fc = new Features
       {
         Name = "squares",
         ShapeType = ShapeType.Polygon,
@@ -189,7 +189,7 @@ public class CrsInspectionTests
     string dir = TempDir();
     try
     {
-      var fc = new FeatureCollection { Name = "bare", ShapeType = ShapeType.Polygon };
+      var fc = new Features { Name = "bare", ShapeType = ShapeType.Polygon };
       fc.Schema.AddField("id", FieldType.IntegerFT, 0, 0);
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
@@ -223,7 +223,7 @@ public class CrsInspectionTests
     string dir = TempDir();
     try
     {
-      var fc = new FeatureCollection
+      var fc = new Features
       {
         Name = "one",
         ShapeType = ShapeType.Point,
@@ -270,7 +270,7 @@ public class CrsInspectionTests
     string dir = TempDir();
     try
     {
-      var fc = new FeatureCollection
+      var fc = new Features
       {
         Name = "cell",
         ShapeType = ShapeType.Polygon,
@@ -308,13 +308,13 @@ public class CrsInspectionTests
       foreach (var (x, y) in Cell(-93.0, 44.0))
         src.AddVertex(new Vertex(x, y));
       src.Seal();
-      var srcFc = new FeatureCollection
+      var srcFc = new Features
       {
         ShapeType = ShapeType.Polygon,
         Crs = new CrsInfo { Kind = CrsKind.Geographic },
       };
       srcFc.AddFeature(IntoFeature(src));
-      double spherical = srcFc.Features[0].AreaSquareMeters!.Value;
+      double spherical = srcFc.FeatureSet[0].AreaSquareMeters!.Value;
 
       // WGS84 truth for this cell: 8.8373695264e9 m2. The sphere is 0.21% low;
       // Albers on the ellipsoid should land far closer than that.
@@ -367,4 +367,3 @@ public class CrsInspectionTests
     }
   }
 }
-

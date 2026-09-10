@@ -50,9 +50,9 @@ public class CrsInfoAndAreaTests
     return feature;
   }
 
-  private static FeatureCollection CollectionOf(CrsInfo crs, params Feature[] features)
+  private static Features CollectionOf(CrsInfo crs, params Feature[] features)
   {
-    var fc = new FeatureCollection { Crs = crs };
+    var fc = new Features { Crs = crs };
     foreach (Feature f in features)
     {
       fc.AddFeature(f);
@@ -146,7 +146,7 @@ public class CrsInfoAndAreaTests
     CrsInfo crs = Projected(1.0);
     Part part = Ring(Rect());
     Feature feature = FeatureOf(part);
-    FeatureCollection fc = CollectionOf(crs, feature);
+    Features fc = CollectionOf(crs, feature);
 
     Assert.Same(crs, fc.Crs);
     Assert.Same(crs, feature.Crs);
@@ -287,7 +287,7 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void FeatureAreaCollectionWithNoPartsYetReturnsNull()
   {
-    var fc = new FeatureCollection { Crs = Projected(1.0) };
+    var fc = new Features { Crs = Projected(1.0) };
     fc.AddFeature(new Feature());
 
     Assert.Null(fc[0].AreaSquareMeters);
@@ -387,4 +387,3 @@ public class CrsInfoAndAreaTests
     Assert.True(part.Area > 0);
   }
 }
-

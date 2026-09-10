@@ -8,8 +8,8 @@ public static class SpatialJoins
 {
   /// <summary>For each polygon, aggregate the nearest point's values into the polygon's fields.</summary>
   public static List<long> NearestPointsToPolygons(
-    FeatureCollection polygons,
-    FeatureCollection points,
+    Features polygons,
+    Features points,
     string[] destFields,
     string[] sourceFields,
     JoinType joinType,
@@ -45,7 +45,7 @@ public static class SpatialJoins
 
       double? best = null;
       var nearestPoints = new List<Feature>();
-      foreach (var p in points.Features)
+      foreach (var p in points.FeatureSet)
       {
         double d = DistanceFeatureToFeature(p, poly);
         if (best is null || d < best)
@@ -74,10 +74,10 @@ public static class SpatialJoins
     return matched;
   }
 
-  /// <summary>For each point, attach the nearest polygon's values.</summary>
+  /// <summary>soint, attach the nearest polygon's values.</summary>
   public static void NearestPolygonsToPoints(
-    FeatureCollection points,
-    FeatureCollection polygons,
+    Features points,
+    Features polygons,
     string[] destFields,
     string[] sourceFields,
     RTreeManager? polyTree = null
@@ -100,7 +100,7 @@ public static class SpatialJoins
       var p = points[pIdx];
       double? best = null;
       Feature? bestPoly = null;
-      foreach (var poly in polygons.Features)
+      foreach (var poly in polygons.FeatureSet)
       {
         double d = DistanceFeatureToFeature(p, poly);
         if (best is null || d < best)
@@ -122,11 +122,11 @@ public static class SpatialJoins
   }
 
   /// <summary>
-  /// Build an RTreeManager over the collection's feature MBRs using the original
+  /// Build an RTreeManager over the collection'sMBRs using the original
   /// RTreeManager API. Note the original addFeature argument order:
   /// (featInd, Xmax, Xmin, Ymax, Ymin).
   /// </summary>
-  public static RTreeManager BuildTree(FeatureCollection fc)
+  public static RTreeManager BuildTree(Features fc)
   {
     var tree = new RTreeManager();
     for (int i = 0; i < fc.Count; i++)

@@ -8,19 +8,24 @@ public class RTreeNode
   public RTreeManager TreeManager { get; private set; } = null!;
   public List<RTreeNode> Children { get; private set; } = new();
   public int[]? FeatureIndex { get; private set; } //  { Feature Index, Sub-Part Index (for holes, etc) }
-  public int MaxChidrens { get; private set; } = 0;
-  public int MinChidrens { get; private set; } = 0;
+  public int MaxChlidren { get; private set; }
+  public int MinChlidren { get; private set; }
 
   public BoundingBox BoundingBox { get; set; } = BoundingBox.Empty;
 
   public double cumulativeOverlap { get; set; }
   public double siblingOverlap { get; set; }
 
-  public RTreeNode(RTreeManager treemanager, int maxChildren, int minChildren, int[] featInd = null)
+  public RTreeNode(
+    RTreeManager treemanager,
+    int maxChildren,
+    int minChildren,
+    int[]? featInd = null
+  )
   {
     TreeManager = treemanager;
-    MaxChidrens = maxChildren;
-    MinChidrens = minChildren;
+    MaxChlidren = maxChildren;
+    MinChlidren = minChildren;
     FeatureIndex = featInd;
   }
 
@@ -59,7 +64,7 @@ public class RTreeNode
     }
     else
     {
-      RTreeNode newRoot = new(TreeManager, MaxChidrens, MinChidrens);
+      RTreeNode newRoot = new(TreeManager, MaxChlidren, MinChlidren);
       newKidsOntheBlock[0].UpdateParents(newRoot);
       newKidsOntheBlock[1].UpdateParents(newRoot);
       newRoot.addChild(newKidsOntheBlock[0], false, true);
@@ -94,10 +99,10 @@ public class RTreeNode
       }
     }
 
-    for (int split = MinChidrens; split <= Children.Count() - MinChidrens; split++)
+    for (int split = MinChlidren; split <= Children.Count - MinChlidren; split++)
     {
-      RTreeNode node1 = new(TreeManager, MaxChidrens, MinChidrens);
-      RTreeNode node2 = new(TreeManager, MaxChidrens, MinChidrens);
+      RTreeNode node1 = new(TreeManager, MaxChlidren, MinChlidren);
+      RTreeNode node2 = new(TreeManager, MaxChlidren, MinChlidren);
       for (int i = 0; i < sortedChidrens.Count; i++)
       {
         var Child = sortedChidrens[i];
@@ -194,7 +199,7 @@ public class RTreeNode
     Children.Add(child);
     child.Parent = this;
     BoundingBox = BoundingBox.Union(child.BoundingBox);
-    if (Children.Count > MaxChidrens && canSplit)
+    if (Children.Count > MaxChlidren && canSplit)
       split();
     else if (canPropagateMBRup)
       RecomputeMBR();
@@ -337,4 +342,3 @@ public class RTreeNode
 
   public double Perimeter => BoundingBox.Perimeter();
 }
-

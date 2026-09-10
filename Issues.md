@@ -2,18 +2,26 @@
 
 Single source of truth for known defects and open work.
 
-Reviewed against `feature/tests` @ `b264607` (PR #11, head; base `main` @ `fe4e6a5` = PR #10
-"formatting", a 55/55 reindent of `SpatialWriter.BuildOgrGeometry` and nothing else).
+Reviewed against `feature/warnings` @ `d4fecd1` (PR #12, "removing warnings", 1 commit;
+base `main` @ `26d2840`). **`26d2840` is the merge of PR #11**, so the P-01/P-66 closures
+below are on `main`, not merely on a branch. PR #12 is a **breaking public-API change
+disguised as a warning sweep** — see P-70.
 
-**CI verified green at `b264607`** — check run `build` concluded `success` (19:16:08→19:17:06
-Z), which covers Restore, `dotnet build -c Release`, **`dotnet format --verify-no-changes`**,
-`Test (non-Gdal)` and `Test (Nsi.Geospatial.Io.Tests)`. This is the first SHA where the format
-step is known-green rather than assumed-green (section 9). The check-run API exposes **11
-warning annotations and no test totals**, so **no pass/skip total is recorded against this
-SHA** — `139` was a working-tree figure and is not repeated here (N-11).
+**No build state is recorded against `d4fecd1`.** Its `build` check run was **still in
+progress** when reviewed (started 20:19:23Z, `conclusion: null`, `annotations_count: 0`).
+Per N-11 that means *nothing* is asserted about it — not green, not red, not a warning
+count. Section 9 carries a **prediction** derived from reading the source, explicitly
+labelled as one, and it must be replaced with the real annotation list once the run lands.
 
-Previous review point was `04118f4` (PR #9): `total: 112, failed: 0, succeeded: 110,
-skipped: 2`, 16 warnings, format step unverified. PR #8 closed at `389dc4a`.
+Last SHA with a **verified** state is `b264607` (PR #11 head): CI green including the
+format step, 11 annotations, no test totals exposed. Previous local green was `04118f4`
+(112/110/2/0, 16 warnings). PR #8 closed at `389dc4a`.
+
+**Naming note, applies file-wide:** PR #12 renames `FeatureCollection` → `Features` and its
+`.Features` property → `.FeatureSet`. This file has been updated to the new names
+throughout, including in historical entries — a citation to `FeatureCollection` after
+`d4fecd1` reads as a stale pointer, which is exactly the defect N-3 sweeps for. Where an
+entry describes behaviour *before* the rename, the old name is kept and marked.
 
 ## How to use this file
 
@@ -22,27 +30,32 @@ skipped: 2`, 16 warnings, format step unverified. PR #8 closed at `389dc4a`.
   `CHANGES_08312026.md`'s numbering, **not** these numbers — see N-6.
 - An item is closed only when a passing, un-skipped test guards the fix. Comments and
   commit messages are not evidence. A green suite is not evidence either — it proves
-  nothing *broke*, not that anything is *guarded*. P-01 and P-66 both stay open on a
-  branch where nothing fails, because the assertions that would guard them do not exist.
+  nothing *broke*, not that anything is *guarded*.
 - Deletions are recorded inline against the item that asked for them, with the commit that
-  performed them (`44fbf06`, PR #8 `051e8d8`, PR #9 `9c7124a`, `04118f4`, …). Do not
-  delete the entry; mark it.
+  performed them (`44fbf06`, PR #8 `051e8d8`, PR #9 `9c7124a`, `04118f4`, PR #11 `d3464e6`,
+  PR #12 `d4fecd1`, …). Do not delete the entry; mark it.
 - A closed item keeps its entry, retitled to what the defect actually was. Several
   entries here were scoped by guess and turned out narrower (P-06) or wider (P-14), and
   two were wrong in the direction of overstating a mechanism (P-39's third bullet, P-01's
   proposed fix). Re-read an item's prose against the source before acting on it.
-- **A local `dotnet test` run is not a property of a commit.** Two failures of attribution
-  in a row (N-11) came from reading a working-tree run as a committed state. Before
+- **A local `dotnet test` run is not a property of a commit.** Three failures of attribution
+  (N-11) came from reading a working-tree run as a committed state. Before
   recording a pass or fail against a SHA, `git show <sha>:<path>`.
 - **A CI conclusion is evidence of *success*, not of *counts*.** A check run says the
   job passed; it does not say how many tests ran. `b264607` is recorded as "CI green,
   format step included" and no total is quoted, because the API returns annotations only.
   Prefer CI's conclusion to a local run — it is pinned to a SHA by construction — and
   still never infer a number from it.
+- **A check run that has not finished is evidence of nothing.** `d4fecd1`'s run was
+  in progress at review time; the correct output was "unknown", and section 9 says so
+  rather than guessing from the source. Reading the code tells you what *should* happen;
+  it does not tell you what the compiler *did*.
 - **Commit messages that name this file's `P-xx` are claims, not evidence, including when
   the claim came from this file.** `d3464e6`'s subject and `b264607`'s docstring are
   verbatim text written here; both were verified against the test bodies before the
-  closures below were recorded.
+  closures below were recorded. **A commit message that names no item is the mirror
+  problem:** `d4fecd1` says "removing warnings" and renames a public type. The title
+  under-describes the change, which is how a breaking rename enters through the side door.
 - Measurements that cannot be expressed as passing assertions are recorded as prose with
   their evidence and their citations, not as skipped or permanently-failing tests.
   See P-64 for the shapefile/GeoJSON int64 measurements. Where such a measurement has no
@@ -58,11 +71,12 @@ skipped: 2`, 16 warnings, format step unverified. PR #8 closed at `389dc4a`.
 | ID | Decision |
 |---|---|
 | D-A | **The R-tree stays.** It is foundational, supports bulk add, and outperforms RBush and other .NET implementations. Every R-tree item below is fix work; deletion and replacement are off the table. |
-| D-B | Skipped tests assert behaviour the library *should* have and does not. They are deliberate and are the spec for P-03 and P-04. **The skip budget is exactly two** (N-11); a third skip is a defect being hidden, not a test being deferred. Confirmed still exactly two at `04118f4`, and unchanged at `b264607` **by inspection** — PR #11 adds no `Skip =` anywhere, and the only `Skip` in `RTreeTests` is `16585ef`'s commented-out one. CI green does not itself confirm the count (see "How to use"). |
+| D-B | Skipped tests assert behaviour the library *should* have and does not. They are deliberate and are the spec for P-03 and P-04. **The skip budget is exactly two** (N-11); a third skip is a defect being hidden, not a test being deferred. Confirmed exactly two at `04118f4`; unchanged at `b264607` **by inspection** — PR #11 adds no `Skip =` anywhere. PR #12 touches five test files (rename only, on the evidence available) and adds no skip; **re-verify when its CI lands**, because a rename pass over test files is a plausible place for a `Skip` to be added quietly. |
 | D-C | **Closed by PR #8 `9bee4e4`.** The binding surface is answered by code that compiles and tests that pass, not by further reflection — see N-14 for why this kept decaying. Settled against the installed GDAL 3.11.3 binding: `Feature.SetField(string, long)` exists and is the correct setter; the int64 getter is `GetFieldAsInteger64` and **`GetFieldAsLong` does not exist**; there is **no** `Layer.FieldIndex` and **no** `object` overload, so the comment in `SpatialWriter.SetOgrField` that this file spent two revisions calling into question was *correct*; and `Layer.GetLayerDefn()` returns `OSGeo.OGR.FeatureDefn` — **there is no `LayerDefn` type** — which production code never noticed because it binds everything with `var`. Neither `Layer.FieldIndex` nor an object overload was ever needed, so neither blocks anything. `CoordinateTransformationOptions` remains unexamined and now gates only P-20. The deleted spike (`ProbeOsrBinding.cs`, PR #8 `051e8d8`) is not worth recovering; `git show 051e8d8^:tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs` if ever needed. |
 | D-D | Decide the CRS token/authority model. **Correction: the double-prefix defect this row asserted does not exist.** `CoordinateTransformer.CrsToken` tests `StartsWith("EPSG:")` and passes an already-prefixed token through unchanged, so `"ESRI:102003"` does **not** become `"EPSG:ESRI:102003"`, and T-15 as previously written would have passed without testing anything. The warning we blamed on it has a different cause, and it is real: **(a)** `Projection.AlbersUsa`/`Nad83` hardcode `EPSG:` for codes GDAL 3 attributes to `ESRI:` — hence `Warning 1: EPSG:102003 is not a valid CRS code, but ESRI:102003 is. Assuming ESRI:102003 was meant` on every run (still present at `04118f4`), with correct results reached only by GDAL's auto-correction. **(b)** `CrsInfo.EpsgCode` is `int?`, so a non-EPSG authority is *unrepresentable*: `CrsInspector` reads `GetAuthorityCode("PROJCS")`, gets `102003`, stores it in a field named `EpsgCode`, silently relabelling the authority — and `SpatialReader.SameCrs` then compares `102003 == 102003` as an authoritative match across two different authorities. **Fix:** carry authority and code as a pair, not more string handling. Gates P-14, T-15. |
 | D-E | Decide whether the R-tree may index a geographic CRS. Its MBR math is planar; a degree-space box is not a metric box. Gates P-02 and P-44. **Sharpened by PR #9:** the box arithmetic is now all in `BoundingBox`, so this decision has one place to be implemented rather than two. |
-| D-F | **New, from `04118f4`: the index rejects features it cannot place.** `addFeature` now throws on an extent-less or non-finite box rather than indexing it. That is the right default for a library, but it moves the policy question up a layer: a caller reading a file containing `POINT EMPTY` or a geometry type `ProcessGeometry` drops (P-21) now gets an exception instead of a degraded index. **Decide whether `BuildTree` filters-and-counts or propagates.** Recommended: filter, count, expose the count — see P-02. The green run at `04118f4` shows no existing input in this repository produces such a box, which means the decision is currently *unforced* and will be made by accident the first time real data arrives. |
+| D-F | **New, from `04118f4`: the index rejects features it cannot place.** `addFeature` now throws on an extent-less or non-finite box rather than indexing it, and PR #11's T-18 guards it from both directions. That is the right default for a library, but it moves the policy question up a layer: a caller reading a file containing `POINT EMPTY` or a geometry type `ProcessGeometry` drops (P-21) now gets an exception instead of a degraded index. **Decide whether `BuildTree` filters-and-counts or propagates.** Recommended: filter, count, expose the count — see P-02. The green run at `04118f4` shows no existing input in this repository produces such a box, which means the decision is currently *unforced* and will be made by accident the first time real data arrives. |
+| D-G | **New, from PR #12: is a style analyzer allowed to change the public API?** `d4fecd1` renames the public type `Features` (was `FeatureCollection`) and its public property `FeatureSet` (was `Features`) to silence one `CA1711` annotation. Section 9's recorded answer was **no — suppress it**; the commit did the opposite, without a changelog note and without naming the item. Both answers are defensible; *silently* is not. **Decide explicitly, then record it in one breaking-changes list alongside P-14, P-61 and P-67** (P-70). Until then assume the precedent exists: another `CA17xx` naming opinion could rename another public type in the next warning sweep. |
 
 ---
 
@@ -119,11 +133,17 @@ at least one vertex. **Raised in severity by `04118f4`:** an empty part yields a
 feature box, and `addFeature` now **throws** on one. So an empty part is no longer merely
 unindexable, it aborts the whole `BuildTree`. The filter-and-count decision (D-F) belongs
 with this item's fix, not with the R-tree's.
+**Still live at `d4fecd1`:** `SpatialWriter.BuildOgrGeometry` filters empty parts on the
+way in (`feat.Parts.Where(p => p.Vertices.Count > 0)`), but its `Point` arm still does
+`parts[0].Vertices[0]` — safe *there* only because of that filter. The filter and the
+indexing are 6 lines apart in one method and the safety depends entirely on the reader
+noticing. Name the filter (`nonEmptyParts`) or assert the invariant.
 
 ### P-39 `BoundingBox.Empty` is the full-range box  *(partly mitigated by `04118f4`; characterised by tests at `b264607`; type unchanged)*
 `Empty = new(MaxValue, MaxValue, MinValue, MinValue)` and the constructor normalises, so
 `Empty` spans `[-1.8e308, +1.8e308]` on both axes. **The sentinel itself is unchanged by
-`04118f4`** — only the index was fenced off from it. Consequences still live:
+`04118f4`** — only the index was fenced off from it. `d4fecd1` does not touch
+`BoundingBox`. Consequences still live:
 - `Area()` overflows to `+infinity`; **`Perimeter()` is also `+infinity`, not the
   ~`7.2e308` this file previously stated** — `MaxX - MinX` is `DBL_MAX + DBL_MAX`, which is
   `+inf` *before* the doubling, so there is no large finite value to report.
@@ -158,6 +178,10 @@ with this item's fix, not with the R-tree's.
   `addFeature` of every tree. **Pinned by T-22**, which arrived as two members — the premise
   (`Root.Area` is `+inf`, `inf < MaxValue` is false) and the outcome — so the fallback's
   *necessity* is under test, not just the insert.
+  **`d4fecd1` leaves this line exactly as it was** (`bestCandidate ??= TreeManager.Root` in
+  `addFeatureChildEnforceIntersect`), and leaves the sibling `bestCandidate!.addFeatureChild(feature)`
+  in the dead method using a null-forgiving operator instead — two opposite responses to the
+  same nullable question in one file. See section 9.
 
 **Correction, retracted as written:** a previous revision of this entry claimed
 "`Feature.AddPart` unions it, so one empty part swallows its feature's entire MBR."
@@ -175,7 +199,11 @@ through `addFeature`, but remain reachable through the public setters — P-15):
    nothing~~ **now throws** (`04118f4`), and the throw is guarded (`d3464e6`).
 2. `RecomputeMBR` rebuilds a node from `Children.Min(c => c.BoundingBox.MinX)` / `.Max(…)`
    — **not** `Union`, so it has none of `Union`'s guards. A full-range child forces every
-   ancestor to full range.
+   ancestor to full range. **Re-read at `d4fecd1`: unchanged**, four separate
+   `Children.Min`/`Children.Max` enumerations, i.e. four passes over the child list per
+   recomputation, in a method `addChild` calls on every insert and `RecomputeMBR` recurses
+   up the tree through. So this is both the guard-less path (correctness) and an O(depth ×
+   children × 4) one (performance). P-42's file, P-40's neighbourhood.
 3. Every ancestor's `Area` becomes `+inf`, so every candidate's `getAddedSizeToAccomodate`
    is `inf`, the `<` never fires, `bestCandidate` stays null, and the feature lands on
    `Root`. **One empty feature degenerates the index into a flat list.**
@@ -187,10 +215,7 @@ coordinates and is not the sentinel ⟹ no internal node is ever `Empty` (`addCh
 a real box into a fresh `Empty` node, and `Union` returns the real box; `RecomputeMBR`
 takes min/max of real boxes; `split` hands the same boxes to its two new nodes) ⟹
 `Overlaps`' `Empty` guard is dead code on the search path, and P-66 is unreachable *through
-the public API*. **The weakest link in that chain is now tested from both ends:** `addFeature`
-refuses `Empty` (T-18a), `Union` treats `Empty` as the identity so a fresh node can acquire a
-real box (`UnionTreatsEmptyAsTheIdentityElement`), and `FirstInsertIntoEmptyTreeLandsOnRoot`
-observes the propagation actually happening.
+the public API*. **The weakest link in that chain is now tested from both ends.**
 
 **Fix, remainder:** an explicit `IsEmpty` flag, or a normalisation that keeps `MinX > MaxX`
 inverted; `Empty`/overflow short-circuits in `Area`/`Perimeter`/`ContainsPoint`/
@@ -208,9 +233,9 @@ that are about to be deleted.
 
 ## 2. P1 — correctness under load, or blocked features
 
-### P-01 `getMBRoverlap` containment gate  *(CLOSED by PR #11 `d3464e6` — T-21 landed)*
-**Closed.** The two reopening reasons were both about tests, and both are now resolved by
-committed, un-skipped assertions:
+### P-01 `getMBRoverlap` containment gate  *(CLOSED by PR #11 `d3464e6`, merged at `26d2840`)*
+**Closed, and now closed on `main` rather than on a branch.** The two reopening reasons were
+both about tests, and both are resolved by committed, un-skipped assertions:
 
 1. *Nothing asserts `Overlaps`* — **fixed.** `GeometryTests.OverlapsIsSymmetricAndTrueForContainment`
    is 17 rows of hand goldens asserting **both** `a.Overlaps(b)` and `b.Overlaps(a)` per row:
@@ -235,22 +260,10 @@ correctly (N-6, N-7).
 **Done by `9c7124a`:** the member is deleted and all four call sites redirected — three
 descents in `RTreeNode` plus the oracle in `RTreeTests.FeatureIndicesAt` use
 `BoundingBox.Overlaps`; `getAddedSizeToAccomodate` uses `BoundingBox.OverlappingArea`.
-`getMBRoverlap` appears nowhere in production source or either test assembly. This is N-13
-resolved the right way on the *code*: the survivor (`Overlaps`, written with a closed-interval
-test under `fix(#15)`) is the correct one.
-
-**Why it was reopened rather than closed (both reasons now resolved — see above).**
-
-1. **Nothing asserted `Overlaps`.** `GeometryTests` covered `OverlappingArea` with hand
-   goldens; no theory anywhere asserted `Overlaps`' return for containment, for flush
-   contact, or for `Empty`. The behaviour that *was* the defect had no test, and the green
-   run only proved `Overlaps` works on the inputs the suite happened to use.
-2. **The commit made the R-tree's oracle self-referential.** `RTreeTests.FeatureIndicesAt`
-   is the suite's brute-force check on `findByXY`, and it used to call `getMBRoverlap` — a
-   *second, different, independently broken* implementation. That disagreement was
-   accidental test power. It now calls the same predicate the traversal under test calls.
-   Deleting a duplicate is supposed to *reduce* the chance of divergence; here it also
-   removed the only cross-check. **This one is still open, as P-48.2.**
+This is N-13 resolved the right way on the *code*: the survivor (`Overlaps`, written with a
+closed-interval test under `fix(#15)`) is the correct one. **Re-verified at `d4fecd1`:** the
+three descents (`getCandidateEndNodesByMBR`, `getCandidateFeatNodesByMBR`) and
+`getAddedSizeToAccomodate` all still route through `BoundingBox`; no `getMBRoverlap` survives.
 
 **Fix:** done — T-21 delivered in `d3464e6`. P-48.2 survives this entry.
 **Correction retained:** an earlier revision of this file said "delete it and call
@@ -260,8 +273,8 @@ existed so point features were not pruned; `Overlaps`' closed interval serves th
 better. The floor is gone and should stay gone. What it *also* happened to prevent is
 P-66, now closed.
 
-### P-66 An `Empty`-boxed node or feature is silently pruned from index search  *(CLOSED by PR #11 `d3464e6` — T-18 landed)*
-**Closed, on the file's own rule: a passing un-skipped test now guards it.** Four test
+### P-66 An `Empty`-boxed node or feature is silently pruned from index search  *(CLOSED by PR #11 `d3464e6`, merged at `26d2840`)*
+**Closed, on the file's own rule: a passing un-skipped test guards it.** Four test
 members, all reaching the gate:
 
 - `FeatureWithNoExtentIsRejected` — `Assert.Throws<ArgumentException>` on
@@ -274,8 +287,7 @@ members, all reaching the gate:
 - `PointShapedFeaturesSurviveSplitsAndAreFound` — 30 `BoundingBox.Point(i, i)` inserts
   (defaults min 4 / max 10, so several splits) plus a 31st inserted *after* the splits,
   each found through an independent `Findable` helper, **plus a negative control** at
-  `(500,500)` so the helper cannot pass by answering `true` to everything. This is the test
-  that retires the `≥ 1` floor permanently.
+  `(500,500)`. This is the test that retires the `≥ 1` floor permanently.
 - `OverlapsIsFalseWhenEitherSideIsEmpty` — the guard itself, both directions.
 
 **Residue, moved out rather than kept here:** the public setters (`RTreeManager.Root`,
@@ -302,6 +314,53 @@ reachable from no test can be deleted by any future cleanup without a single fai
 is why the rule "a green suite is not evidence" exists, and why this entry is now closed by
 assertions rather than by the run.
 
+### P-70 `Features`/`FeatureSet`: a breaking public-API rename performed as a warning fix  *(new, PR #12 `d4fecd1`)*
+`d4fecd1` is titled "removing warnings" and its largest change is **renaming the public type
+`FeatureCollection` to `Features`** (`Geometry/FeatureCollection.cs` → `Geometry/Features.cs`,
+git similarity 68 %) and **its public property `.Features` to `.FeatureSet`**. `IFeatureSource.Read`,
+`IFeatureSink.Write`, `SpatialReader.Read`, `SpatialWriter.Write` and `Feature.Owner` all change
+signature. This is the **largest breaking change since 0.1.x**, larger than P-14's, P-61's and
+P-67's, and it arrived with no item number, no changelog note, and no mention in the message.
+
+**Four specific problems, in order of severity.**
+
+1. **It contradicts a recorded decision.** Section 9's warning table said, about this exact
+   annotation: `FeatureCollection.cs:8 CA1711 — Naming opinion, breaking rename. Suppress
+   with a rationale in .editorconfig; do not rename.` The commit did the opposite. That is a
+   legitimate call for the owner to make — **but it is a decision, and D-G now exists so that
+   it is made once, in the open, rather than by whoever is fixing warnings that day.**
+2. **The second break was involuntary and is the worse one.** Renaming the type to `Features`
+   makes a member named `Features` illegal (C# forbids a member with its enclosing type's
+   name), so `.Features` → `.FeatureSet` was *forced*. The result is that the library's
+   central type is now `Features` and its central property is `FeatureSet` —
+   `collection.FeatureSet` reads worse than `collection.Features` did, and every call site in
+   `SpatialWriter`, `SpatialReader`, `SpatialJoins` and five test files had to change for a
+   naming opinion. **When assessing the rename, judge the two breaks together, not the type
+   name alone** — this is the part section 9's "do not rename" failed to predict (N-15 entry 12).
+3. **It silenced one annotation by touching 13 files.** One `CA1711` cost ~90 lines of
+   call-site churn across three assemblies and obscured the four warnings in the same sweep
+   that were *not* fixed (section 9). The diff-to-value ratio is the worst in the branch.
+4. **The rename is incomplete, which makes it a correctness hazard rather than only a style
+   one.** `Feature.Owner`'s docstring still reads *"Set by `FeatureCollection`.AddFeature"* —
+   a type that no longer exists. `Features.Crs`'s own summary still says "everything in this
+   *collection*". `SpatialReader` still binds `var fc = new Features()`. `SpatialWriter.Write`
+   still names its parameter `collection` while the interface it implements names the same
+   parameter `features`. Each of these is small; together they mean **grep for
+   `FeatureCollection` no longer finds the places that talk about the type**, which is the
+   property that made the old name searchable. N-3 gains a sweep clause for it.
+
+**Decide, then record.** Recommended: **keep the type rename** (`Features` is a better name
+and the sooner the better, pre-0.1.x) **and fix the residue in the same PR**: `FeatureSet` →
+`Add`/`Remove`/`IReadOnlyList` facade is already P-17's job, so let P-17 own that name rather
+than re-opening it; add the stale docstrings to N-3's sweep; and add all four 0.x breaks to
+one breaking-changes list. **What must not happen is leaving `FeatureCollection` in comments
+while it is gone from code.**
+
+**Guards:** none needed for a rename — the compiler is the guard, and the five test files
+changing is the evidence it propagated. **What has no guard is the *decision***: nothing in
+the repo records that the public surface changed deliberately, which is why the changelog
+note is part of the fix.
+
 ### P-02 Spatial joins discard the tree  *(mandatory)*
 `SpatialJoins` enumerates features instead of descending the index. Blocked on P-47 (no
 usable query API) and D-E. **P-01's gate is gone, so it no longer blocks this.**
@@ -312,6 +371,10 @@ The discarding is explicit and worth deleting with the fix: both join directions
 `BuildTree` over a dataset containing one extent-less feature throws instead of joining.
 Filter-and-count there, and name the skipped ids — otherwise the first real caller of the
 index turns a partial join into a crash.
+**Not re-verified this pass:** `SpatialJoins.cs` changed by 18 lines in `d4fecd1`, consistent
+with the `Features`/`FeatureSet` rename, but I did not read the hunks, so **the presence of
+`_ = tree ?? BuildTree(features);` at `d4fecd1` is assumed, not confirmed.** Re-grep before
+anyone starts this item.
 
 ### P-06 `SpatialReader` could not read `OFTInteger64` fields  *(closed by PR #8 `9bee4e4`)*
 `SpatialReader.MapFieldType` had no `OFTInteger64` arm, so a 64-bit integer column in a
@@ -355,8 +418,10 @@ assert both, which is what makes it adequate for the read path.
 **Not covered by it:** the **write** arms that `9bee4e4` landed in the same commit
 (`SpatialWriter.MapFieldType`'s `LongFT => OFTInteger64`, and `SetOgrField`'s `case long l:`
 no longer casting to `int`) have **no test at all**. See P-68 / T-17. PR #11 added
-attribute tests on the *model* (`Feature.GetAttribute`), not on the writer, so this hole is
-unchanged.
+attribute tests on the *model* (`Feature.GetAttribute`), not on the writer, and PR #12 did not
+touch the arms — **re-read `SpatialWriter.MapFieldType` at `d4fecd1`: both arms intact, the
+`// new` trailing comment still on the `OFTInteger64` line two commits after it stopped being
+new.** That comment should go with T-17.
 
 **Split out of this item, deliberately not fixed:** the write side's representability is
 **P-64**; the `FieldType`↔OGR↔CLR four-table consolidation is **P-65**. This defect
@@ -366,6 +431,7 @@ recurred precisely because of P-65: `LongFT` was missing from three of the four 
 "no object overload, and no `Layer.FieldIndex` in 3.11.3" is correct (D-C) and must not be
 restated as doubt. Its trailing `P0-4 … intentionally left unchanged in this class`
 sentence is now false and should be replaced — see N-6 for the numbering collision.
+**Still present verbatim at `d4fecd1`.**
 
 ### P-12 `Ogr.RegisterAll()` thread-safety
 Called on every `Read` **and** on every `Write`. Not idempotent-safe under concurrent
@@ -373,7 +439,8 @@ use. `tests/Nsi.Geospatial.Io.Tests/AssemblyInfo.cs` disables test parallelisati
 workaround and names the registration guard as the real fix; that guard is this item.
 A fourth entry point into the same non-idempotent call has been proposed (opening datasets
 directly from a probe); the probes are gone, so the count is back to the two production
-callers plus `SpatialIoTests`. Re-count before fixing.
+callers plus `SpatialIoTests`. Re-count before fixing. **Both calls re-confirmed at
+`d4fecd1`** (`SpatialReader.Read` and `SpatialWriter.Write`, first statement of each).
 **New adjacency:** PR #11's culture-mutating test sits in the *other* assembly, which has no
 parallelisation guard — see P-19. If this item's guard lands, that file's implicit assumption
 becomes an enforced one, which is the right outcome.
@@ -403,6 +470,8 @@ Still open:
 - Guard with T-15 once the model is chosen, **rewritten** — the current wording asserts a
   defect that does not exist.
 - Folded in: P-29 (`CoordinateTransformationOptions` / area-of-interest).
+- **P-70 joins P-14/P-61/P-67 as the fourth 0.x breaking rename.** Keep them in one list so
+  the eventual changelog note is written once.
 
 ### P-15 `Root` public setter; no box validation  *(now the only route to P-66's former failure)*
 `RTreeManager.Root { get; set; }` accepts any node; `RTreeNode.BoundingBox { get; set; }`
@@ -412,10 +481,16 @@ invariant that makes P-66's old failure unreachable is therefore maintained by o
 assumptions, not by the type. **With P-66 closed on the `addFeature` route, this is now the
 highest-value remaining R-tree item**, because it is what makes the invariant durable rather
 than incidental.
+**All three re-confirmed at `d4fecd1`:** `public BoundingBox BoundingBox { get; set; } =
+BoundingBox.Empty;` is still a public setter, and `addChild` still runs
+`BoundingBox = BoundingBox.Union(child.BoundingBox)` with no validation.
 **Fix:** make `Root` set-once (or internal), make `RTreeNode.BoundingBox` settable only at
 construction or through `Union`, and reuse `addFeature`'s two checks in `addChild`. Those two
 checks now have a test on the `addFeature` path (T-18), so `addChild` reuse comes with a
 reference implementation *and* a template for its guard.
+**Sequencing note created by PR #12:** P-15 renames or restricts the very property P-63 wants
+to rename (`RTreeNode.BoundingBox` → `MBR`). Do them in one change, not two — the property is
+named in ~15 places in `RTreeNode` alone.
 See P-39 for what an empty box does, P-66 for what it cost. Split out: P-51.
 
 ### P-17 `Parts` public; cached boxes go stale
@@ -431,15 +506,25 @@ Also two maintenance paths for one box: `AddPart` unions incrementally *and*
 `Union`'s guards make it correct (P-39's retraction, now test-pinned by
 `UnionTreatsEmptyAsTheIdentityElement`). The defect here is staleness under
 mutation, not miscomputation at construction. Don't go looking for the former.
+**Widen to `Features.FeatureSet`, which PR #12 left exactly as exposed as `FeatureCollection.Features`
+was:** `public List<Feature> FeatureSet { get; } = new();` — public, mutable, and `Crs`'s
+invalidation sweep plus `AddFeature`'s id assignment both assume nobody touches it behind
+`AddFeature`/`RemoveFeature`. Same fix, same shape, second class. **One new detail from
+`d4fecd1`:** `Features` now exposes `Count` and `this[int]` as forwarding members, so a caller
+can enumerate through the facade and mutate through the list in the same expression — the
+façade makes the hole easier to fall into, not harder. See N-10.
 
 ### P-18 Identity and `RemoveFeature`
 `RemoveFeature` renumbers surviving ids and leaves the detached feature's `Owner`
 pointing at the collection, so it still resolves the old CRS.
 `RemoveFeatureLeavesTheDetachedFeatureResolvingTheOldCrs` pins this deliberately. It also
-means the detached feature is outside `FeatureCollection.Crs`'s invalidation sweep —
+means the detached feature is outside `Features.Crs`'s invalidation sweep —
 currently rescued only by `Part`'s `CrsInfo` identity check, which is now the sole
 defence. Pin that with a test. `SpatialJoins.BuildTree` keys on `f.Id`, which mutates
 under `RemoveFeature`.
+**Re-confirmed verbatim at `d4fecd1`:** `RemoveFeature` is still
+`FeatureSet.RemoveAt(index)` followed by a renumbering loop, with no `Owner = null` on the
+removed feature. The rename touched the method and fixed none of it.
 
 ### P-19 Culture
 Number formatting/parsing is not `InvariantCulture` in every path (`CsvHelper`,
@@ -453,6 +538,11 @@ fails loudly rather than shifting decimals silently in a locale. Saves and resto
 parallelisation guard (unlike `Io.Tests`, per P-12), and this is the first culture-mutating
 test in it. It is safe **because it is synchronous** — an `await` inside the try would let
 another test observe `de-DE`. Add one line to the file saying so; do not make the test async.
+**Adjacent, re-confirmed at `d4fecd1`:** `SpatialWriter.SetOgrField`'s `default:` arm *does*
+pass `CultureInfo.InvariantCulture` to `Convert.ToString`, so the fallback path is invariant
+and untested, while the `float`/`double` arms hand numbers to OGR's own converters with no
+culture argument at all. The untested surface is the OGR side, not the `ToString` side — worth
+knowing before writing T-17's culture assertions.
 
 ### P-21 Geometry-type coverage
 `SpatialWriter` emits `wkbMultiLineString`, which `SpatialReader.ProcessGeometry` cannot
@@ -468,11 +558,17 @@ drop into a crash with a message about bounding boxes.
 **Now characterised at the model level** (PR #11): `AreaOfAnEmptyOrUnreferencedFeatureIsUnknown`
 asserts a zero-part `Feature` has `Parts` empty, `AreaSquareMeters` null, `Crs.Kind ==
 Unknown`, and `BoundingBox == Empty` — i.e. exactly the box `addFeature` refuses. The drop
-itself (reader side) is still untested.
+itself (reader side) is still untested, and **`d4fecd1` did not touch `ProcessGeometry`**: the
+`wkbMultiLineString` emit path in `SpatialWriter` and the missing `else` are both intact.
 
 ### P-40 All-leaves fallback makes the build quadratic
 `insert` falls back to scanning all leaves; with P-41's enlargement metric this is
 quadratic in feature count.
+**Made slightly worse by `d4fecd1` in an unrelated way:** `RecomputeMBR` runs four separate
+`Children.Min`/`Children.Max` enumerations per call and recurses to the root (see P-39's step 2),
+so per-insert cost is O(depth × children × 4) before any of P-40's scanning is counted. Not a
+new defect — the shape was always there — but it is now visible because the same method is on
+section 9's fix list for other reasons.
 
 ### P-41 `getAddedSizeToAccomodate` measures set-union area, not MBR enlargement
 Chooses the child with the smallest value of `Area + featArea - BoundingBox.OverlappingArea(bbox)`.
@@ -498,6 +594,10 @@ body, and removes the last hand-rolled box-area expression in the file
 (`(bbox.MaxX - bbox.MinX) * (bbox.MaxY - bbox.MinY)` still duplicates `bbox.Area()` here
 even after P-67). It also makes `OverlappingArea` load-bearing a second time, through
 `Union`.
+**Re-confirmed at `d4fecd1`:** the body is byte-identical, including the hand-rolled
+`featArea`. Two commits of warning sweeps have now passed over this line without touching it,
+which is consistent with it being correct-but-wrong: it compiles, it warns about nothing, and
+it produces a plausible number.
 **Caveat for P-40:** enlargement is a *cheaper* comparison but does not change the
 asymptotics.
 **Guard:** T-20 still open — nothing yet asserts *which child an insert chooses*, so the
@@ -520,21 +620,33 @@ While scoring candidate placements it re-parents children of the *real* node, th
 discards the options. Mutates the tree during a read-only decision.
 Now also the owner of the file's three remaining nullability warnings — its
 `List<RTreeNode> sortedChidrens = null;` is `RTreeNode.cs:73`, one of the six real
-warnings in section 9. Fixing this item properly (build the sort key, then order once)
-removes the `null` initialisation as a side effect rather than annotating it.
+warnings in section 9. **Still there at `d4fecd1`: PR #12 passed directly through this method
+(renaming `MaxChidrens`→`MaxChlidren` inside it) and left the `null` initialisation and the
+four-branch `if`/`else` structure untouched.** Fixing this item properly (build the sort key,
+then order once) removes the `null` initialisation as a side effect rather than annotating it,
+and would also delete the third spelling of the misspelling (P-22).
+**Also unchanged and worth restating:** `buildChildOptions` still assigns
+`node1.siblingOverlap` / `cumulativeOverlap` and never reads them (P-22), and still scores
+options into `options` for `Options.First()` to sort (P-43).
 
 ### P-43 `Options.First()` throws; no min/max invariant
-The split loop `for (split = MinChidrens; split <= Count - MinChidrens; split++)` is
+The split loop `for (split = MinChlidren; split <= Children.Count - MinChlidren; split++)` is
 empty when `Count < 2*min`. At split time `Count == max + 1`, so the invariant is
 **`max >= 2*min - 1`**. Defaults (10, 4) and the tests' (6, 3) satisfy it; `new
 RTreeManager(4, 6)` throws from inside `split()`. Validate in the constructor with a
-clear message. Note the public constructor's parameter names (`minChilds`, `maxChilds`)
-do not match the properties they assign (`MinChildren`, `MaxChildren`) — the misspelling
-family in P-22 is wider than the `Chidrens` fields.
-**Answered by the clean build:** the two `CA1805` warnings (`RTreeNode.cs:11,12`) confirm
-both `MaxChidrens` and `MinChidrens` are explicitly `= 0` and then unconditionally
-overwritten by the constructor, so neither has a meaningful default and the initialisers
-are pure noise. Delete both. **Re-confirmed in CI at `b264607`** — same two lines, same code.
+clear message.
+**Parameter-name drift is now three-way, and PR #12 added the third variant.** Before:
+`RTreeManager`'s public constructor took `minChilds`/`maxChilds` while the properties were
+`MaxChidrens`/`MinChidrens`. Now: the properties are `MaxChlidren`/`MinChlidren`, the local in
+`buildChildOptions` is still `sortedChidrens`, and `RTreeManager`'s constructor parameters are
+unchanged. **Three spellings of the same non-word in one file** (`Childs`, `Chidrens`,
+`Chlidren`), none of which is `Children`. P-22's "the misspelling family is wider than the
+fields" was right; the fix as executed made it wider rather than closing it. See section 9's
+PR #12 table — the two `CA1805`s this rename was bundled with were the *only* thing it fixed
+about these members.
+**Answered by the clean build:** the two `CA1805` warnings (`RTreeNode.cs:11,12`) confirmed
+both initialisers were pure noise. **Both deleted by `d4fecd1`** — that part of the item is
+done, and it is the only part of P-22/P-43's naming cluster that is.
 
 ### P-44 `SpatialJoins` uses planar distance regardless of CRS
 Near-endpoint and proximity joins call planar `PointToSegmentDistance`/`Distance` even
@@ -557,6 +669,16 @@ same commit.
 rectangular-membership query written in the test file, with a negative control. When
 `Query` lands, it has a ready-made independent oracle to be checked against — that is T-23's
 shape already, half-built.
+**New, from reading `RTreeNode.cs` at `d4fecd1`:** there is a **second** traversal,
+`getCandidateFeatNodesByMBR`, that `getCandidateEndNodesByMBR` does not have and that this
+file has never mentioned. It differs in the leaf branch: where `getCandidateEndNodesByMBR`
+adds `this` unconditionally, this one tests `node.BoundingBox.Overlaps(bbox)` on each child
+and then adds **`this`, not `node`**. Whether that is the intended contract (returning
+feature-parents) or a copy-paste of the unconditional `Add(this)` is undetermined — and it
+matters, because the two methods give different answers for the same box. **I did not read
+`RTreeManager.cs` at this SHA, so I am not claiming it is uncalled or that the asymmetry is
+a bug**; whoever takes P-47 should resolve which traversal is canonical before wrapping
+either, because wrapping the wrong one makes the public `Query` inherit the ambiguity.
 
 ### P-48 The R-tree test suite cannot detect a regression
 1. **No regression test for MBR propagation** (`16585ef`, closed as P-49). The fix that
@@ -565,15 +687,17 @@ shape already, half-built.
    one test that mattered** — sharper than first recorded. `FeatureIndicesAt` used to
    cross-check `findByXY` against a second, *differently broken* implementation
    (`getMBRoverlap`); it now calls `BoundingBox.Overlaps`, the predicate the traversal under
-   test calls. `FeatureIndicesAt` is unchanged by PR #11 (no hunk touches it), so its two
-   callers are now self-referential — above all
-   `BulkInsertAllFeaturesFindableByPoint`, 500 features at `minChilds: 3, maxChilds: 6`,
-   the strongest end-to-end test in the repository. Before `9c7124a` its passing meant
-   "traversal and an independent predicate agree despite both being wrong"; now its
-   remaining power is "every feature was indexed and the walk reaches the leaves", and it
-   **cannot detect a wrong `Overlaps` at all**. PR #11 partially answered this in the new
-   tests — `Findable` is written independently of `Overlaps`, and `PointShapedFeatures…`
-   carries a negative control — which makes the untouched oracle the specific gap. T-23.
+   test calls. `FeatureIndicesAt` is unchanged by PR #11, so its two callers are
+   self-referential — above all `BulkInsertAllFeaturesFindableByPoint`, 500 features at
+   `minChilds: 3, maxChilds: 6`, the strongest end-to-end test in the repository. Before
+   `9c7124a` its passing meant "traversal and an independent predicate agree despite both
+   being wrong"; now its remaining power is "every feature was indexed and the walk reaches
+   the leaves", and it **cannot detect a wrong `Overlaps` at all**. PR #11 partially answered
+   this in the new tests — `Findable` is written independently of `Overlaps`, and
+   `PointShapedFeatures…` carries a negative control — which makes the untouched oracle the
+   specific gap. T-23. **Unchanged by PR #12**, which is the reason to do this before the next
+   R-tree change: a rename pass over `RTreeTests` that *doesn't* fix the oracle is the
+   situation getting further from correct while the diff gets bigger.
 3. No test for `min`/`max` invariant (P-43).
 4. No test that the tree's boxes match the features they index. `RecomputeMBR`'s
    `Children.Min/Max` form versus `Union` is precisely where they could diverge, and
@@ -581,26 +705,19 @@ shape already, half-built.
 5. ~~public `throw` with no test~~ **Closed by `d3464e6`** — T-18, four members, both
    directions, `Assert.Empty(tree.Root.Children)` proving the throw precedes mutation.
 6. ~~first-insert path untested~~ **Closed by `d3464e6`** — T-22 arrived as *two* members:
-   `FreshRootHasInfiniteAreaSoTheComparisonNeverFires` pins the premise itself
-   (`Root.Area` is `+inf`, `getAddedSizeToAccomodate` is `+inf`, `inf < MaxValue` is false),
-   and `FirstInsertIntoEmptyTreeLandsOnRoot` pins the outcome plus `Assert.Same(tree.Root,
-   tree.Root.Children[0].Parent)` and that a real box propagated over `Empty`. The premise
-   test carries a note to update it if P-39 makes `Area()` return `0` for `Empty` — do that,
-   and keep the assertions.
+   `FreshRootHasInfiniteAreaSoTheComparisonNeverFires` pins the premise itself, and
+   `FirstInsertIntoEmptyTreeLandsOnRoot` pins the outcome plus `Assert.Same(tree.Root,
+   tree.Root.Children[0].Parent)` and that a real box propagated over `Empty`.
 7. ~~`RTreeTests` docstring claims the tests do not assert correct behaviour~~ **Closed by
-   `b264607`**, which replaced all three false clauses ("restored verbatim", "including its
-   `getMBRoverlap` gate semantics", "deliberately do NOT assert fixed behavior") with text
-   naming `9c7124a` and pointing at this entry. N-3's `getMBRoverlap` sweep clause is
-   satisfied for source and comments; re-run it for the changelogs (N-5).
-8. Superseded: ~~no test for the containment gate (P-01)~~ — P-01's gate is deleted and its
-   guard (T-21) landed in `d3464e6`; P-01 is closed.
+   `b264607`.** N-3's `getMBRoverlap` sweep clause is satisfied for source and comments.
+8. Superseded: ~~no test for the containment gate (P-01)~~ — closed with P-01.
+9. **New, from `d4fecd1`: the suite cannot tell `Features.FeatureSet` from a private
+   façade.** Five test files changed in the rename, all through the public mutable list, and
+   no test asserts that `AddFeature`/`RemoveFeature` are the only supported mutation route.
+   That is P-17's hole, and until it is closed a rename of `FeatureSet` will keep touching
+   tests that are quietly relying on it being a `List`.
 
-**Still open: .1** (no MBR-propagation regression test — `16585ef` remains unguarded;
-`FirstInsertIntoEmptyTreeLandsOnRoot` covers one insert's propagation, not a split's),
-**.3** (min/max invariant, P-43), **.4** (tree boxes vs feature boxes — now partly reachable:
-`NodeAreaAndPerimeterAreTheBoundingBoxes` ties node metrics to boxes, but nothing compares a
-node's box to the union of its children's, which is exactly where `RecomputeMBR`'s min/max
-form and `Union` could diverge), and **.2** above.
+**Still open: .1, .2, .3, .4, .9.**
 
 ### P-61 `Nsi.Geospatial.Reprojection` is a project holding one class  *(new, PR #8; second reason found at `04118f4`)*
 After `051e8d8` deleted `Reprojector`, the project contains `CoordinateTransformer` plus a
@@ -621,6 +738,10 @@ either way, and nobody has read it.
 **Fix:** fold into `Nsi.Geospatial.Io`, delete the csproj and the solution entry — which
 also halves P-30's problem. Public namespace change, same caveat as P-14: 0.x breaking
 removal, document it.
+**PR #12 changes this item's arithmetic in one useful way:** the rename touched
+`IFeatureSource`/`IFeatureSink` in `Io` but not `Reprojection`, which is a clean demonstration
+that the split boundary is not where the API lives. Still the cheapest structural deletion in
+the file.
 
 ### P-64 `SpatialWriter` accepts values the target format cannot represent, and says nothing  *(new, PR #8 `9bee4e4`)*
 The writer will emit a value the chosen driver cannot store, produce a file whose schema
@@ -673,12 +794,15 @@ oversized strings against a short `TextFT` width and out-of-range dates join it.
 the boundary, name the offending value in the message, and add a second check for the
 adjacent failure mode (there: non-finite; here: width overflow). Copy that pattern. P-69 is
 the same class arriving from the opposite direction: a filter where a refusal belongs.
-**Still open inside P-64, same shape, untested:**
+**Still open inside P-64, same shape, untested — all three re-confirmed at `d4fecd1`:**
+- `fdefn.SetWidth(c.Length)` still passes the column's `Length` with no representability
+  check, and `SetPrecision(c.DecimalPlaces)` beside it is unchecked the same way.
 - `bool` is written as `"1"`/`"0"` into an `OFTString` column (`MapFieldType` has no
-  `BooleanFT` arm) and `AttributeColumn.Coerce`'s `BooleanFT` branch uses `bool.TryParse`,
-  which rejects `"1"`. A `bool` does not survive a round trip as a `bool` — it returns
-  `null`. Needs `BoolFieldTests` mirroring `FieldTypeTests`, plus the three arms.
-- `FloatFT` is written via `SetField(name, (double)fl)`, so a `float` returns as a boxed
+  `BooleanFT` arm — the `_ =>` default catches it, re-confirmed) and
+  `AttributeColumn.Coerce`'s `BooleanFT` branch uses `bool.TryParse`, which rejects `"1"`.
+  A `bool` does not survive a round trip as a `bool` — it returns `null`. Needs
+  `BoolFieldTests` mirroring `FieldTypeTests`, plus the three arms.
+- `FloatFT` is written via `f.SetField(name, (double)fl)`, so a `float` returns as a boxed
   `double`. Whether that is acceptable is undecided; it is at least undocumented.
 
 **Test debt:** once the writer rejects, an above-2^53 round trip must **not** be written as
@@ -742,20 +866,29 @@ absent and null columns both yield `default(T)` for value types, `null` for `str
 guarded; the open half of P-28 is that the **reader and writer** still disagree about which
 of `""`/`null` crosses a file boundary. Don't re-litigate the model behaviour when fixing
 that half — it is now a test.
+**Writer side re-confirmed at `d4fecd1`:** `SetOgrField` still begins `if (value is null)
+return; // leave the field NULL`, so the writer's convention is "null stays null" and the
+asymmetry lives entirely in the reader.
 
 ### P-46 `getCandidateEndNodesByMBR` performs no MBR test at the leaf
 Descends using MBRs then accepts every leaf entry, so the pruning is illusory below one
 level. **PR #9 half-closed this:** the *descent* now uses `BoundingBox.Overlaps`, so the
 interior level is correct; the leaf acceptance in `getCandidateEndNodesByMBR` is still
-unconditional (`nodeWalk.Add(this)` with no test at all). `BoundingBox.Overlaps`/`Contains`
-remain the missing test at the leaf, and `Overlaps` is now proven live in three other
-places **and heavily unit-tested (P-01 closed)**, so the fix has no remaining excuse. Note
-the leaf-level fix is what makes a rectangular `Query` (P-47) actually prune.
+unconditional (`nodeWalk.Add(this)` with no test at all). **Byte-identical at `d4fecd1`.**
+`BoundingBox.Overlaps`/`Contains` remain the missing test at the leaf, and `Overlaps` is now
+proven live in three other places **and heavily unit-tested (P-01 closed)**, so the fix has no
+remaining excuse. Note the leaf-level fix is what makes a rectangular `Query` (P-47) actually
+prune — and see P-47's new note about the *other* traversal, which already attempts a
+leaf-level test and adds a different node than this one does.
 
 ### P-50 `getIsEndNode` inspects only `Children[0]`
 Assumes all children of a node are at the same level. True today because splits only
 produce same-level siblings; unguarded and will silently mis-classify if that changes.
-Assert it.
+Assert it. **Unchanged at `d4fecd1`**, and note the first arm
+(`Children.Count == 0 && FeatureIndex == null`) makes a *childless, feature-less* node an end
+node — which is what a fresh `RTreeNode` is, and is why `FindByIndOnAnEmptyTreeReturnsNothing`
+returns nothing rather than throwing. That behaviour is now tested; the assumption behind it
+still is not.
 
 ### P-53 `Rel` cannot compare against zero  *(half fixed)*
 `diff <= Math.Abs(expected) * tol` degenerates to `diff <= 0` when `expected == 0`, and
@@ -768,10 +901,9 @@ assert zero lengths and zero areas and will silently demand bit-exactness.
 `Math.Abs(actual - expected) / expected` inline twice plus a bare `< 1e-3`.
 **Fix:** adopt `RelD` as the single shared `AssertRel` (P-36) with an explicit `absTol`
 chosen per unit (≈1e-6 m, not 1e-9 scaled from degrees), and delete the other forms.
-**Unaffected by PR #11:** the new `BoundingBox` tests use exact `Assert.Equal` on integers
-and explicit `double.IsPositiveInfinity`/`IsNegativeInfinity` assertions, so they neither
-need nor add a `Rel`-shaped comparison. Good — keep it that way; box arithmetic is exact and
-should not acquire a tolerance helper.
+**PR #12 touched three of the four files this item names** (`CrsInspectionTests` 15 lines,
+`CrsInfoAndAreaTests` 9, `SphericalMetricsTests` 24) and fixed none of them — which is the
+cheapest missed consolidation in the branch: three of the four files were already open.
 
 ### P-56 Ring storage is mixed open/closed  *(new, `44fbf06`)*
 `Seal()` no longer strips a duplicate closing vertex and the reader does not normalise, so
@@ -797,11 +929,15 @@ trip. Closure is a planar property: compare `XY`.
 Note: `ClosedRing(Part)`, the helper that encoded this rule correctly for a `List<Vertex>`,
 was deleted in PR #8 `7b4c6aa` as unused — the polygon branch had inlined its own copy.
 The deletion was right; the inlined copy still carries the Z bug. Fix it in place.
-**Re-confirmed at `b264607`:** PR #10 `d207943` reindented `BuildOgrGeometry` 55/55 and left
-this line byte-identical, so the defect survived a formatting-only PR unexamined — which is
-the expected outcome and worth remembering when reading a large whitespace diff.
+**Third whitespace-only pass over this method without a fix.** `d207943`/PR #10 reindented
+`BuildOgrGeometry` 55/55 and left the line byte-identical; `d4fecd1`/PR #12 churned the same
+~114-line region again with, on the content I can read, no semantic change at all. The line
+`if (verts[^1].Coordinates != first.Coordinates)` is present and unchanged at `d4fecd1`.
+**Two live facts here:** the defect survives its third appearance in a diff, and the file has
+now been reformatted twice by two different passes that both satisfy `dotnet format` — see
+section 9's note on what that implies about the check.
 
-### P-62 `BoundingBox` public surface with no owner  *(extends N-1; `04118f4` adds one member)*
+### P-62 `BoundingBox` public surface with no owner  *(extends N-1; `04118f4` adds one member; untouched by PR #12)*
 Four uncalled members were listed at `7b4c6aa`; `Overlaps` and `OverlappingArea` are now
 called from production, and `Perimeter()` added in `04118f4` is called immediately through
 `RTreeNode.Perimeter`, so it is not dead. Remaining:
@@ -842,8 +978,7 @@ called from production, and `Perimeter()` added in `04118f4` is called immediate
 about to go.
 **One member's status improved by PR #11 in a way to preserve:** `Union`'s two `Empty`
 short-circuits are what let a fresh `Empty` node acquire a real box in `addChild`. That
-invariant was carried by prose; `UnionTreatsEmptyAsTheIdentityElement` now carries it, and
-`UnionIsCommutativeAndNeverSmallerThanEitherSide` covers the ordinary path.
+invariant was carried by prose; `UnionTreatsEmptyAsTheIdentityElement` now carries it.
 
 ### P-65 Four hand-maintained field-type tables with nothing keeping them in agreement  *(new; extracted from P-06)*
 The `FieldType`↔OGR↔CLR mapping is spread over `SpatialReader.MapFieldType`,
@@ -864,6 +999,10 @@ is precisely the hole P-68 describes, and precisely the mistake P-01's reopening
 coercion, which is a *fifth* mapping surface (`AttributeColumn.Coerce`) rather than one of
 these four; note it when building the consolidated table so the new file is not mistaken for
 write coverage.
+**PR #12 is a cautionary example of exactly this:** it renamed the *type* four tables refer to
+across three assemblies, and none of the tables moved, so a future consolidation now has to
+reconcile `Features` in the new code with `FeatureCollection` in the docstrings (P-70's residue)
+as well as the four tables' own disagreements.
 
 ### P-68 `FieldTypeTests` is the residue of a larger file, and its docstring now lies  *(new, PR #8 `9bee4e4`)*
 `FieldTypeTests.cs` as committed contains **one** test. The constants, aliases and
@@ -882,7 +1021,10 @@ docstring are leftovers from the six-test version, and the drift is actively mis
   no longer casting to `int` — have **zero coverage**. P-06's closure is
   sound for the read path only; nothing prevents a revert of either writer arm shipping
   green, and it still does. T-17 closes this and is the reason P-65 should follow it, not
-  precede it. **PR #11 added no Io-side tests**, so this is unchanged at `b264607`.
+  precede it. **PR #11 added no Io-side tests and PR #12 did not either**, so this is unchanged
+  at `d4fecd1` — although PR #12 *did* edit `SpatialWriter.Write`'s signature and its
+  `foreach (var feat in collection.FeatureSet)` loop, i.e. it modified code inside the
+  untested write path twice without adding a test for it.
 
 **Fix:** delete the dead constants and aliases, retitle the docstring to what the file
 tests, and add T-17. Keep the "two independent assertions" rationale — move it onto the
@@ -903,6 +1045,12 @@ a box that quietly shrinks is the failure mode P-64 and P-21 are both about.
 **Severity depends on adoption.** Nothing calls `FromVertices` today (P-62), so this is P2 by
 reach and P1 by consequence. It becomes live the moment P-62 adopts the member, which is the
 other half of why P-62's keep-or-delete decision should be made before anything calls it.
+**Same shape, newly noticed in `SpatialWriter` at `d4fecd1`:**
+`feat.Parts.Where(p => p.Vertices.Count > 0)` silently drops empty parts before emitting
+geometry, so a multi-part feature with one empty part writes a *smaller* geometry than it
+has parts, with no diagnostic. That is P-69's pattern in the writer, and P-11/P-21's data
+loss in the same one-line shape. Not filed separately — fold it into P-21's fix, where the
+filter's existence is the thing being reconsidered anyway.
 
 ### P-67 `getArea` / `getPerimeter` duplicated `BoundingBox` arithmetic  *(closed by `04118f4` — duplication half; the `Empty` half moved to P-39)*
 `RTreeNode` carried its own area and perimeter formulas, both `Empty`-blind, both feeding
@@ -912,9 +1060,8 @@ one uninitialised child could dominate the split ranking silently.
 `getPerimeter` → `public double Perimeter => BoundingBox.Perimeter();`, with a new
 `BoundingBox.Perimeter()` member. `buildChildOptions`, `addFeatureChild` and
 `getAddedSizeToAccomodate` updated to the new names. One definition of box size now wins.
-**Confirmed complete:** the clean build at `04118f4` compiles with no reference to the old
-names anywhere in the solution, so the rename left nothing dangling; CI at `b264607`
-compiles clean too.
+**Confirmed complete** at `04118f4`, at CI `b264607`, and again at `d4fecd1` — the two
+delegating properties are still the last two lines of `RTreeNode` and unchanged.
 **Now guarded, one level up** (PR #11): `PerimeterIsTwiceTheSumOfTheExtents` pins the
 formula on real boxes and `PerimeterOfEmptyOverflows` pins the `Empty` behaviour;
 `NodeAreaAndPerimeterAreTheBoundingBoxes` asserts the `RTreeNode` properties actually
@@ -927,8 +1074,8 @@ recorded here as ~`7.2e308`; that was wrong — the subtraction overflows before
 `PerimeterOfEmptyOverflows` pins the true value. That contradiction is P-39's to settle;
 P-67 asked only for one definition, and got one.
 **Breaking-change note:** `getArea`/`getPerimeter` were public members of a public class.
-Renaming them to `Area`/`Perimeter` is a source-breaking API change like P-14's and P-61's
-— note it before 0.1.x is consumed.
+Renaming them to `Area`/`Perimeter` is a source-breaking API change like P-14's, P-61's and
+**P-70's** — note it before 0.1.x is consumed.
 
 ### P-30 README and warnings-as-errors  *(three errors at `b264607`; was four)*
 **One of the four fixed by PR #11 `518630c`:** the Conventions line now reads
@@ -952,13 +1099,15 @@ from that file but three `CS` ones do.
 `<NoWarn>$(NoWarn);CS8600</NoWarn>` to `Nsi.Geospatial.Io.csproj` only. The clean build at
 `04118f4` shows that is **half a fix**: the package drops its own copy of the same
 generated file into `Nsi.Geospatial.Reprojection` too, emitting the identical three
-warnings at
-`Nsi.Geospatial.Reprojection/obj/Debug/net8.0/NuGet/769849ABBBE99B7D/GDAL/3.11.3/GdalConfiguration.cs(60,41/58/77)`.
-So the scoped `NoWarn` must be added to **both** `Nsi.Geospatial.Io.csproj` and
+warnings. So the scoped `NoWarn` must be added to **both** `Nsi.Geospatial.Io.csproj` and
 `Nsi.Geospatial.Reprojection.csproj` — or, better, P-61 folds Reprojection into Io and
-one of the two copies disappears entirely, along with its restore and build cost. Do not
-add a global `NoWarn`: `RTreeNode.cs` has three genuine `CS8600`s of its own (section 9)
-that a global suppression would silence.
+one of the two copies disappears entirely. Do not add a global `NoWarn`: `RTreeNode.cs` has
+three genuine `CS8600`s of its own (section 9) that a global suppression would silence —
+**and `d4fecd1` left all three of them in place, so the reason not to globalise is still
+live.**
+**PR #12 did not touch `Directory.Build.props`, either csproj, or `.editorconfig`.** So the
+`suggested` CA1711 suppression was bypassed rather than applied (see P-70, D-G), and the flag
+remains `false` with **five** code warnings outstanding instead of six.
 Full warning inventory with exact lines is in section 9.
 
 ### P-31 SDK policy
@@ -970,9 +1119,10 @@ targets `net8.0`. Nothing noticed, which is the point of pinning.
 **Seventh, from CI at `b264607`:** the `build` job annotates **Node.js 20 deprecation** for
 `actions/cache@v4`, `actions/checkout@v4`, `actions/setup-dotnet@v4` and
 `mamba-org/setup-micromamba@v2`, all forced onto Node 24. Not the SDK pin, but the same
-class of "the toolchain the repo names is not the toolchain that runs", and it is the only
-annotation in CI that is neither our code nor GDAL's. Bump the three `@v4` actions and check
-`setup-micromamba`'s current major.
+class of "the toolchain the repo names is not the toolchain that runs".
+**Not addressed by PR #12**, which is worth noting because PR #12's stated purpose was
+"removing warnings" and this is one of the eleven CI annotations — the only one that is
+neither our code nor GDAL's, and the only one fixable without touching C#.
 
 ### P-32 `IsPackable`
 Test projects are packable.
@@ -989,6 +1139,10 @@ step runs `Io.Tests` again. The label promises a partition that does not exist, 
 Gdal-dependent failure is reported twice and nobody can tell which step meant to own it.
 Fix is one flag: `--filter "Category!=Gdal"`. Also note CI builds and tests `-c Release`
 while local runs are Debug (section 9), so a Release-only failure has no local repro command.
+**Unchanged at `d4fecd1`** (`.github/` is not in the diff). **Consequence specific to PR #12:**
+because the second test step exists, a rename that missed one call site in `Io.Tests` would
+still be caught — but only after the first step already failed for the same reason, in the
+same job, with the same message twice.
 
 ### P-36 Test project duplication
 Three overlapping test files, two namespaces (`Nsi.Geospatial.Tests` and
@@ -997,11 +1151,9 @@ Three overlapping test files, two namespaces (`Nsi.Geospatial.Tests` and
 `TestAssert` and shared geometry helpers.
 **Reduced by PR #8 `4a0ec8b`:** `SphericalMathTests.cs` deleted (−246). It was a subsumed
 earlier generation of `SphericalMetricsTests.cs` — ~90 % duplicated, each case in a weaker
-form. Both assertions worth keeping were ported first, and the D-B spec tests
-survived. Two files remain, still in two namespaces inside one assembly — which is *why*
-the duplicate went unnoticed: the classes could not collide by name. Visible in this run:
-`EarthRadiusFeetIsTheAuthalicRadiusInFeet` reports under `Nsi.Geospatial.Core.Tests` while
-`GeometryTests` reports under `Nsi.Geospatial.Tests`.
+form. Both assertions worth keeping were ported first, and the D-B spec tests survived. Two
+files remain, still in two namespaces inside one assembly — which is *why* the duplicate went
+unnoticed: the classes could not collide by name.
 **Grown by PR #8 `9bee4e4`:** `FieldTypeTests.cs` adds a **third** copy of
 `TempDir()`/`Cleanup()`. Hoist before adding a fourth.
 **Grown by PR #9 `9c7124a`:** `GeometryTests.cs` (new, 73 lines) lands in
@@ -1012,10 +1164,8 @@ the file references only `BoundingBox` and `Xunit`), which is the exact defect c
 `7b4c6aa` was deleting. **Confirmed still present at `b264607` and invisible to CI** — the
 format step passes with them, because `IDE0005` is not in `.editorconfig` (section 9). Decide
 the namespace once, in the hoist.
-**`04118f4` added no tests** — the branch shipped a public `throw`, a public rename and a new
-`BoundingBox` member with no new assertion anywhere. **PR #11 reversed that** with ~35 new
-test members across three files, and that is why P-01 and P-66 are now closed. It also grew
-the split in four ways:
+**`04118f4` added no tests.** **PR #11 reversed that** with ~35 new test members across three
+files, and that is why P-01 and P-66 are now closed. It grew the split in four ways:
 
 - **`FeatureAttributeTests.cs` is a fourth file in the `Nsi.Geospatial.Tests` namespace**
   (104 lines, 6 members). Its name is fine; the namespace accumulation is P-36's problem.
@@ -1024,15 +1174,16 @@ the split in four ways:
   else lives there. **Rename it `BoundingBoxTests` before the next member lands**, while the
   rename is one file and no other class shares the name. The name is already misleading in a
   file whose own docstring says "Tests for the Geometry stuff".
-- **A duplicate I introduced, recorded here because the pattern is this entry's whole
-  thesis:** `FindByIndReturnsAPathToTheFeature` (30 point features) overlaps
-  `FindByIndReturnsLeafToRootPath` (100 features, predating PR #11) — both build a tree and
-  call `findByInd`. Not contradictory (`getPathReverse` prepends `this` then walks `Parent`,
-  so `path[0]` is the leaf and `path[^1]` the root, which is what both assert), but two tests
-  where one belongs. Fold the root assertion and the two absent-id cases into the existing
-  test and delete mine. The failure was process, not knowledge: I did not grep for an
-  existing `findByInd` test before writing one, four messages after writing N-13's
-  "grep for a predicate that already exists".
+  **PR #12 is the argument for doing this now rather than later:** it is a rename PR that
+  renamed a production type across five test files and did not touch this one, because the
+  name mismatch makes it non-obvious which files are about what. Every rename PR will keep
+  skipping it for the same reason.
+- **A duplicate I introduced:** `FindByIndReturnsAPathToTheFeature` (30 point features)
+  overlaps `FindByIndReturnsLeafToRootPath` (100 features, predating PR #11) — both build a
+  tree and call `findByInd`. Not contradictory (`getPathReverse` prepends `this` then walks
+  `Parent`, so `path[0]` is the leaf and `path[^1]` the root, which is what both assert), but
+  two tests where one belongs. Fold the root assertion and the two absent-id cases into the
+  existing test and delete mine. The failure was process, not knowledge (N-13's fourth lesson).
 - **Inconsistent helpers in one class:** `zerozero`/`onezero` (lowercase, top of file,
   `new[] {…}` form) versus `Id0`/`Id7`/`Id99` (PascalCase, mid-class, collection-expression
   form). One block, one style, both syntaxes equivalent. The `CA1861` rationale comment also
@@ -1056,45 +1207,55 @@ the split in four ways:
   drop it.
 - Two surviving typos in test names/messages: `"peremiter = sum of edges"` (added in
   `7b4c6aa`) and `PointToSegmentOfDepenerateSegmentIsTheDistanceToThePoint`.
-- **New, PR #11:** two point-set helpers in `RTreeTests` doing the same job with different
+- **PR #11:** two point-set helpers in `RTreeTests` doing the same job with different
   contracts — `FeatureIndicesAt` (returns the hit set, self-referential per P-48.2) and
   `Findable` (returns a bool, independent of `Overlaps`). `Findable` is the better one; when
   P-48.2/T-23 rebuilds the oracle, consolidate on it rather than keeping both.
+- **PR #12 adds a new class of duplication: the same construction expression rewritten per
+  test file.** `SphericalMetricsTests` (24 lines), `SpatialIoTests` (35),
+  `CrsInspectionTests` (15), `CrsInfoAndAreaTests` (9) and `SpatialJoinTests` (5) all changed
+  only because each builds its own `Features` literal. A shared
+  `TestFeatures.With(params Feature[])` helper would have made this a one-file PR. This is
+  the first *measurable* cost of not hoisting: **~88 lines of test churn for a rename, all of
+  it avoidable.**
 
 ### P-37 Delete probes and dead writer helpers  *(done, PR #8)*
 `ProbeOsrBinding.cs` deleted in `051e8d8` (−115); `SpatialWriter.ClosedRing`, `.RingWkt`,
 `.Fmt` deleted in `7b4c6aa`. The WKT emission path those three served is gone for good —
 `BuildOgrGeometry` builds geometry through the OGR API because `CreateFromWkt` rejects
 valid polygon WKT on the 3.11.3 binding. Keep that comment; without it the helpers look
-like an accidental omission.
+like an accidental omission. **Comment intact at `d4fecd1`, and it survived two reindents of
+the method it explains.**
 **Correction:** an earlier revision of this entry warned that `9bee4e4` had added two more
 `Assert.Fail` diagnostics as a *recurrence*. It had not — those existed only in the
 working tree and were never committed (N-11). The warning was right as a rule and wrong as
 a fact; the rule is what to keep: **a measurement that cannot be expressed as a passing
 assertion belongs in prose here, not in the test suite.** PR #11 respected this: every new
-test asserts a behaviour that holds today, including the ones
-characterising defects (`FromVerticesSilentlyDropsNonFiniteVertices`,
+test asserts a behaviour that holds today, including the ones characterising defects
+(`FromVerticesSilentlyDropsNonFiniteVertices`,
 `NegatedMaxValueIsTheSentinelButNearMaxValueOverflowsUnnoticed`), which pass on the buggy
 code and are labelled as characterisation rather than aspiration.
 
-### P-38 `Feature.ShapeType` vs `FeatureCollection.ShapeType`
-Two sources of truth, free to disagree.
+### P-38 `Feature.ShapeType` vs `Features.ShapeType`
+Two sources of truth, free to disagree. **Unchanged by PR #12** — the rename moved both
+declarations and reconciled neither, and `SpatialWriter.MapShapeTypeToOgr(collection.ShapeType)`
+still trusts the collection's value while `BuildOgrGeometry` switches on it per-feature-part
+shape assumptions.
 
-### P-51 `FeatureIndex` unguarded `[0]`  *(P1 → P3, but now pays for itself)*
+### P-51 `FeatureIndex` unguarded `[0]`  *(P1 → P3, but now pays for itself — and PR #12 did not pay it)*
 `getChildrenContainingInd` dereferences `FeatureIndex[0]` without a guard, but it is
 unreachable through the public API: it needs mixed-level children, and splits always
 produce same-level siblings.
 **Promoted back on cost, not on risk:** the clean build identifies this exact line as
-`RTreeNode.cs(288,13): warning CS8602 — Dereference of a possibly null reference`. Column
-13 is `node` in `if (node.FeatureIndex[0] == ind)`, and `FeatureIndex` is `int[]?`. The
-compiler has been flagging it on every build; **CI annotates the same line at `b264607`**.
-One line — `if (node.FeatureIndex is { Length: > 0 } && node.FeatureIndex[0] == ind)` —
-closes P-51 **and** removes one of the six real warnings, which makes it the cheapest
-warning fix in the file and worth folding into the section-10 step-2 warning sweep rather
-than deferring.
-**PR #11 added a test that reaches the line** (`FindByIndOnAnEmptyTreeReturnsNothing`, plus
-the absent-id case), so the guard can now be verified rather than eyeballed — the line is
-exercised on a childless tree and with an id that isn't present.
+`RTreeNode.cs(288,13): warning CS8602 — Dereference of a possibly null reference`, and CI
+annotates the same line at `b264607`.
+**Verified at `d4fecd1`: still `if (node.FeatureIndex[0] == ind)`, byte-identical, and the
+CS8602 annotation for it is expected to still fire.** One line —
+`if (node.FeatureIndex is { Length: > 0 } && node.FeatureIndex[0] == ind)` — closes P-51
+**and** removes one of the six real warnings. `FindByIndOnAnEmptyTreeReturnsNothing` and
+`FindByIndForAnAbsentIdReturnsNothing` already exercise the line on a childless tree and with
+an absent id, so the guard can be verified rather than eyeballed. **This is the single
+cheapest open item in the repository and it has now been adjacent to two warning-fixing PRs.**
 
 ### P-60 `PartType` lives in a namespace its consumers guess wrong  *(was N-9)*
 `PartType` is in `Nsi.Geospatial.Enums` while its only consumer `Part` is in
@@ -1105,12 +1266,17 @@ from `Nsi.Geospatial.Tests`, which produced a `CS0103` in a working-tree edit
 (`FeatureAttributeTests.cs(98,18)`). Two data points, one rule: **qualification failures in
 this codebase cluster on the `Enums`/`Projections` types that sit one namespace away from
 their consumers.** See N-15 entry 11.
+**Third data point, from `d4fecd1`:** `Features.cs` writes `Projections.CrsInfo.Unknown`
+fully qualified in two places (`Crs`'s default and `CrsInfo _crs = …`) inside a file that
+already has `using Nsi.Geospatial.Projections;` — i.e. the qualification is redundant, which
+is the mirror image of the same confusion. Whoever settles the `Enums/` convention should
+delete these two prefixes in the same pass.
 
 ### P-63 Writer/reader local hygiene  *(new, PR #8 review; alias advice reversed)*
 - `SpatialWriter`'s polygon branch states the degenerate-ring guard twice with different
   messages and identical conditions (`i == 0 && verts.Count < 3`,
   `i > 0 && verts.Count < 3`). One guard naming the role in the message. **Unchanged by
-  PR #10's reindent** (verified at `b264607`).
+  PR #10's reindent and by PR #12's second pass through the same 60 lines.**
 - **Do not add `using` alias blocks to `SpatialReader`/`SpatialWriter`.** This entry
   originally recommended them; the evidence says the opposite. Io is already 100 %
   consistent about fully-qualified `OSGeo.OGR.*`, and that style is load-bearing rather
@@ -1131,19 +1297,27 @@ their consumers.** See N-15 entry 11.
   `Area + featArea - BoundingBox.OverlappingArea(bbox)` mixes a property named like the
   type, a local, and a property-then-method chain that reads as a static call. Rename the
   property and this line becomes readable.
+  **Still the exact line at `d4fecd1`,** and PR #12's rename pass had `RTreeNode` fully open.
+  Sequence with P-15, which wants to restrict the same property's setter.
 - `dotnet format` details that will bite, both from `.editorconfig`: `indent_size = 2` for
   `*.cs`, and `csharp_style_var_when_type_is_apparent = true:warning`. `dotnet format`
   defaults to `--severity-level warn`, so explicit types where the type is apparent get
   rewritten and `--verify-no-changes` fails on them. That is why production code uses `var`
   everywhere, and it is the likeliest CI trip in any new test file.
   **Now measured rather than predicted:** PR #11's ~35 new test members pass the CI format
-  step, and PR #10 is a pure `dotnet format` commit to `SpatialWriter`. So the rule's reach
-  is confirmed (new test files must be formatter-shaped) **and** the specific fear was
-  over-stated — `new[] { i }` vs `[i]`, wrapped `if` conditions, and `/// <summary>` blocks
-  all survive. The formatter's real opinion in this cycle was the indentation PR #10 fixed.
+  step, and PRs #10 and #12 are both passes over `SpatialWriter`. **But see section 9:** two
+  consecutive formatting passes over one method, both accepted by `--verify-no-changes`,
+  means the check is not pinning the file to one shape. The formatter's opinion is a floor,
+  not a canonical form.
 - README calls the core project `Nsi.Geospatial.Core` while the assembly is
   `Nsi.Geospatial` (P-30). The split test namespaces in P-36 are the fossil record of
   that abandoned rename; settle the name once.
+- **New from `d4fecd1`, same family — parameter names that disagree with the interface they
+  implement:** `IFeatureSink.Write(Features features, …)` vs
+  `SpatialWriter.Write(Features collection, …)`, and `SpatialReader` still binds
+  `var fc = new Features()`. Individually trivial; collectively they mean the rename's
+  vocabulary is not settled, which is what makes P-70's residue searchable-again step worth
+  doing before anything else touches these files.
 
 ---
 
@@ -1160,32 +1334,50 @@ their consumers.** See N-15 entry 11.
 `Area`/`Perimeter` delegating to `BoundingBox` (P-67); new `BoundingBox.Perimeter()`.
 **Corrected:** this entry used to list `Feature._crs` (P-55) as remaining. It is already
 gone. P-55 is a dangling reference; see N-12.
+**Partly addressed by PR #12 `d4fecd1`, and the partial fix is worse than no fix:**
+`MaxChidrens`/`MinChidrens` → **`MaxChlidren`/`MinChlidren`**. The misspelling is corrected
+*into a different misspelling*, and because the local in `buildChildOptions` was left as
+`sortedChidrens` while `RTreeManager`'s constructor parameters remain `minChilds`/`maxChilds`,
+the file now contains **three** distinct wrong spellings where it previously had two
+(P-43's note). **If the intent was to fix the typo, the fix is `MaxChildren`/`MinChildren`**
+— the properties already have `private set`, so the rename is internal-only except for
+`RTreeManager`'s constructor parameter names, and it is a one-commit change with the compiler
+as its guard. Do it before a third spelling appears in a new method.
 **Remaining:**
 - `addFeatureChild` is not merely unreachable, it is *misleading*: it contains an area
   tie-break (`extensionReq == minExtension && childnode.Area < (bestCandidate?.Area ?? …)`)
   that the live path `addFeatureChildEnforceIntersect` lacks, so a reader will assume the
-  tie-break is active. `04118f4` renamed its internals without changing that. Delete it, or
-  move the tie-break to the live path as its own change. It also calls
-  `getAddedSizeToAccomodate`, so P-41's substitution changes its (dead) semantics too —
-  say so in the commit so nobody resurrects it expecting the old ranking.
-  **Deleting it also removes `RTreeNode.cs:146 CS8600`** (`RTreeNode bestCandidate = null;`)
-  — i.e. one of the six real warnings is deleted rather than annotated. Prefer that route.
+  tie-break is active. **`04118f4`, PR #11 and `d4fecd1` have now each passed through it
+  without deleting it**; at `d4fecd1` it is byte-identical, still calling
+  `getAddedSizeToAccomodate`, still ending in `bestCandidate!.addFeatureChild(feature)` with
+  a null-forgiving operator that asserts a fact the compiler was asking about
+  (`RTreeNode.cs:146 CS8600`). P-41's substitution changes its (dead) semantics too — say so
+  in the commit so nobody resurrects it expecting the old ranking.
+  **Deleting it also removes `RTreeNode.cs:146 CS8600`** — one of the six real warnings,
+  deleted rather than annotated. Prefer that route. Three warning-fixing passes have now
+  chosen *neither* route (not deletion, not annotation) and left the warning firing.
 - `cumulativeOverlap` / `siblingOverlap` are assigned in `buildChildOptions` and never
   read — the split sorts on the local `overlap`/`totalArea`/`perimeterTotal` triple. Dead
-  state carried by every node, and `04118f4` left both assignments untouched.
+  state carried by every node, as `public double` properties on a public class. **Still both
+  present and still both public at `d4fecd1`,** assigned in the method PR #12 edited.
 - `getAddedSizeToAccomodate` still hand-rolls `bbox`'s area instead of calling
   `bbox.Area()` — the last duplicate of that expression, and P-41 deletes the whole body.
-- `FeatureCollection.Crs`'s setter reaches through `f.Parts` to call
-  `Part.InvalidateMetrics()` — add `Feature.InvalidateMetrics()` and forward.
+- `Features.Crs`'s setter reaches through `f.Parts` to call `Part.InvalidateMetrics()` —
+  add `Feature.InvalidateMetrics()` and forward. **Still doing exactly that at `d4fecd1`**
+  (two nested `foreach` loops inside the property setter), and the property's own docstring
+  still says "this collection" after P-70's rename.
 - New in `04118f4`: a **constant interpolated string with no interpolation hole** —
   `$"Feature has no extent and cannot be indexed."`. Drop the `$`. (Its sibling
   `$"Feature has non-finite extent {bbox}."` does interpolate and is fine.) No compiler
   warning for this in the clean build, so it is style-only, but it is free. **Confirmed
-  style-only by CI:** the format step passes at `b264607` with the `$` in place, so it is
-  neither a warning nor a formatter complaint — see section 9.
-- **Naming, PR #11:** `RTreeTests` now carries both `zerozero`/`onezero` and
-  `Id0`/`Id7`/`Id99` for the same kind of thing. Same family as the `minChilds`/`MinChildren`
-  mismatch above; pick one convention when the block is consolidated (P-36).
+  style-only by CI:** the format step passes with the `$` in place.
+- **Naming, PR #11:** `RTreeTests` carries both `zerozero`/`onezero` and `Id0`/`Id7`/`Id99`
+  for the same kind of thing. Same family as the constructor-parameter mismatch above; pick
+  one convention when the block is consolidated (P-36).
+- **Naming, PR #12:** `Features.FeatureSet` is a name chosen to dodge a compiler rule
+  (P-70's point 2), not to describe anything. If P-17 replaces the raw `List` with a façade,
+  the property can become something readable in the same change; don't leave `FeatureSet` as
+  a permanent artifact.
 
 ### P-23a `GeometryMath` walk loops duplicated four times
 `ClosedWalk`/`SphericalPerimeter` are the same loop over `pts[i], pts[(i+1)%n]` differing
@@ -1203,7 +1395,7 @@ merge safe. Also halves `Measure()`'s work.
 
 ## 5. Partially complete — in flight
 
-### Closed by PR #8 (`051e8d8`, `4a0ec8b`, `7b4c6aa`, `9bee4e4`, `389dc4a`) — net −483 lines of production/test code, plus the read-path fix
+### Closed by PR #8 (`051e8d8`, `4a0ec8b`, `7b4c6aa`, `9bee4e4`, `389dc4a`) — net −483 lines, plus the read-path fix
 | Change | Recorded under |
 |---|---|
 | `Reprojector.cs` deleted: duplicate transform engine + hand-rolled P/Invoke (−164) | P-14 (half) |
@@ -1221,7 +1413,7 @@ merge safe. Also halves `Measure()`'s work.
 ### PR #9 `9c7124a` ("migrating from rtree to bbox") — +100/−28, 4 files
 | Change | Recorded under |
 |---|---|
-| `RTreeNode.getMBRoverlap` deleted (−23) | P-01 (code done, guard missing → **now closed**) |
+| `RTreeNode.getMBRoverlap` deleted (−23) | P-01 (**closed**) |
 | Three descents + the `RTreeTests` oracle redirected to `BoundingBox.Overlaps` | P-01, **P-48.2 (oracle lost its independence)**, P-46 (half) |
 | `BoundingBox.OverlappingArea` added: `Empty` guard, per-axis clamp at `<= 0`, `dx * dy` | new member, live, **guarded by hand goldens** |
 | `getAddedSizeToAccomodate` subtracts `BoundingBox.OverlappingArea(bbox)` | P-41 (improved, still open), P-66 |
@@ -1243,7 +1435,7 @@ Recorded because the near-miss is the lesson, and because it is N-15's third ent
 ### PR #9 `04118f4` ("fixing p39 and empty bounding box gaurds") — 4 files, behaviour change on a public API
 | Change | Recorded under |
 |---|---|
-| `addFeature` throws on `BoundingBox.Empty` | **P-66 mitigated**, D-F, P-11/P-21 (new throw path) |
+| `addFeature` throws on `BoundingBox.Empty` | **P-66 mitigated** (→ closed by `d3464e6`), D-F, P-11/P-21 (new throw path) |
 | `addFeature` throws on any non-finite corner | P-66; **P-39 gains the `±DBL_MAX` gap** (since corrected to `1e308`) |
 | `BoundingBox.Perimeter()` added | P-67 (closed for duplication) |
 | `RTreeNode.getArea`/`getPerimeter` → `Area`/`Perimeter` properties delegating to `BoundingBox` | **P-67 closed**, P-22; breaking rename |
@@ -1251,63 +1443,84 @@ Recorded because the near-miss is the lesson, and because it is N-15's third ent
 
 **Commit-message accuracy, since the file's closure rule depends on it:** the subject
 claims `fixing p39`. P-39 is **not** fixed — the sentinel is unchanged, `Area`,
-`Perimeter`, `ContainsPoint` and `EnlargementToContain` are still unguarded, and no test
-was added, so by the rule in "How to use this file" it cannot be closed. What landed is
-the *containment* of P-39's worst consequence. Prefer `fix(P-66) (mitigation)` or `refs P-39`
-in future messages; a bare `fix(P-xx)` is a claim this file will check. **PR #11 followed
-this; see its own table below.**
+`Perimeter`, `ContainsPoint` and `EnlargementToContain` are still unguarded. What landed is
+the *containment* of P-39's worst consequence. Prefer `fix(P-66) (mitigation)` or `refs P-39`;
+a bare `fix(P-xx)` is a claim this file will check. **PR #11 followed this; PR #12 went the
+other way and named nothing at all (see P-70).**
 Also: "gaurds" is a typo, in a branch that has an open item about typos (P-36).
 
 **Build and suite state at `04118f4`: GREEN. Established, not assumed.**
 `total: 112, failed: 0, succeeded: 110, skipped: 2`; build succeeded with 16 warnings.
-The three risks this entry previously listed are answered:
-1. ~~a test now hits the `throw`~~ — **no.** Zero failures, so no test feeds `addFeature`
-   an `Empty` or non-finite box. Recorded as evidence for P-66: the guard is exercised in
-   neither direction. **Since corrected: PR #11 supplies those tests.**
-2. ~~a stale `getArea`/`getPerimeter` reference~~ — **no.** Both test assemblies and all
-   three production assemblies compile.
-3. ~~formatting of the new guard blocks~~ — **not evaluated then; now evaluated.** CI's
-   format step passed on this code from `fe4e6a5` forward and again at `b264607`.
+1. ~~a test now hits the `throw`~~ — **no**, at that SHA. **Since corrected: PR #11 supplies
+   those tests.**
+2. ~~a stale `getArea`/`getPerimeter` reference~~ — **no.**
+3. ~~formatting of the new guard blocks~~ — **evaluated later:** CI's format step passed from
+   `fe4e6a5` and again at `b264607`.
 
-**What green does *not* establish:** that anything added since `4a0ec8b` is guarded. The
-110 passing tests predate both PR #9 commits for the R-tree work; the only new assertions
-in the branch at that point were `GeometryTests`' ten cases on `OverlappingArea`. P-01,
-P-66, P-68 and P-48 all remained open *because* of what the green run showed, not despite
-it. P-01 and P-66 have since been closed by PR #11; P-68 and P-48 have not.
+**What green did *not* establish:** that anything added since `4a0ec8b` was guarded. P-01,
+P-66, P-68 and P-48 all remained open *because* of what the green run showed. P-01 and P-66
+have since been closed by PR #11; P-68 and P-48 have not.
 
 ### PR #10 `fe4e6a5` (merged from `formatting`, `d207943`) — 1 file, 55/55, no behaviour change
 | Change | Recorded under |
 |---|---|
 | `SpatialWriter.BuildOgrGeometry` reindented — `case` bodies and braces, `Point`/`PointM`/`Line`/`Polygon` | nothing; formatting only |
 | Confirms `dotnet format`'s opinion on that region is now committed, so the CI format step is green from `fe4e6a5` forward | section 9 |
-| **`P-57` and `P-63` survived it verbatim:** `verts[^1].Coordinates != first.Coordinates` and the doubled `verts.Count < 3` guards are unchanged at `b264607` | P-57, P-63 |
+| **`P-57` and `P-63` survived it verbatim** | P-57, P-63 |
 
-### PR #11 `d3464e6`, `5f6f2c3`, `f86c689`, `518630c`, `b264607` (head) — tests + README, **no production code**
+### PR #11 `d3464e6`, `5f6f2c3`, `f86c689`, `518630c`, `b264607` — **MERGED at `26d2840`** — tests + README
 | Change | Recorded under |
 |---|---|
 | T-21: `OverlapsIsSymmetricAndTrueForContainment` (17 rows × both directions), `OverlapsIsFalseWhenEitherSideIsEmpty` | **P-01 CLOSED** |
 | T-18: `FeatureWithNoExtentIsRejected`, `FeatureWithNonFiniteExtentIsRejected` (5 rows), `PointShapedFeaturesSurviveSplitsAndAreFound` + negative control | **P-66 CLOSED**, D-F, P-48.5 |
 | T-22: `FreshRootHasInfiniteAreaSoTheComparisonNeverFires` + `FirstInsertIntoEmptyTreeLandsOnRoot` | P-48.6 closed, P-39 |
-| `BoundingBox` characterisation: `EnlargementToContainIsMbrGrowth` (5 rows), `…IsAsymmetricAboutEmpty`, `UnionTreatsEmptyAsTheIdentityElement`, `UnionIsCommutativeAndNeverSmallerThanEitherSide`, `PerimeterIsTwiceTheSumOfTheExtents`, `PerimeterOfEmptyOverflows`, `FromVerticesOfNothingIsTheSentinel`, `FromVerticesSilentlyDropsNonFiniteVertices`, `NegatedMaxValueIsTheSentinelButNearMaxValueOverflowsUnnoticed` | P-41 (member now guarded), P-62, **P-69 filed**, P-67, P-39 |
+| `BoundingBox` characterisation: `EnlargementToContainIsMbrGrowth` (5 rows), `…IsAsymmetricAboutEmpty`, `UnionTreatsEmptyAsTheIdentityElement`, `UnionIsCommutativeAndNeverSmallerThanEitherSide`, `PerimeterIsTwiceTheSumOfTheExtents`, `PerimeterOfEmptyOverflows`, `FromVerticesOfNothingIsTheSentinel`, `FromVerticesSilentlyDropsNonFiniteVertices`, `NegatedMaxValueIsTheSentinelButNearMaxValueOverflowsUnnoticed` | P-41 (member guarded), P-62, **P-69 filed**, P-67, P-39 |
 | `FeatureAttributeTests.cs` new — coercion/type-lies, `Integer`→`Long` widening, missing+null defaults, case-insensitive lookup, **invariant parsing under `de-DE`**, empty/unreferenced feature area + box | P-06's rationale made executable, P-19, P-28, P-21, P-39 |
 | `RTreeTests` docstring rewritten (all three false clauses removed) | **P-48.7 closed**, N-3 |
 | `Id0`/`Id7`/`Id99` as `private static readonly int[]` with a sharing-safety rationale | removes 4× `CA1861`; P-36 style split |
 | README `TreatWarningsAsErrors` → `=false` | **P-30: 4 errors → 3** |
-| `FindByIndReturnsAPathToTheFeature`, `FindByIndOnAnEmptyTreeReturnsNothing`, `FindByIndForAnAbsentIdReturnsNothing`, `NodeAreaAndPerimeterAreTheBoundingBoxes` | P-51 (line now reached by a test), P-48.4 partly, **P-36 duplicate** (first is redundant with an existing test) |
+| `FindByIndReturnsAPathToTheFeature`, `FindByIndOnAnEmptyTreeReturnsNothing`, `FindByIndForAnAbsentIdReturnsNothing`, `NodeAreaAndPerimeterAreTheBoundingBoxes` | P-51 (line reached), P-48.4 partly, **P-36 duplicate** |
+| This file, +707/−251 | now on `main` |
 
-**Commit-message accuracy, re-tested on PR #11:** `d3464e6` claims
-`test(P-66, P-01, P-39)`. P-66 and P-01 are **correctly** claimed — the assertions exist and
-pass. P-39 is **correctly not** claimed as fixed (no `fix(`), and the entry gained three
-corrections from these tests rather than a closure. This is the pattern `04118f4`'s bare
-`fixing p39` should have followed. `5f6f2c3` ("adding in static arrays to get rid of
-warnings") and `b264607` ("updating comment") name no item; both are recorded above against
-the items they actually touch, and `b264607` is what closed P-48.7 — a case where the
-message under-claims relative to the tracker's needs.
+**Commit-message accuracy:** `d3464e6` claims `test(P-66, P-01, P-39)`. P-66 and P-01 are
+**correctly** claimed — the assertions exist and pass. P-39 is **correctly not** claimed as
+fixed. `5f6f2c3` ("adding in static arrays to get rid of warnings") and `b264607` ("updating
+comment") name no item; both are recorded above against the items they touch, and `b264607`
+is what closed P-48.7.
 
 **Build and suite state at `b264607`: CI GREEN — established, not assumed.** Check run
 `build` concluded `success` in 58s, covering the format step and both test steps. The
 check-run API returns **11 annotations and no test totals**, so no total is recorded; the
 local figure that preceded this (139) was a working-tree number and is withdrawn (N-11).
+
+### PR #12 `d4fecd1` ("removing warnings") — 13 files, +134/−145, **breaking public API**
+| Change | Recorded under |
+|---|---|
+| `FeatureCollection` → **`Features`** (file rename, 68 % similarity); `.Features` property → **`.FeatureSet`**; `IFeatureSource.Read` / `IFeatureSink.Write` / `SpatialReader.Read` / `SpatialWriter.Write` / `Feature.Owner` signatures change | **P-70 filed**, D-G, P-14/P-61/P-67 (breaking-changes list) |
+| `MaxChidrens`/`MinChidrens` → `MaxChlidren`/`MinChlidren` (still misspelled; local `sortedChidrens` and ctor params `minChilds`/`maxChilds` untouched) | **P-22, P-43 — third spelling now live** |
+| `int[]? featInd = null` in the `RTreeNode` ctor | **`RTreeNode.cs:19` CS8625 fixed** — 1 of 6 real warnings |
+| `MaxChlidren`/`MinChlidren` `= 0` initialisers deleted | **`RTreeNode.cs:11,12` CA1805 ×2 fixed** |
+| `Children.Count() - MinChlidren` → `Children.Count - MinChlidren` | **`RTreeNode.cs:97` CA1829 fixed — the hot-path win** |
+| `FeatureCollection` type name gone | **CA1711 silenced by rename**, contradicting section 9 → P-70, D-G |
+| `RTreeNode.cs:73` `sortedChidrens = null` | **NOT fixed** — method edited around it |
+| `RTreeNode.cs:146` `RTreeNode bestCandidate = null` in dead `addFeatureChild` | **NOT fixed** — method still present, still has `bestCandidate!` |
+| `RTreeNode.cs:177` `RTreeNode bestCandidate = null` in the live path | **NOT fixed** |
+| `RTreeNode.cs:288` `node.FeatureIndex[0]` | **NOT fixed** — **P-51 still open**, one line |
+| `AttributeTable.cs:57` CA1854 `ContainsKey` + indexer | **NOT fixed** — file not in the diff |
+| `SpatialWriter.BuildOgrGeometry` ~114 lines churned again | **whitespace-only on the content readable to me**; P-57's `Coordinates` compare and P-63's doubled guard unchanged → section 9 |
+| `Feature.Owner` docstring still names `FeatureCollection`; `Features.Crs` summary says "this collection"; `var fc = new Features()`; `Write(Features collection)` vs interface `features` | **P-70 point 4**, N-3 new sweep clause |
+| `SpatialJoins.cs` 18 lines (rename) | P-02 — **the `_ = tree ?? BuildTree(...)` discard not re-verified** |
+| Five test files, ~88 lines (rename) | P-36 — first measurable cost of not hoisting helpers |
+
+**Commit-message accuracy, third test of the rule:** "removing warnings" describes 4 of the
+11 annotations and omits the largest API change in the repository's history. The failure mode
+is the inverse of `04118f4`'s: that message over-claimed a `fix`; this one under-describes a
+break. **Both are caught by the same rule — the message is not the evidence, so read the diff.**
+
+**Build state at `d4fecd1`: NOT ESTABLISHED.** Its check run was **in progress** at review
+time (`status: in_progress`, `conclusion: null`, 0 annotations). No count, no verdict, and no
+substitute inferred from the source. Section 9 carries the reading-based prediction, labelled
+as one, to be replaced when the run lands.
 
 ### P-07 Open vs closed geometry  *(substantially done)*
 Done: `PartType` enum; required `Part(PartType)` constructor; `Kind` get-only;
@@ -1339,23 +1552,24 @@ test T-8.
 | T-5 | **`PolygonHoleIsSubtractedAfterRead`** — exterior + hole through a real shapefile; `IsHole == true` on ring 1; `Feature.AreaSquareMeters == exterior − hole` | **P-05 — the only guard for a live production behaviour; nothing covers the read path today** |
 | T-6 | `LineInGeographicCrsHasNoArea` → `AreaSquareMeters is null` | P-07 |
 | T-7 | `OpenRingRoundTripsStably` — vertex count constant across write/read/re-read | P-56, P-57 |
-| T-8 | `MetricsDoNotDependOnWhetherOrWhenSealWasCalled` — reading `LengthMeters` must not change what `AreaSquareMeters` reports; sealed-attach-later and attach-later-unsealed agree | P-54 invariant |
+| T-8 | `MetricsDoNotDependOnWhetherOrWhenSealWasCalled` — reading `LengthMeters` must not change what `AreaSquareMeters` reports | P-54 invariant |
 | T-9 | `AddingAVertexAfterMeasuringReMeasures` — read length, `AddVertex`, read again | cache invalidation |
 | T-10 | `ReplacingTheCollectionsCrsInvalidatesPartMetrics` | cascade + identity key |
 | T-11 | `DetachedFeatureRemainsMeasurable` — `RemoveFeature` then change `fc.Crs`; the removed feature must still recompute | P-18 |
-| T-12 | ~~`EmptyPartDoesNotInflateFeatureBoundingBox`~~ **retitled — the described defect does not exist.** `Feature.AddPart` goes through `Union`, whose `== Empty` guards already make an empty part a no-op on a real box (P-39's retraction, now pinned by `UnionTreatsEmptyAsTheIdentityElement`). What should be pinned instead: **`FeatureWithNoPartsHasNoUsableBox`** — **half done by PR #11:** `AreaOfAnEmptyOrUnreferencedFeatureIsUnknown` already asserts `Assert.Empty(f.Parts)` and `f.BoundingBox == BoundingBox.Empty`, and `FeatureWithNoExtentIsRejected` asserts the refusal. **Remaining: wire the two together** — feed a zero-part *feature*'s box to `addFeature` in one test, so the feature-level premise and the index-level consequence are linked rather than assumed | P-39, P-11 |
+| T-12 | ~~`EmptyPartDoesNotInflateFeatureBoundingBox`~~ **retitled — the described defect does not exist.** `Feature.AddPart` goes through `Union`, whose `== Empty` guards already make an empty part a no-op on a real box (P-39's retraction, pinned by `UnionTreatsEmptyAsTheIdentityElement`). What should be pinned instead: **`FeatureWithNoPartsHasNoUsableBox`** — **half done by PR #11:** `AreaOfAnEmptyOrUnreferencedFeatureIsUnknown` asserts `Assert.Empty(f.Parts)` and `f.BoundingBox == BoundingBox.Empty`, and `FeatureWithNoExtentIsRejected` asserts the refusal. **Remaining: wire the two together** — feed a zero-part *feature*'s box to `addFeature` in one test, so the feature-level premise and the index-level consequence are linked rather than assumed | P-39, P-11 |
 | T-13 | Degenerate ring `[A,B,A]` — assert whichever of `0.0` / `null` is chosen, in both CRS kinds | P-07 |
 | T-14 | **`ReprojectToUsesTraditionalGisOrder`** — read a lon/lat fixture into a projected CRS and assert X is still longitude. Also closes N-2. The only path that pins axis order now, since the P/Invoke path that ignored it was deleted in PR #8 | P-14 |
 | T-15 | ~~`CrsTokenDoesNotDoublePrefixANonEpsgAuthority`~~ **invalid as written — it passes today**, because the `StartsWith("EPSG:")` guard already exists (D-D). Rewrite once the model is chosen: `Projection("ESRI:102003")` resolves to the same SRS GDAL reports for `ESRI:102003` **without emitting a warning**, and `CrsInfo` round-trips the authority rather than relabelling it `EpsgCode` | D-D, P-14 |
-| T-16 | ~~`ReadsAnInteger64AuthoredElsewhere`~~ **done — implemented in PR #8 `9bee4e4`, verified passing at `04118f4` and again in CI at `b264607`.** Hand-written GeoJSON (`"BIG":4000000000, "SMALL":7`), asserts `BIG` boxed `long` / `Schema["BIG"].FieldType == LongFT` and `SMALL` still boxed `int`. Non-circular by construction. Keep the `SMALL` assertion through P-65's consolidation — it pins the `Integer`/`Integer64` split. **Companion now exists:** `GetAttributeWidensAnIntToLongWithoutLosingTheValue` holds the same split at the model layer | P-06 |
-| T-17 | **`LongFTWritesAsInteger64`** — write `4_000_000_000` to a `LongFT` column with our writer, then reopen and assert the **declared** OGR type is `OFTInteger64` (not `OFTString`/`OFTReal`) *and* the boxed CLR type is `long`. Currently **no test touches** `SpatialWriter.MapFieldType`'s `LongFT` arm or `SetOgrField`'s `case long l:`; a value-only assertion here would pass on a text column (P-06's rationale applies verbatim, and `GetAttributeCoercesSoAValueOnlyAssertionCannotDetectAMistypedColumn` now *demonstrates* it rather than asserting it) | **P-68 — the write arms of `9bee4e4` are unguarded** |
-| T-18 | ~~**`IndexRejectsBoxesItCannotPlace`**~~ **DONE — PR #11 `d3464e6`, three members, all passing at CI `b264607`.** Delivered as `FeatureWithNoExtentIsRejected` (asserts the message *and* `Assert.Empty(tree.Root.Children)`, i.e. rejection precedes mutation), `FeatureWithNonFiniteExtentIsRejected` (5 rows: NaN×2, +∞, −∞, both infinities), `PointShapedFeaturesSurviveSplitsAndAreFound` (**30** points, not 50 — defaults min 4 / max 10 still force several splits — plus a 31st inserted after the splits, and a negative control at `(500,500)` so the independent `Findable` helper cannot pass by answering `true`). Original spec, kept for the record: three cases, none present at the time: (a) `Assert.Throws<ArgumentException>` on `addFeature(…, BoundingBox.Empty)`; (b) the same for a non-finite corner (`NaN`, `+∞`); (c) **a point-shaped feature still indexes and is found** — 50 `BoundingBox.Point(i, i)` inserts to force splits, then `Assert.Contains(99, FeatureIndicesAt(tree, 25, 25))`. (c) is the one that says "the `≥ 1` floor's stated purpose is covered, do not bring the floor back"; (a)/(b) are the only thing that will make the new `throw` survive a future cleanup | **P-66 CLOSED**, P-39, D-F, P-48.5 closed |
+| T-16 | ~~`ReadsAnInteger64AuthoredElsewhere`~~ **done — PR #8 `9bee4e4`, verified passing at `04118f4` and in CI at `b264607`.** Hand-written GeoJSON (`"BIG":4000000000, "SMALL":7`), asserts `BIG` boxed `long` / `Schema["BIG"].FieldType == LongFT` and `SMALL` still boxed `int`. Non-circular by construction. Keep the `SMALL` assertion through P-65's consolidation | P-06 |
+| T-17 | **`LongFTWritesAsInteger64`** — write `4_000_000_000` to a `LongFT` column with our writer, then reopen and assert the **declared** OGR type is `OFTInteger64` (not `OFTString`/`OFTReal`) *and* the boxed CLR type is `long`. Currently **no test touches** `SpatialWriter.MapFieldType`'s `LongFT` arm or `SetOgrField`'s `case long l:`. **PR #12 modified `SpatialWriter.Write`'s signature and its feature loop twice without adding coverage, so this debt is now two commits deeper than when it was filed** | **P-68 — the write arms of `9bee4e4` are unguarded** |
+| T-18 | ~~**`IndexRejectsBoxesItCannotPlace`**~~ **DONE — PR #11 `d3464e6`, three members, CI-verified green at `b264607`, on `main` since `26d2840`.** Delivered as `FeatureWithNoExtentIsRejected` (asserts the message *and* `Assert.Empty(tree.Root.Children)`, i.e. rejection precedes mutation), `FeatureWithNonFiniteExtentIsRejected` (5 rows: NaN×2, +∞, −∞, both infinities), `PointShapedFeaturesSurviveSplitsAndAreFound` (**30** points, plus a 31st after the splits, and a negative control at `(500,500)`) | **P-66 CLOSED**, P-39, D-F, P-48.5 closed |
 | T-19 | **`RejectsALongTheDriverCannotStore`** — `Assert.Throws` on writing `1_000_000_000_000_000_007` per driver, plus the `9_000_000_000_000_000` maximum-safe boundary. Also puts a **repro in the tree** for P-64's measurement, which currently has none | P-64 |
 | T-20 | `InsertionChoosesSmallestEnlargement` — a small feature must land in the smaller-enlarging node. Fails on today's `Area + featArea − overlap`, which reports set-union area (worked numbers in P-41) | P-41, P-48.4 |
-| T-21 | ~~**`OverlapsIsSymmetricAndTrueForContainment`**~~ **DONE — PR #11 `d3464e6`; closes P-01.** Shipped as 17 rows with symmetry asserted both directions per row, plus `OverlapsIsFalseWhenEitherSideIsEmpty`. Adds beyond spec: identical boxes, flush *corner*, point-vs-point equal/unequal, three zero-width-line cases, and a `-1e308` box asserting that size alone never short-circuits. Original spec: hand goldens for `BoundingBox.Overlaps`, mirroring the `OverlappingArea` theory — containment **both directions** (the `fix(#15)` case), corner overlap, disjoint, flush contact → `true`, point-in-box → `true`, `Empty` either side → `false` | **P-01 CLOSED (was the missing guard)** |
-| T-22 | ~~`FirstInsertIntoEmptyTreeLandsOnRoot`~~ **DONE — PR #11 `d3464e6`, as two members:** `FirstInsertIntoEmptyTreeLandsOnRoot` (asserts `Single(Root.Children)`, the child's box, **`Root.BoundingBox` propagated over `Empty`**, `Assert.Same(Root, child.Parent)`, and `Findable`) and `FreshRootHasInfiniteAreaSoTheComparisonNeverFires`, which pins the *premise* — `Root.Area` is `+inf`, `getAddedSizeToAccomodate` is `+inf`, `inf < MaxValue` is false — so the fallback's necessity is itself under test. Its comment flags that P-39 will require the comment (not the assertions) to change. Original spec: `new RTreeManager()` then one `addFeature`, assert `findByXY` finds it and `Root` has the feature's box | P-39, P-48.6 closed |
+| T-21 | ~~**`OverlapsIsSymmetricAndTrueForContainment`**~~ **DONE — PR #11 `d3464e6`; closes P-01.** 17 rows with symmetry asserted both directions per row, plus `OverlapsIsFalseWhenEitherSideIsEmpty`. Adds beyond spec: identical boxes, flush *corner*, point-vs-point equal/unequal, three zero-width-line cases, and a `-1e308` box asserting that size alone never short-circuits | **P-01 CLOSED** |
+| T-22 | ~~`FirstInsertIntoEmptyTreeLandsOnRoot`~~ **DONE — PR #11 `d3464e6`, as two members:** `FirstInsertIntoEmptyTreeLandsOnRoot` (asserts `Single(Root.Children)`, the child's box, **`Root.BoundingBox` propagated over `Empty`**, `Assert.Same(Root, child.Parent)`, and `Findable`) and `FreshRootHasInfiniteAreaSoTheComparisonNeverFires`, which pins the *premise* — `Root.Area` is `+inf`, `getAddedSizeToAccomodate` is `+inf`, `inf < MaxValue` is false. Its comment flags that P-39 will require the comment (not the assertions) to change | P-39, P-48.6 closed |
 | T-23 | `OracleDoesNotCallThePredicateUnderTest` — not a new test so much as a rule for P-48.2: `FeatureIndicesAt` must decide membership with an interval test written in the test file, not `BoundingBox.Overlaps`. Then a scale test comparing `findByXY` against it over a few hundred boxes. **Half-built already:** PR #11's `Findable` is exactly such a helper (independent of `Overlaps`, with a negative control), so this is now "convert `FeatureIndicesAt`'s two callers to `Findable` and delete the self-referential version", not "invent an oracle". Highest-value remaining test item in this table, because `BulkInsertAllFeaturesFindableByPoint` is the repository's strongest end-to-end assertion and currently cannot fail for the reason it exists | P-48.2, P-01 |
 | T-24 | `FromVerticesRejectsOrFlagsNonFiniteVertices` — convert `FromVerticesSilentlyDropsNonFiniteVertices` from characterisation to specification once P-69 decides: either `Assert.Throws` naming the vertex, or an `Empty` result that `addFeature` then refuses. The current test pins the bug, so it **must be changed in the same commit as the fix**, not deleted before it | **P-69, P-62** |
+| T-25 | **`FeaturesIsOnlyMutableThroughItsApi`** — assert that `AddFeature` assigns `Id` and `Owner`, and that `RemoveFeature` renumbers *and* clears `Owner` on the detached feature (the latter currently fails — that is the P-18 pin this file has been asking for). Write it against `FeatureSet` only through `AddFeature`/`RemoveFeature`, so P-17's façade swap makes the test *easier*, not impossible | **P-18, P-17, P-48.9** |
 
 ---
 
@@ -1367,15 +1581,13 @@ test T-8.
   `04118f4`, via `RTreeNode.Perimeter`). Uncalled: `Contains` (→ P-46),
   `EnlargementToContain` (→ P-41), `ContainsPoint` (homeless, and the last unguarded
   predicate), plus `FromVertices` and `Point`, which were never counted. Split decision:
-  P-62. Three of the five have a ready one-line consumer, which is the cheapest kind of
-  dead code there is.
-  **Status after PR #11 — "uncalled" and "untested" are now different lists.** Still uncalled
+  P-62.
+  **Status after PR #11/#12 — "uncalled" and "untested" are now different lists.** Still uncalled
   from production: `Contains`, `EnlargementToContain`, `ContainsPoint`, `FromVertices`.
   But `EnlargementToContain` and `FromVertices` now have direct tests, `Point` is used by
   tests, and **`ContainsPoint` is the only member of the type with no test at all** — which
-  makes it the one whose keep-or-delete decision is least informed. `Union` is still uncalled
-  from `BoundingBox`'s own surface list but is load-bearing via `AddPart`/`addChild` and is
-  now guarded. Update this note when P-62 resolves.
+  makes it the one whose keep-or-delete decision is least informed. `BoundingBox` was not
+  touched by `d4fecd1`, so this list is current as of `d4fecd1`. Update when P-62 resolves.
 - **N-2** `Transformer_EatsLonLatNotLatLon` was described but never added. Filed as T-14;
   it became *more* important in PR #8, not less.
 - **N-3** Three docstrings describe signatures that no longer exist. Verified still
@@ -1388,87 +1600,99 @@ test T-8.
   derives `IsHole = !Direction`*" — `Part.Direction` was deleted in `44fbf06`, so the
   comment now describes an invariant the code cannot enforce.
   `grep -rn "CloseRing\|Direction" --include=*.cs .` after each cleanup.
-  **Add two more to sweep:** `grep -rn "P0-4\|intentionally left unchanged"` (N-6); and
-  `grep -rn "through the writer and reader"` — `FieldTypeTests`' class docstring describes
-  a writer test that is not in the file (P-68).
+  **Add two more to sweep:** `grep -rn "P0-4\|intentionally left unchanged"` (N-6 — **re-confirmed
+  present at `d4fecd1`**); and `grep -rn "through the writer and reader"` — `FieldTypeTests`'
+  class docstring describes a writer test that is not in the file (P-68).
   **Add a third:** `grep -rn "getArea\|getPerimeter\|getMBRoverlap"`. **Verified clean at
-  `04118f4`** for code (the solution compiles) **and at `b264607` for comments** —
-  `RTreeTests`' class docstring was the last surviving mention and `b264607` rewrote it, so
-  the sweep is now satisfied for source and comments in both assemblies. Remaining surface:
-  the changelogs, which are N-5-unreadable.
-  **Fourth sweep, added by PR #11:** `grep -rn "restored verbatim\|do NOT assert fixed
+  `04118f4`** for code and **at `b264607`** for comments — `RTreeTests`' class docstring was
+  the last surviving mention and `b264607` rewrote it. Remaining surface: the changelogs,
+  which are N-5-unreadable.
+  **Fourth sweep clause, added by PR #11:** `grep -rn "restored verbatim\|do NOT assert fixed
   behavior"` — those two phrases were the docstring's load-bearing claims and are the shape
-  a stale test-suite docstring takes. Any future "these tests describe the old behaviour"
-  comment belongs in this sweep too, because `16585ef` made that framing false and nothing
-  else in the repo would notice.
+  a stale test-suite docstring takes.
+  **Fifth sweep clause, added by PR #12, and this one is urgent:** `grep -rn "FeatureCollection"`.
+  The type is gone and at least these survive pointing at it — `Feature.Owner`'s docstring
+  (*"Set by FeatureCollection.AddFeature"*), `Features.Crs`'s summary ("this collection"),
+  `SpatialReader`'s `var fc`, and `SpatialWriter.Write`'s `collection` parameter against an
+  interface that says `features`. **After a type rename, the grep for the old name is the
+  cleanup, and it is the step that a rename PR structurally cannot notice it needs.** Add to
+  the list of things to run *because* you renamed something, with the same status as a
+  rebuild: `grep` for the old identifier in comments and in string literals.
 - **N-5** `CHANGES_09012026.md` below P3-5 and parts of `CHANGES_09082026.md`'s narrative
   have never been readable through any fetch path. Do not assume they are empty.
 - **N-6** Keep `CHANGES_08312026.md`'s `fix(#N)` legend: those markers live in
   `BoundingBox.Overlaps`, `AttributeColumn.Coerce`, `CsvHelper`, `Part.AddVertex` and
   `Feature`, and they index *that* file, not this one. `CHANGES_08312026.md` also claims
   the R-tree files are "restored verbatim from master, all original typos included" —
-  false since `16585ef` and `ac3bb82`, and now triply so: PR #9 deleted a method and
-  renamed two more, and PR #11 rewrote the test file's docstring that repeated the claim.
-  **The test-side copy of this lie is now gone (`b264607`); the changelog's copy is not, and
-  is N-5-unreadable.**
+  false since `16585ef` and `ac3bb82`, and now quadruply so: PR #9 deleted a method and
+  renamed two more, PR #11 rewrote the test docstring that repeated the claim, and PR #12
+  renamed `Min`/`Max` properties inside the same files.
+  **The test-side copy of this lie is gone (`b264607`); the changelog's copy is not, and is
+  N-5-unreadable.**
   **Live collision, worth fixing on sight:** `SpatialWriter.SetOgrField`'s comment carries
   `P0-4`, which reads as `P-04` in this file (`EarthRadiusFeet`) but means
   `CHANGES_08312026.md` item 4 (field typing). Two unrelated defects, one glyph, in the
-  one method whose behaviour this branch just changed.
+  one method whose behaviour this branch just changed. **Still verbatim at `d4fecd1`, now
+  three PRs after being flagged.**
 - **N-7** Timeline rule: `CHANGES_09012026.md`'s P0-1 blamed the containment gate for
   missing features; `16585ef` fixed the actual cause (MBR propagation) four and a half
   hours later and the changelog was never reconciled. Any row citing 0901 P0-1 must be
   re-read against P-49. **Now settleable:** the gate was real, was dormant, and is the
-  thing `9c7124a` deleted — so the changelog's claim can be marked resolved with a
-  reference to P-01 rather than left ambiguous. **P-01 is closed, which makes this citation
-  a historical one: cite it as "resolved, see P-01" and nothing more.**
+  thing `9c7124a` deleted. **P-01 is closed, which makes this a historical citation: cite it
+  as "resolved, see P-01" and nothing more.**
 - **N-8** Benchmark build and query separately. The RBush comparison may have measured
   `Load()` (bulk STR-style) rather than incremental `addFeature`, which would explain
   part of the gap and is exactly what P-40 will change.
 - **N-10** `Part`'s metric cache depends on the invariant that geometry cannot change
   behind its back. That holds for `Part` (`Vertices` is read-only) but **not** for
-  `Feature.Parts` (P-17) or `FeatureCollection.Features` (also a public `List`). Fixing
+  `Feature.Parts` (P-17) or `Features.FeatureSet` (also a public `List`). Fixing
   P-17 should close the last hole.
-- **N-11** **Attribution. Two failures of this in a row, now corrected and the mechanism
+  **PR #12 made this marginally worse and did not intend to:** `Features` now exposes `Count`
+  and `this[int]` forwarding to `FeatureSet`, so the type offers a read-only *appearance* at
+  the same time as a mutable *escape hatch*. A caller that reads `foreach (var f in features)`
+  and separately does `features.FeatureSet.Clear()` gets a silently stale `Crs` invalidation
+  trail and stale `Id`s. **The façade members are the right shape; adding them without closing
+  the list is what turns "public list" into "public list with a convincing alternative".**
+  Do P-17 as one change covering both `Parts` and `FeatureSet`, and it closes N-10 outright.
+- **N-11** **Attribution. Three failures of this in a row, now corrected and the mechanism
   recorded.**
-  - `total: 107, failed: 5` was quoted as a property of `9bee4e4`. It was not: the
-    committed `FieldTypeTests.cs` at that SHA contains one test
-    (`ReadsAnInteger64AuthoredElsewhere`) and nothing that fails. The five failures were a
-    working-tree state.
+  - `total: 107, failed: 5` was quoted as a property of `9bee4e4`. It was not: the committed
+    `FieldTypeTests.cs` at that SHA contains one test and nothing that fails. The five
+    failures were a working-tree state.
   - `failed: 2` was quoted as a property of `9c7124a`. It was not: the committed
     `GeometryTests.cs` contains the three corrected theories, and the failing
     `…ConsistentWithEnlargement` theory existed only in the working tree.
+  - After PR #11's first push the local run reported a build failure (`CS0103` on `CrsKind`)
+    alongside 17 warnings. That was a working-tree state at the moment of the edit, not a
+    property of any commit — and `b264607`'s CI run is green with zero test-assembly
+    annotations, so it was fixed before it was ever committable.
   Common cause: a local run was read as a claim about a commit. **Rule: `git show
-  <sha>:<path>` before recording any pass or fail against a SHA.**
+  <sha>:<path>` before recording any pass or fail against a SHA.** Its corollary: **when the
+  local tree is red, say "the tree is red" and fix it, rather than recording a count that no
+  SHA owns.**
 
-  **Verified state at `04118f4` (clean build, both test assemblies, this run):**
+  **Verified state at `04118f4` (clean build, both test assemblies):**
   `total: 112, failed: 0, succeeded: 110, skipped: 2`, duration 18.6s; build succeeded
-  with 16 warnings. `Nsi.Geospatial.Tests` succeeded, `Nsi.Geospatial.Io.Tests` succeeded.
-  Skip budget is exactly two, unchanged (D-B):
+  with 16 warnings. Skip budget exactly two (D-B):
   `EarthRadiusFeetIsTheAuthalicRadiusInFeet` (P-04) and
-  `PointToSegmentWhenFootIsBehindTheNearEndpointReturnsDistanceToA` (P-03). A third skip is
-  a new defect being hidden. (`RTreeTests.BulkInsertAllFeaturesFindableByPoint` carries a
+  `PointToSegmentWhenFootIsBehindTheNearEndpointReturnsDistanceToA` (P-03). (`RTreeTests.BulkInsertAllFeaturesFindableByPoint` carries a
   commented-out `Skip` from `16585ef`; leave it as history, do not re-enable.)
   `Warning 1: EPSG:102003 is not a valid CRS code, but ESRI:102003 is…` still prints once
   per run (D-D) — a passing test that pollutes output.
-  **Not established by this run:** the `dotnet format` step. `dotnet test` does not invoke
-  it. Section 9's four format checks are still open.
-
-  **Third entry in the same shape, and the mechanism was caught before it was written down.**
-  After PR #11's first push the local run reported a build failure (`CS0103` on `CrsKind` in
-  `FeatureAttributeTests.cs`) alongside 17 warnings. That was a working-tree state at the
-  moment of the edit, not a property of any commit — and `b264607`'s CI run is green with zero
-  test-assembly annotations, so it was fixed before it was ever committable. **This entry
-  exists because the number closest to hand is the number most likely to be quoted.** The
-  rule's corollary: when the local tree is red, say "the tree is red" and fix it, rather than
-  recording a count that no SHA owns.
 
   **Verified state at `b264607` (CI, `-c Release`):** check run `build` **success**, 19:16:08 →
   19:17:06 Z, steps Restore → Build → **Format check** → Test (non-Gdal) → Test (Io.Tests).
-  11 warning annotations (section 9), no test totals exposed. **What this establishes:** the
-  format step passes, all five commits' test code compiles and passes, and no test assembly
-  emits a warning. **What it does not establish:** any count, the skip budget, or the effect
-  of `-c Release` on the GDAL warnings.
+  11 warning annotations (section 9), no test totals exposed. **Establishes:** the format step
+  passes, all five commits' test code compiles and passes, and no test assembly emits a
+  warning. **Does not establish:** any count, the skip budget, or the effect of `-c Release`
+  on the GDAL warnings.
+
+  **State at `d4fecd1`: deliberately blank.** The check run was `in_progress` with
+  `conclusion: null` and `annotations_count: 0` at review time. The temptation in this exact
+  situation is to write "should be green — four of the annotations are fixed in the diff",
+  and that is N-11 in a new costume: **an inference from source is a prediction about a build,
+  not a record of one.** Section 9 therefore labels its numbers as predictions and this entry
+  records nothing. Replace both when the run concludes.
 - **N-12** Dangling `P-` references: **P-20** (cited by D-C), **P-54** (cited by P-13,
   T-8, and `Part`'s `_measuredCrs` comment), **P-55** (cited by P-22, and its subject
   `Feature._crs` no longer exists), **P-59** (cited twice by section 9) have no entry in
@@ -1476,11 +1700,11 @@ test T-8.
   they live in the unreadable changelogs (N-5). Do not reuse these numbers; restore the
   definitions or mark the citations dead. D-C's closure removes one citation to P-20 but
   P-20 itself is still undefined.
-  **Counting rule, since the file now runs to P-69:** the sequence has holes (P-52, P-45,
+  **Counting rule, since the file now runs to P-70:** the sequence has holes (P-52, P-45,
   P-49 closed-as-merged, P-57/P-58 territory) and four undefined numbers. Before citing a
-  number you have not written, search for it. **P-69 was filed against a defect found by a
-  test, not by a guess — the first new item since P-68, and the first whose number was chosen
-  without re-reading this list first.**
+  number you have not written, search for it. P-69 and P-70 were both filed against things I
+  read at the SHA rather than inferred, which is the only difference between a new item and a
+  new mistake.
 - **N-13** Duplication tends to arrive as a *second* correct implementation rather than a
   second broken one. Cases: `BoundingBox.Overlaps` vs `getMBRoverlap` (P-01),
   `BoundingBox.EnlargementToContain` vs `getAddedSizeToAccomodate` (P-41, open), two
@@ -1502,14 +1726,18 @@ test T-8.
   `FindByIndReturnsAPathToTheFeature` duplicated an existing `findByInd` test (P-36). The
   pattern is documented in three places in this file and was still not applied, because
   "grep for the predicate" was written as advice about *production* members. Generalise it:
-  **before adding a test, grep for the member name in the test assemblies.** A test added
-  beside an existing one is invisible in review — both pass, neither is wrong, and the file
-  quietly grows by a tree-build and a traversal.
+  **before adding a test, grep for the member name in the test assemblies.**
   **Fifth, and the constructive version of the third:** PR #11's `Findable` shows the right
   shape for an oracle — written independently of the predicate under test, *and* with a
-  negative control so it cannot pass by answering `true` unconditionally. A brute-force
-  oracle without a negative control is the same trap as a self-referential one, arrived at
-  from the other side. Both halves are required; T-23 should demand both.
+  negative control. A brute-force oracle without a negative control is the same trap as a
+  self-referential one, arrived at from the other side. Both halves are required; T-23 should
+  demand both.
+  **Sixth, from PR #12, and it is about *names* rather than code: two spellings of one
+  concept is how a rename ends up half-done.** `MaxChlidren` + `sortedChidrens` +
+  `minChilds` now coexist, and `Features` + `FeatureCollection`(in comments) coexist as well.
+  The mechanism is the same in both cases: the rename was applied where the compiler demanded
+  it and not where it didn't. **When you rename, the compiler is the floor and grep is the
+  job.**
 - **N-14** Answer a binding-surface question by compiling against it, not by reflecting
   over it. D-C sat open across two revisions and talked itself into contradicting the
   0901 changelog, because each reflection pass produced another unreadable dump instead of
@@ -1526,12 +1754,17 @@ test T-8.
   isn't). A build log is four numbers long. Run it before writing prose about state.
   **Third payoff, from PR #11, and it is the generalisable one: a *test suite* is the same
   kind of instrument as a build log.** Six of this file's numeric claims about `BoundingBox`
-  (`Perimeter(Empty)`, `-MaxValue == MinValue`, `FromVertices`' empty path, `Union`'s identity
-  behaviour, `Area`'s overflow at `1e308`, `EnlargementToContain`'s asymmetry) were settled
-  by writing the assertion and running it, in one pass, at zero risk. Where a question is
-  "what does this member actually do", the cheapest instrument in the repository is a
-  characterisation test — it costs one assertion and it cannot rot, because the next person
-  who wonders runs it instead of re-deriving it in prose.
+  were settled by writing the assertion and running it, in one pass, at zero risk. Where a
+  question is "what does this member actually do", the cheapest instrument in the repository
+  is a characterisation test.
+  **Fourth payoff, from PR #12, and it points the other way: a build log also tells you what
+  a *warning sweep did not do*.** The four surviving `CS860x` annotations are the evidence
+  that the four hard fixes weren't attempted, which is information a passing build does not
+  give you by itself — `TreatWarningsAsErrors=false` means "warnings decreased" and "warnings
+  unchanged" look identical in a green check. **Until the flag is on, the only way to tell a
+  warning fix from a warning pass-through is to count the annotations, so count them, every
+  PR, and put the number in the commit message** ("4 of 10 warnings" would have made PR #12's
+  scope visible without any prose at all).
 - **N-15** **Five recommendations from this review have been wrong while the code was
   right.** `SetWidth(20)` as a fix (it *causes* the demotion); "let GeoJSON carry the full
   `long` range", asserted twice; the inclusion–exclusion oracle (section 5); "delete
@@ -1570,201 +1803,243 @@ test T-8.
   list. The rule "show the four numbers, then run the build" was half-applied: the numbers
   got shown, and the build did not get run before the file was handed over. Extending it:
   **a file you cannot compile is a fragment, however many lines it has.**
-  **One more pattern visible across all eleven:** nine of the eleven are claims about **what
-  a specific member does** — its return value, its guards, its empty-input path. Zero are
-  claims about architecture, structure, or sequencing; the designs this file proposed and
-  `04118f4`/`PR #11` implemented (the two-check gate, collapsing `getArea`/`getPerimeter`
-  into `BoundingBox`, the `Empty`-guard invariant chain, the T-18/T-21/T-22 test plan) all
-  held. **So the failure mode is specific and cheap to fix: never describe a member's
-  behaviour without either reading its body or asserting it. Judging the shape of the system
-  has been reliable; reciting the details has not.**
+  **Entry 12, and it is about a recommendation, not an observation.** Section 9's
+  `CA1711` row said *"Suppress with a rationale in `.editorconfig`; do not rename."* The
+  rename happened anyway, and while P-70 argues the *decision* was defensible, **my
+  prescription was incomplete in a way that only shows up after the fact: I priced the type
+  rename and not the property rename.** A member cannot share its enclosing type's name, so
+  `FeatureCollection.Features` → `Features.FeatureSet` was forced, and the second break is
+  the one that touches every call site. **Rule extension: when recommending against a rename
+  on breaking-change grounds, enumerate every break the rename forces, including the ones the
+  compiler forces** — a "just suppress it" that hasn't costed the alternative is a preference
+  wearing a prescription's clothes. (12)
+  **One more pattern visible across all twelve:** nine of the first eleven are claims about
+  **what a specific member does** — its return value, its guards, its empty-input path. Zero
+  are claims about architecture, structure, or sequencing; the designs this file proposed and
+  `04118f4`/PR #11 implemented all held. **So the failure mode is specific and cheap to fix:
+  never describe a member's behaviour without either reading its body or asserting it.
+  Judging the shape of the system has been reliable; reciting the details has not.** Entry 12
+  extends the same lesson to *recommendations*: describe the whole blast radius or don't
+  prescribe.
   **Counterweight, so this file does not become an excuse for timidity:** the two designs
   this file proposed and `04118f4` implemented as written — the two-check gate in
   `addFeature`, and collapsing `getArea`/`getPerimeter` into `BoundingBox` — hold up
-  against the same arithmetic discipline, and the invariant they buy (no `Empty` leaf ⟹ no
-  `Empty` internal node ⟹ `Overlaps`' guard is dead on the search path) checks out, and the
+  against the same arithmetic discipline, and the invariant they buy checks out, and the
   branch is green with them in. **PR #11 is the strongest form of the counterweight: the
   invariant was written as prose here, implemented as code there, and is now asserted from
-  both ends by tests that pass — so it survived contact with the only evidence that counts.**
-  The lesson is not "propose less"; it is "show the four numbers, then run the build".
+  both ends by tests that pass.** PR #12 is the weaker form and worth stating for fairness:
+  the four warnings it *did* fix are all correct, the `CA1829` hoist is the real hot-path win
+  this file asked for, and the `Features` name is defensible on its merits. The lesson is not
+  "propose less"; it is "show the four numbers, then run the build", and if the change is a
+  rename, "then grep for the old name".
 
 ---
 
-## 9. Build hygiene  *(CI annotations at `b264607` + local clean build at `04118f4`)*
+## 9. Build hygiene  *(read at `d4fecd1`; verified inventories at `b264607` and `04118f4`)*
 
-**Two independent warning inventories now exist, and they differ.** Reconciling them is part
-of the `TreatWarningsAsErrors` path, so state which one a claim comes from.
+**Three inventories, two of them verified.** State which one a claim comes from. **PR #12's CI
+run had not finished, so its numbers below are a source-reading prediction and are marked as
+one.**
 
-**CI, at `b264607` (`-c Release`) — 11 annotations, complete:**
+**Verified — CI at `b264607` (`-c Release`) — 11 annotations, complete:**
 
-| Path | Line | Code | Message |
-|---|---|---|---|
-| `.github` | 6 | — | Node.js 20 deprecation: `actions/cache@v4`, `actions/checkout@v4`, `actions/setup-dotnet@v4`, `mamba-org/setup-micromamba@v2` forced onto Node 24 |
-| `RTreeNode.cs` | 97 | CA1829 | Use `Count` instead of `Enumerable.Count()` |
-| `AttributeTable.cs` | 57 | CA1854 | Prefer `TryGetValue` over indexer guarded by `ContainsKey` |
-| `RTreeNode.cs` | 12 | CA1805 | `MinChidrens` explicitly initialized to default |
-| `RTreeNode.cs` | 11 | CA1805 | `MaxChidrens` explicitly initialized to default |
-| `FeatureCollection.cs` | 8 | CA1711 | Rename type so it does not end in `Collection` |
-| `RTreeNode.cs` | 288 | CS8602 | Dereference of a possibly null reference |
-| `RTreeNode.cs` | 177 | CS8600 | Converting null literal or possible null to non-nullable |
-| `RTreeNode.cs` | 146 | CS8600 | Same, in `addFeatureChild` |
-| `RTreeNode.cs` | 73 | CS8600 | Same, `sortedChidrens` |
-| `RTreeNode.cs` | 19 | CS8625 | Cannot convert null literal to non-nullable reference type |
+| Path | Line | Code | Message | Status at `d4fecd1` (read, not built) |
+|---|---|---|---|---|
+| `.github` | 6 | — | Node.js 20 deprecation: `actions/cache@v4`, `actions/checkout@v4`, `actions/setup-dotnet@v4`, `mamba-org/setup-micromamba@v2` | **still fires** — `.github/` not in PR #12 (P-31) |
+| `RTreeNode.cs` | 97 | CA1829 | Use `Count` instead of `Enumerable.Count()` | **FIXED** — `Children.Count` |
+| `AttributeTable.cs` | 57 | CA1854 | Prefer `TryGetValue` over indexer guarded by `ContainsKey` | **still fires** — file not in PR #12 |
+| `RTreeNode.cs` | 12 | CA1805 | `MinChidrens` explicitly initialized to default | **FIXED** — initialiser deleted (property renamed to `MinChlidren`) |
+| `RTreeNode.cs` | 11 | CA1805 | `MaxChidrens` explicitly initialized to default | **FIXED** — same |
+| `FeatureCollection.cs` | 8 | CA1711 | Rename type so it does not end in `Collection` | **gone — renamed instead of suppressed** (P-70, D-G) |
+| `RTreeNode.cs` | 288 | CS8602 | Dereference of a possibly null reference | **still fires** — `node.FeatureIndex[0]` byte-identical (**P-51**) |
+| `RTreeNode.cs` | 177 | CS8600 | Converting null literal or possible null to non-nullable | **still fires** — live path, unchanged |
+| `RTreeNode.cs` | 146 | CS8600 | Same, in `addFeatureChild` | **still fires** — method not deleted (**P-22**) |
+| `RTreeNode.cs` | 73 | CS8600 | Same, `sortedChidrens` | **still fires** — method edited around it (**P-42**) |
+| `RTreeNode.cs` | 19 | CS8625 | Cannot convert null literal to non-nullable reference type | **FIXED** — `int[]? featInd = null` |
 
-**Three things that inventory settles.** (a) The ten `Nsi.Geospatial` warnings are **identical
-line-for-line to the local list** — the Release/Debug split changes nothing in our code. (b)
-**Zero annotations from the GDAL-generated `GdalConfiguration.cs`**, so the six third-party
-`CS8600`s are either not emitted in CI's restore or not annotatable from `obj/`; CI's
-annotation list **cannot** distinguish those, so **do not conclude the scoped `NoWarn` is
-unnecessary in CI** — it is needed locally regardless, and until someone reads CI's raw build
-log the safe assumption is that the flag flip needs it in both places. (c) **Zero annotations
-from any test assembly at `b264607`** — `CA1050` and the four `CA1861`s introduced in
-`d3464e6`/`f86c689` are gone, confirming both `5f6f2c3` and the `FeatureAttributeTests`
-namespace fix worked. Test code is analysed, and is now clean.
+**Predicted for `d4fecd1`: 6 annotations — 5 code + the Node.js one.** Not a record; replace
+this line when the run concludes.
 
-**The Node.js 20 annotation is new and ours to fix:** it is the actions in `ci.yml`, not the
-SDK pin, so it is P-31's and P-34's neighbourhood. Bumping `checkout`/`setup-dotnet`/`cache`
-past their Node-20 majors removes it; `setup-micromamba@v2` needs its own check.
+**The shape of that column is the finding, and it is not a quibble: PR #12 fixed 3 of the 4
+style warnings and 1 of the 6 real ones.** Every warning it removed was fixable without
+understanding the code — delete a `= 0`, change `Count()` to `Count`, add a `?` to a
+parameter. **Every warning it left requires deciding something:** which of `sortedChidrens`'s
+four assignments is live (P-42), whether to delete or annotate `addFeatureChild` (P-22),
+whether `bestCandidate`'s nullability is a fact or a hope (P-39's fallback), whether
+`FeatureIndex[0]` needs a guard (P-51), and whether `ContainsKey`+indexer should be
+`TryGetValue` (mechanical, but the file wasn't in the diff). **A sweep that fixes what is
+easy and passes through what is not is worse than no sweep, because it retires the item's
+apparent priority while leaving the defect.** The message "removing warnings" plus a green
+check is exactly how that reads from the outside, which is why the annotation count belongs in
+the commit message (N-14's fourth payoff).
 
-**Local, at `04118f4` (`-c Debug`) — 16 warnings:** the same ten above, plus 3× `CS8600` at
+**Verified — local at `04118f4` (`-c Debug`) — 16 warnings:** the ten above, plus 3× `CS8600` at
 `Nsi.Geospatial.Io/obj/Debug/net8.0/NuGet/98F74982D37CCAAA/GDAL/3.11.3/GdalConfiguration.cs(60,41/58/77)`
 and the identical three under `Nsi.Geospatial.Reprojection/…GDAL/3.11.3/GdalConfiguration.cs`.
 Package-generated, one set per project referencing the GDAL package — the doubling is P-61's
 evidence, and `TreatWarningsAsErrors=false` is what keeps them from failing the build (P-30).
+**Zero annotations from either generated file in CI at `b264607`**, which cannot distinguish
+"not emitted in Release" from "not annotatable from `obj/`" — so **do not conclude the scoped
+`NoWarn` is unnecessary in CI**; the flag flip needs it in both places until someone reads CI's
+raw build log.
 
-**Fix table for the six real ones** (unchanged in substance; line numbers re-confirmed against
-CI at `b264607`):
+**Remaining path to `TreatWarningsAsErrors=true` — five items, unchanged in substance, with
+three now retired:**
 
 | Location | Code | What it is | Fix |
 |---|---|---|---|
-| `RTreeNode.cs:19` | CS8625 | `int[] featInd = null` default on a non-nullable parameter | `int[]? featInd = null` — `FeatureIndex` is already `int[]?`. One character. |
-| `RTreeNode.cs:73` | CS8600 | `List<RTreeNode> sortedChidrens = null;` assigned in one of four `if` branches | Build the key selector, then one `OrderBy` — a 4-arm switch, initialise in the declaration. Deletes the `null` instead of annotating it (P-42's file). |
-| `RTreeNode.cs:146` | CS8600 | `RTreeNode bestCandidate = null;` in **`addFeatureChild`** | **Delete the method** (P-22 — unreachable and its tie-break misleads readers). |
-| `RTreeNode.cs:177` | CS8600 | `RTreeNode bestCandidate = null;` in the *live* path | `RTreeNode? bestCandidate = null;` — free, since the method already ends `bestCandidate ??= TreeManager.Root`. |
-| `RTreeNode.cs:288` | CS8602 | `if (node.FeatureIndex[0] == ind)` | `if (node.FeatureIndex is { Length: > 0 } …)`. **This is P-51**, and `FindByIndOnAnEmptyTreeReturnsNothing` now exercises the line. |
+| `RTreeNode.cs:73` | CS8600 | `List<RTreeNode> sortedChidrens = null;` assigned in one of four `if` branches | Build the key selector, then one `OrderBy` — a 4-arm switch, initialise in the declaration. Deletes the `null` instead of annotating it, and deletes the third misspelling while there (P-42, P-22). |
+| `RTreeNode.cs:146` | CS8600 | `RTreeNode bestCandidate = null;` in **`addFeatureChild`** | **Delete the method** (P-22 — unreachable; its `bestCandidate!` is the null-forgiving operator asking the compiler to stop asking). |
+| `RTreeNode.cs:177` | CS8600 | `RTreeNode bestCandidate = null;` in the *live* path | `RTreeNode? bestCandidate = null;` — free, since the method already ends `bestCandidate ??= TreeManager.Root`, which the flow analysis will then accept. **Do not annotate the dead one the same way; deleting it is the fix.** |
+| `RTreeNode.cs:288` | CS8602 | `if (node.FeatureIndex[0] == ind)` | `if (node.FeatureIndex is { Length: > 0 } …)`. **This is P-51**, already exercised by `FindByIndOnAnEmptyTreeReturnsNothing`. |
 | `AttributeTable.cs:57` | CA1854 | indexer guarded by `ContainsKey` | `TryGetValue`. Mechanical. |
 
-Style/perf: `RTreeNode.cs:11` and `:12` — delete both `= 0` initialisers (constructor
-overwrites unconditionally; also answers P-43's default-value question). `RTreeNode.cs:97` —
-**confirmed the split-loop bound**, i.e. the hot path: `Enumerable.Count()` allocates an
-enumerator per iteration on every split during every insert; hoist `int count =
-Children.Count;`. `FeatureCollection.cs:8` CA1711 — suppress with a rationale in
-`.editorconfig`, do not rename.
+**Done by PR #12, so no longer on this list:** `:19` CS8625 (`int[]? featInd = null`), `:11`+`:12`
+CA1805 (both `= 0` initialisers deleted), `:97` CA1829 (**the hot-path win this file has asked
+for since it first listed the line — `Enumerable.Count()` was allocating an enumerator per
+iteration of the split loop, on every split, during every insert**), and CA1711 by rename.
 
-**Path to `TreatWarningsAsErrors=true`:** six production fixes (1 char, 1 switch, 1 deletion,
-1 annotation, 1 guard, 1 mechanical), of which two close existing items (P-22, P-51) and one
-is a real hot-path win. Then: `CA1711` suppression, scoped `NoWarn` in **both** csprojs
-(P-30), and **a pass over the test assemblies**, which are analysed too and which this cycle
-showed can regress — `CA1050` and 4× `CA1861` appeared and were removed within five commits.
-Until the flag is on, `dotnet format` is the only thing CI enforces about style, and
-`IDE0005` is not in `.editorconfig`, so **unused `using`s are invisible to CI** — proven
-twice over: `GeometryTests.cs` still opens with `System.Collections.Generic`, `System.Linq`
-and `Nsi.Geospatial.Spatial` (P-36) and the format step passes with them.
+Then, still outstanding: `CA1711` needs **either** the `.editorconfig` rationale this file
+recommended **or** an accepted break recorded under P-70 — currently it has neither, so the
+annotation is gone but the decision is undocumented; scoped `NoWarn` in **both** csprojs
+(P-30); the Node.js action bumps (P-31); and **a pass over the test assemblies**, which are
+analysed too and which PR #11 showed can regress — `CA1050` and 4× `CA1861` appeared and were
+removed within five commits, and `b264607` shows zero test-assembly annotations.
 
-**`dotnet format --verify-no-changes` — VERIFIED GREEN, no longer an open question.** CI ran
-it at `fe4e6a5` and again at `b264607`, both `success`. That retires all four checks this
-section used to list as pending (unused `using`s, second trailing newlines, the wrapped
-`if (!double.IsFinite(…))` guards, the non-interpolated `$"…"`): **the formatter accepts all
-of them**, so `IDE0005` is confirmed not elevated and the `$` in
-`$"Feature has no extent and cannot be indexed."` is style-only, as P-22 said. Two
-consequences: the format step is no longer a risk to schedule around, and it is also **not** a
-safety net for unused usings — those need `IDE0005` in `.editorconfig` if anyone wants CI to
-catch them, which is a one-line change to P-30's file and would immediately flag
-`GeometryTests.cs`.
+**`dotnet format --verify-no-changes` — VERIFIED GREEN at `fe4e6a5` and `b264607`.** That
+retired all four checks this section used to list as pending (unused `using`s, second trailing
+newlines, the wrapped `if (!double.IsFinite(…))` guards, the non-interpolated `$"…"`): the
+formatter accepts all of them, `IDE0005` is confirmed not elevated, and the `$` in
+`$"Feature has no extent and cannot be indexed."` is style-only, as P-22 said.
+
+**New, and it qualifies that conclusion: the format check is a floor, not a canonical form.**
+`SpatialWriter.BuildOgrGeometry` has now been reformatted by `d207943` (PR #10, 55/55) and
+again by `d4fecd1` (PR #12, ~114 lines of the same method), and **`--verify-no-changes` passed
+on both.** Whatever those two commits disagree about, the check does not pin — most likely
+line endings or trailing whitespace, both of which `.gitattributes` (2518 bytes, present)
+should already be handling and evidently isn't pinning for this file. Two consequences:
+1. **The format step cannot be relied on to prevent formatting churn**, so large whitespace
+   diffs will keep landing inside files that carry open defects — `P-57`'s `Coordinates`
+   comparison has now been inside two whitespace-only diffs of its own method without being
+   fixed, and P-63's doubled guard likewise. Reviewers must use `git diff -w` on `SpatialWriter.cs`.
+2. **I could not determine from the fetched content what the second pass actually changed** —
+   the two versions read identically to me. That is stated as a limit of this review rather
+   than as a finding, and the cheap resolution is `git show d4fecd1 -- Nsi.Geospatial.Io/SpatialWriter.cs | git apply -R --check`
+   locally, or simply `git diff -w b264607 d4fecd1 -- Nsi.Geospatial.Io/SpatialWriter.cs`
+   (expect empty). **If that returns empty, PR #12 contains ~114 lines of pure churn in a file
+   with two open defects in the churned region, and that is worth saying in the PR thread.**
 
 **Still unverified in CI:** the Release/Debug split's effect on the GDAL warnings (needs the
-raw build log), and the actual test totals (the API exposes neither pass nor skip counts).
+raw build log), the actual test totals (the API exposes neither pass nor skip counts), and
+everything about `d4fecd1` until its run concludes.
 
 ---
 
 ## 10. Recommended order
 
-0. **DONE, and now done twice.** Local green at `04118f4` (112/110/2/0). CI green at
-   `b264607` **including the format step**, which retires the last open question from this
-   step. Section 9 has both inventories.
-1. ~~T-18 + T-21 + T-22~~ **DONE in PR #11 `d3464e6`,** ahead of the warning sweep, and they
-   closed P-01 and P-66. All three arrived with more cases than specified here (17 `Overlaps`
-   rows against a requested handful; T-22 split into premise + outcome; T-18 gained a
-   negative control). The step's stated reason — a public `throw` reachable from no test —
-   no longer holds. **What step 1 was buying is bought; step 2 is now the front of the queue.**
-   One item inherited from this step, because PR #11 grew the files instead of consolidating
-   them: **rename `GeometryTests` → `BoundingBoxTests` and fold the duplicate `findByInd`
-   test** (P-36) — cheapest while the file is the only thing being edited.
-
-   *The old step 1, kept as the record of why it was sequenced first:* the branch shipped a
-   public `throw`, a public rename, and a new `BoundingBox` member with **zero new
-   assertions**, and the green run proved the throw was unreachable from every existing test.
-   T-18 protects the gate from being "simplified" away; T-21 is the guard P-01's closure
-   required and the only direct coverage of `Overlaps`; T-22 pins the first-insert path that
-   depends on an `inf` comparison. All three are `GeometryTests`/`RTreeTests` additions, no
-   production change, and none can fail on the current code — they can only fail *later*,
-   which is the point.
-2. **Warning sweep to `TreatWarningsAsErrors=true`** using the table in section 9. Fold in
-   the two items the sweep pays for: **P-51** (the `CS8602` guard) and **P-22**'s
-   `addFeatureChild` deletion (the `:146` warning). Add the scoped `NoWarn` to **both**
-   `Io` and `Reprojection`, and the `CA1711` suppression. Also: `CA1829`'s hoist at line 97
-   is a real hot-path win, not just a warning fix. **New, do it in the same commit:** bump
-   the three Node-20 `@v4` actions in `ci.yml` (P-31's annotation), and consider
-   `IDE0005` in `.editorconfig` so the unused `using`s P-36 lists become CI-visible — it
-   will flag `GeometryTests.cs` immediately, which is the cheapest possible forcing
+0. **DONE at `04118f4` and `b264607`; re-opened only for `d4fecd1`.** Local green at
+   `04118f4` (112/110/2/0). CI green at `b264607` including the format step. `d4fecd1`'s run
+   was in progress at review time — **wait for it and record the annotation count**, both to
+   confirm the prediction above and to establish the baseline for the next step.
+1. ~~T-18 + T-21 + T-22~~ **DONE in PR #11 `d3464e6`, merged at `26d2840`;** they closed P-01
+   and P-66. All three arrived with more cases than specified here.
+   *Kept as the record of why it was sequenced first:* the branch had shipped a public `throw`,
+   a public rename, and a new `BoundingBox` member with **zero new assertions**, and the green
+   run proved the throw was unreachable from every existing test. That is no longer true, and
+   it is the pattern a "tests first" ordering is supposed to buy: PR #12 then changed
+   `RTreeManager`'s property names and `SpatialWriter.Write`'s signature **against a suite that
+   was guarding the gate, the goldens, and the first-insert path**, which is why a rename of
+   this size across three assemblies could be done in one commit and reviewed in one screen.
+1a. **Close out P-70 before anything else lands on `main`.** This is new and it is first
+   because it is the only item on this list that gets more expensive with every commit: the
+   longer `FeatureCollection` lives in docstrings while it is dead in code, the more places
+   re-learn the wrong name. Three sub-steps, all mechanical:
+   - **Decide D-G** — keep the rename (recommended, pre-0.1.x) or revert it. One sentence, in
+     the PR thread, with the reasoning.
+   - **`grep -rn "FeatureCollection"`** and fix every hit: `Feature.Owner`'s docstring,
+     `Features.Crs`'s "this collection", `var fc`, the `collection` vs `features` parameter
+     split (N-3's fifth clause).
+   - **Add all four 0.x breaks to one list** — P-14 (`Reprojector` removal), P-67
+     (`getArea`/`getPerimeter`), P-61 (namespace, when done), P-70 (this) — so the changelog
+     note is written once and nobody has to reconstruct the API history from `Issues.md`.
+2. **Finish the warning sweep that PR #12 started** — the five rows in section 9, in the order
+   that makes each one a decision rather than an annotation:
+   **P-51** (one line, test already exists — cheapest item in the repository, now adjacent to
+   two warning PRs that skipped it), **P-22**'s `addFeatureChild` deletion (deletes `:146`
+   rather than annotating it), **P-42**'s 4-arm key-selector switch (deletes `:73` and the
+   third misspelling in the same edit), `:177`'s `RTreeNode?`, `AttributeTable:57`'s
+   `TryGetValue`. Then `CA1711`'s documented outcome (either the suppression or P-70's
+   accepted break), the scoped `NoWarn` in **both** csprojs, and the Node.js action bumps
+   (P-31 — the only annotation not fixable in C#).
+   **Consider `IDE0005` in `.editorconfig` in this commit** so the unused `using`s P-36 lists
+   become CI-visible; it will flag `GeometryTests.cs` immediately and is the cheapest forcing
    function for that item.
+   **Do not flip `TreatWarningsAsErrors` in this step** unless all five plus the two `NoWarn`s
+   plus a clean test-assembly pass land together — and when it flips, note in the message that
+   test code is gated too.
 2a. **T-23 / P-48.2 — promote ahead of its old slot.** It was sequenced inside step 11's
    R-tree cluster, but PR #11 changed the calculus: `Findable` already exists as an
    independent oracle with a negative control, so the work is converting `FeatureIndicesAt`'s
-   two callers and deleting the self-referential version — not inventing anything. Until it
-   is done, `BulkInsertAllFeaturesFindableByPoint` (500 features, the repository's strongest
-   end-to-end assertion) **cannot detect a regression in the one predicate P-01 just closed**.
-   Cheap, self-contained, test-only, and it restores coverage that `9c7124a` removed.
-3. **P-68 + T-17** — small, and it closes the one coverage hole PR #8 opened (untested
-   write arms). Do it before P-65 so the consolidation starts with both directions pinned.
+   two callers and deleting the self-referential version. Until it is done,
+   `BulkInsertAllFeaturesFindableByPoint` (500 features, the repository's strongest end-to-end
+   assertion) **cannot detect a regression in the one predicate P-01 just closed**. PR #12
+   reinforces the ordering: it is the second R-tree-touching PR in a row that did not fix the
+   oracle, and the gap has had two chances to close.
+3. **P-68 + T-17** — small, and it closes the one coverage hole PR #8 opened (untested write
+   arms), now two commits deeper because PR #12 edited `SpatialWriter.Write` twice with no test.
+   Do it before P-65 so the consolidation starts with both directions pinned.
 4. P-53 + P-36 (one `AssertRel`, shared geometry helpers, shared golden constants, the
    triplicated `TempDir`/`Cleanup`, **rename `GeometryTests` → `BoundingBoxTests`**, fold the
-   duplicate `findByInd` test, unify the `Id`/`zerozero` helper block, and **settle the
-   two-namespace split** before a fifth file lands on the wrong side) — needed *before* the
-   zero-assertion tests land, or they demand bit-exactness.
-5. P-56 + P-57 together (storage convention), then T-1…T-4, T-7, T-13.
+   duplicate `findByInd` test, unify the `Id`/`zerozero` helper block, add a
+   `TestFeatures.With(...)` builder, and **settle the two-namespace split** before a fifth file
+   lands on the wrong side) — needed *before* the zero-assertion tests land, or they demand
+   bit-exactness. **PR #12 supplies the strongest argument yet: ~88 lines of test churn across
+   five files for one rename, all of it avoidable with a shared construction helper, and
+   three of the four P-53 files were open in the same commit and were not consolidated.**
+5. P-56 + P-57 together (storage convention), then T-1…T-4, T-7, T-13. **P-57 is the one to
+   do here rather than later: its line has now appeared inside two whitespace-only diffs, and
+   each one makes it more likely a reviewer skims past it.**
 6. **T-5** — the read-path hole test. Highest value per line in this file.
 7. **T-14** — axis order. One test, closes N-2, and guards the sole remaining transform
    path. Cheap enough to fold into step 6.
 8. P-05 remainder (`Parts[0].IsHole` check, null-hole handling), then **P-21 + D-F
    together**: the silent geometry drop and the filter-and-count policy for extent-less
    features are the same user-visible failure now that `addFeature` throws. Fixing one
-   without the other converts a silent drop into a crash. **PR #11 makes this step cheaper:**
-   the throw now has a guard, so a filter-and-count change can be verified against T-18's
-   three members rather than by inspection — and `AreaOfAnEmptyOrUnreferencedFeatureIsUnknown`
-   already pins the feature-level premise.
-9. T-8…T-11, then P-17 so the cache invariant has no remaining hole (N-10).
+   without the other converts a silent drop into a crash. **PR #12 adds a third member of the
+   same family to fix in one pass:** `SpatialWriter`'s
+   `Parts.Where(p => p.Vertices.Count > 0)` silently drops empty parts on the way out, which
+   is P-69's pattern (P-69's note explains why that belongs here rather than on its own).
+9. T-8…T-11 + **T-25**, then **P-17 across both `Feature.Parts` and `Features.FeatureSet`** so
+   the cache invariant has no remaining hole (N-10). PR #12's `Count`/indexer forwarding makes
+   the façade more urgent, not less.
 10. P-04 and P-03 — the two remaining skips, and P-04 is PR #6's stated purpose.
 11. **R-tree cluster: P-39 + P-62 + P-15 as one box-model change → P-43 →
     P-48 (incl. .2 if not done at 2a, .1, .4) → P-41 + T-20 → P-47 → P-44 → P-02 →
     P-42/P-46/P-50/P-51**, with D-E resolved before P-02 and D-F resolved before P-02's
     tree wiring.
-    - **The shape changed twice since this was written.** P-66 is **closed**, not merely
-      mitigated, so what remains here is (a) the public setters that bypass the invariant —
-      **P-15**, now the highest-value remaining R-tree item, because it is what makes the
-      invariant durable rather than incidental, and it can reuse `addFeature`'s two checks
-      which are themselves now tested — and (b) the `1e308`-class overflow that the finite
-      check lets through.
+    - **P-66 is closed, so what remains here is** (a) the public setters that bypass the
+      invariant — **P-15**, the highest-value remaining R-tree item, and it can reuse
+      `addFeature`'s two checks, which are themselves now tested — and (b) the `1e308`-class
+      overflow the finite check lets through.
     - P-39's change must bundle: the `IsEmpty` representation, guards in
       `Area`/`Perimeter`/`ContainsPoint`/`EnlargementToContain`, the overflow/magnitude
-      bound, P-62's keep-or-delete decisions, **and P-69's `FromVertices` decision** (one
-      more finiteness question in the same file, with a test already written against it).
-      One coherent change to the box model. With `OverlappingArea`'s semantics settled and
-      tested, `Area`/`Perimeter` single-sourced, and the `Empty` behaviours pinned by
-      characterisation tests, this is materially smaller than it was — the guards go in one
-      file and the tests that will turn red are already named in P-39.
+      bound, P-62's keep-or-delete decisions, **P-69's `FromVertices` decision**, and
+      **P-15/P-63's `RTreeNode.BoundingBox` → `MBR` rename**, which is a property-restriction
+      change wearing a naming costume and should not be a separate edit to the same lines.
     - **P-41 last**, because `EnlargementToContain` should not gain a caller until `Empty`
-      and overflow are coherent — substituting it now routes both through `Union`/`Area`
-      with no guard on either side. **This is now a measured hazard, not a hunch:**
-      `Empty.EnlargementToContain(box)` is `−∞`, which sorts first, so an `Empty` node would
-      win every insertion. See P-41's caveat.
+      and overflow are coherent. **This is now a measured hazard, not a hunch:**
+      `Empty.EnlargementToContain(box)` is `−∞`, which sorts first. See P-41's caveat.
+    - **Add P-47's new sub-question at the head of the cluster:** resolve whether
+      `getCandidateFeatNodesByMBR` or `getCandidateEndNodesByMBR` is canonical before wrapping
+      either in a public `Query`. Two traversals, different leaf semantics, one of them never
+      mentioned in this file until now.
 12. Field typing, once, in one change: **P-65** (one mapper, both directions adjacent) with
     **P-64** (reject unrepresentable values; `bool` and `float` arms; `BoolFieldTests`;
     T-19). Both are cheapest immediately after T-16 and T-17 pin both directions, and
     splitting them risks a second round of the same three-file hunt.
 13. Structural cleanups while their files are already open: **P-61** (fold the Reprojection
-    project into `Io` — now with a measured payoff: one fewer GDAL package copy, one fewer
-    `GdalConfiguration.cs`, three fewer warnings, one fewer restore, one fewer CI target),
-    P-23a (`Walk`/`Shoelace`), P-63 (writer/reader hygiene — no alias blocks; rename
-    `RTreeNode.BoundingBox` → `MBR`), P-26 (join duplication). All behaviour-preserving.
+    project into `Io` — one fewer GDAL package copy, one fewer `GdalConfiguration.cs`, three
+    fewer warnings, one fewer restore, one fewer CI target), P-23a (`Walk`/`Shoelace`),
+    P-63 (writer/reader hygiene — no alias blocks; the `MBR` rename is now folded into P-15
+    above), P-26 (join duplication). All behaviour-preserving.
 14. Everything else as touched.

@@ -16,7 +16,7 @@ public sealed class SpatialReader : IFeatureSource
   public SpatialReader(SpatialReaderOptions? options = null) =>
     _options = options ?? new SpatialReaderOptions();
 
-  public FeatureCollection Read(string path)
+  public Features Read(string path)
   {
     Ogr.RegisterAll();
 
@@ -46,7 +46,7 @@ public sealed class SpatialReader : IFeatureSource
 
     CrsInfo crs = needsTransform ? CrsInspector.Inspect(WktOf(target!)) : sourceCrs;
 
-    var fc = new FeatureCollection
+    var fc = new Features
     {
       Name = layer.GetName(),
       Crs = crs,
