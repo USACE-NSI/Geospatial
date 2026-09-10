@@ -54,8 +54,8 @@ public sealed class AttributeTable
   {
     var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
     foreach (var kv in values)
-      if (_columns.ContainsKey(kv.Key))
-        result[kv.Key] = _columns[kv.Key].Coerce(kv.Value);
+      if (_columns.TryGetValue(kv.Key, out var column))
+        result[kv.Key] = column.Coerce(kv.Value);
     return result;
   }
 }
