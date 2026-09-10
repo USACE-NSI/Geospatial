@@ -2,7 +2,7 @@
 
 Single source of truth for known defects and open work.
 
-Reviewed against `feature/remove-duplication` @ `7b4c6aa` (PR #8).
+Reviewed against `feature/remove-duplication` @ `9bee4e4` (PR #8, "fixing long").
 
 ## How to use this file
 
@@ -13,6 +13,12 @@ Reviewed against `feature/remove-duplication` @ `7b4c6aa` (PR #8).
   commit messages are not evidence.
 - Deletions are recorded inline against the item that asked for them, with the commit
   that performed them (`44fbf06`, PR #8 `051e8d8`, …). Do not delete the entry; mark it.
+- A closed item keeps its entry, retitled to what the defect actually was. Several
+  entries here were scoped by guess and turned out narrower (P-06) or wider (P-14).
+- Measurements that cannot be expressed as passing assertions are recorded as prose with
+  their evidence and their citations, not as skipped or permanently-failing tests.
+  See P-64 for the shapefile/GeoJSON int64 measurements and section 5 for why the
+  branch's red tests are not evidence of anything.
 - Section 10 is the recommended work order, not a priority list.
 - P-54, P-55, P-59 and P-20 are cited by other entries but are not defined here. See N-12
   before assuming a number was skipped by accident.
@@ -24,9 +30,9 @@ Reviewed against `feature/remove-duplication` @ `7b4c6aa` (PR #8).
 | ID | Decision |
 |---|---|
 | D-A | **The R-tree stays.** It is foundational, supports bulk add, and outperforms RBush and other .NET implementations. Every R-tree item below is fix work; deletion and replacement are off the table. |
-| D-B | Skipped tests assert behaviour the library *should* have and does not. They are deliberate and are the spec for P-03 and P-04. |
-| D-C | Spike needed: confirm the GDAL 3.11.3 binding surface (`Layer.FieldIndex`, object overloads, `CoordinateTransformationOptions`). Gates P-06 and P-20. **The spike's artifact is gone:** `tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs` was deleted in PR #8 `051e8d8`. It was 100 % commented out and had never answered the question, so nothing was lost — but re-derive the surface against the installed binding rather than looking for that file. Recover the draft with `git show 051e8d8^:tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs`. |
-| D-D | Decide the CRS token/authority model. `Reprojector.CrsToken` moved to `CoordinateTransformer.CrsToken` (private) in PR #8 `051e8d8`, and still prepends `"EPSG:"` to any non-empty `Projection.EpsgCode`, so `"ESRI:102003"` becomes `"EPSG:ESRI:102003"`. GDAL warns about this on every run (see the `EPSG:102003` line in test output). Gates P-14. |
+| D-B | Skipped tests assert behaviour the library *should* have and does not. They are deliberate and are the spec for P-03 and P-04. **The skip budget is exactly two** (N-11); a third skip is a defect being hidden, not a test being deferred. |
+| D-C | **Closed by PR #8 `9bee4e4`.** The binding surface is answered by code that compiles and tests that pass, not by further reflection — see N-14 for why this kept decaying. Settled against the installed GDAL 3.11.3 binding: `Feature.SetField(string, long)` exists and is the correct setter; the int64 getter is `GetFieldAsInteger64` and **`GetFieldAsLong` does not exist**; there is **no** `Layer.FieldIndex` and **no** `object` overload, so the comment in `SpatialWriter.SetOgrField` that this file spent two revisions calling into question was *correct*; and `Layer.GetLayerDefn()` returns `OSGeo.OGR.FeatureDefn` — **there is no `LayerDefn` type** — which production code never noticed because it binds everything with `var`. Neither `Layer.FieldIndex` nor an object overload was ever needed, so neither blocks anything. `CoordinateTransformationOptions` remains unexamined and now gates only P-20. The deleted spike (`ProbeOsrBinding.cs`, PR #8 `051e8d8`) is not worth recovering; `git show 051e8d8^:tests/Nsi.Geospatial.Io.Tests/ProbeOsrBinding.cs` if ever needed. |
+| D-D | Decide the CRS token/authority model. **Correction: the double-prefix defect this row asserted does not exist.** `CoordinateTransformer.CrsToken` tests `StartsWith("EPSG:")` and passes an already-prefixed token through unchanged, so `"ESRI:102003"` does **not** become `"EPSG:ESRI:102003"`, and T-15 as previously written would have passed without testing anything. The warning we blamed on it has a different cause, and it is real: **(a)** `Projection.AlbersUsa`/`Nad83` hardcode `EPSG:` for codes GDAL 3 attributes to `ESRI:` — hence `Warning 1: EPSG:102003 is not a valid CRS code, but ESRI:102003 is. Assuming ESRI:102003 was meant` on every run, with correct results reached only by GDAL's auto-correction. **(b)** `CrsInfo.EpsgCode` is `int?`, so a non-EPSG authority is *unrepresentable*: `CrsInspector` reads `GetAuthorityCode("PROJCS")`, gets `102003`, stores it in a field named `EpsgCode`, silently relabelling the authority — and `SpatialReader.SameCrs` then compares `102003 == 102003` as an authoritative match across two different authorities. **Fix:** carry authority and code as a pair, not more string handling. Gates P-14, T-15. |
 | D-E | Decide whether the R-tree may index a geographic CRS. Its MBR math is planar; a degree-space box is not a metric box. Gates P-02 and P-47. |
 
 ---
@@ -65,17 +71,6 @@ constant to `EarthRadiusEquatorialFeet` and forbid its use in area math.
   change that dropped it would ship green and double-count every donut. See T-5.
 - Multipolygon flattening restarts `r` per sub-polygon, so a two-part multipolygon
   marks hole 1 of each — verify that is intended.
-
-### P-06 Writer field typing  *(needs D-C)*
-`SpatialWriter` does not type fields to match `AttributeColumn`, and carries a comment
-claiming "no object overload, and no `Layer.FieldIndex` in 3.11.3" which contradicts
-the fix prescribed in the 0901 changelog. Resolve D-C, then fix or document.
-Related, and blocking a correct fix: the `FieldType`↔`OGR`↔`CLR` mapping is spread over
-four hand-maintained tables that nothing keeps in agreement —
-`SpatialReader.MapFieldType`, `SpatialWriter.MapFieldType`, `SpatialReader.ReadFieldValue`
-(which decides that `Double|Float|Numeric|Single` are doubles) and
-`AttributeColumn.FieldTypeToType`. Group both directions of each pair in one internal
-mapper so a divergence is visible in the diff.
 
 ### P-08 CSV newlines
 Values containing CR/LF corrupt the CSV round trip. Quote or reject.
@@ -137,10 +132,46 @@ The discarding is explicit and worth deleting with the fix: both join directions
 `_ = tree ?? BuildTree(features);`, which constructs a whole R-tree and throws it away.
 `pointTree` / `polyTree` are therefore pure cost today.
 
+### P-06 `SpatialReader` could not read `OFTInteger64` fields  *(closed by PR #8 `9bee4e4`)*
+`SpatialReader.MapFieldType` had no `OFTInteger64` arm, so a 64-bit integer column in a
+file authored elsewhere was typed `TextFT`, and `ReadFieldValue` accordingly returned a
+boxed `string`. `GetAttribute<long>` produced its value only by accident, via
+`Convert.ChangeType`; anything reading `Attributes[name]` and casting to `long` threw
+`InvalidCastException`.
+
+**Fix (read path only, two arms):** `OFTInteger64 => FieldType.LongFT` in
+`SpatialReader.MapFieldType`, and `LongFT => feat.GetFieldAsInteger64(i)` in
+`SpatialReader.ReadFieldValue`. `GetFieldAsDouble` is **not** an acceptable substitute —
+it transits a `double` and loses the low digits above 2^53.
+
+**Guard:** `FieldTypeTests.LongColumnIsInteger64InGeoJsonToo(value: 4000000000)` —
+asserts declared `OFTInteger64`, then `Assert.IsType<long>`, then value equality. This is
+the suite's only end-to-end proof of both reader arms; either arm can be deleted without
+it. **The guard is circular** — the test authors the file with our own writer — so it
+cannot catch a divergence that appears only for foreign files. T-16 replaces it with a
+hand-written fixture.
+
+**Why a value-only assertion is worthless here, recorded so it is not re-litigated:** a
+`LongFT` column *created as* `OFTString` round-trips `4000000000` perfectly, because
+`Feature.GetAttribute<long>` falls through to `Convert.ChangeType("4000000000", long)`.
+The digits were right the whole time the schema lied. Both the declared OGR field type
+and the boxed CLR type must be asserted, or the test cannot fail.
+
+**Split out of this item, deliberately not fixed:** the write side is **P-64**; the
+`FieldType`↔OGR↔CLR four-table consolidation is **P-65**. This defect recurred precisely
+because of P-65: `LongFT` was missing from three of the four tables.
+
+**Resolved as a side effect:** the comment above `SpatialWriter.SetOgrField` claiming
+"no object overload, and no `Layer.FieldIndex` in 3.11.3" is correct (D-C) and must not be
+restated as doubt. Its trailing `P0-4 … intentionally left unchanged in this class`
+sentence is now false and should be replaced — see N-6 for the numbering collision.
+
 ### P-12 `Ogr.RegisterAll()` thread-safety
 Called on every `Read` **and** on every `Write`. Not idempotent-safe under concurrent
 use. `tests/Nsi.Geospatial.Io.Tests/AssemblyInfo.cs` disables test parallelisation as a
 workaround and names the registration guard as the real fix; that guard is this item.
+Now also called from test code (`FieldTypeTests.DbfWidthAndPrecisionWindow` opens
+datasets directly), i.e. a fourth entry point into the same non-idempotent call.
 
 ### P-14 CRS authority/token model and transform options  *(needs D-D)*  *(half closed)*
 **Closed by PR #8 `051e8d8`:** `Nsi.Geospatial.Reprojection/Reprojector.cs` is deleted,
@@ -154,15 +185,18 @@ this is a breaking public-API removal (note it before 0.1.x is consumed anywhere
 the axis-order guarantee now rests on a single code path with **no test** — see T-14.
 
 Still open:
-- `CoordinateTransformer.CrsToken` still prepends `"EPSG:"` unconditionally (D-D).
-  Guard with T-15 once the model is chosen.
 - `Projection.EpsgCode` is a `string?` carrying an authority-prefixed token, and three
   places independently build or parse that string: `CoordinateTransformer.CrsToken`,
   `SpatialReader.ParseEpsg`, `CrsInspector.ParseCode`. `SpatialReader` formats
   `$"EPSG:{code}"` in `ToProjection` and parses it straight back in `SameCrs` — a
   round-trip through a string inside one method body. Making the field an `int?` (plus a
-  separate authority field if `ESRI:` codes are wanted) deletes all three parsers and the
-  round-trip.
+  separate authority field) deletes all three parsers and the round-trip.
+- **The authority half is now the substantive part** (D-D): the fixtures hardcode
+  `EPSG:102003` for an `ESRI:` code, and `CrsInfo.EpsgCode` being `int?` makes any
+  non-EPSG authority unrepresentable on read. The `EPSG:102003` warning line in every
+  test run is the cheapest reproduction in the repository — cite it.
+- Guard with T-15 once the model is chosen, **rewritten** — the current wording asserts a
+  defect that does not exist.
 - Folded in: P-29 (`CoordinateTransformationOptions` / area-of-interest).
 
 ### P-15 `Root` public setter; no box validation
@@ -250,6 +284,60 @@ GDAL-free) is already satisfied by `Nsi.Geospatial.Io`, and both projects requir
 same native GDAL runtime, so the boundary buys nothing at build or run time.
 **Fix:** fold into `Nsi.Geospatial.Io`, delete the csproj and the solution entry. Public
 namespace change, same caveat as P-14: 0.x breaking removal, document it.
+
+### P-64 `SpatialWriter` accepts values the target format cannot represent, and says nothing  *(new, PR #8 `9bee4e4`)*
+The writer will emit a value the chosen driver cannot store, produce a file whose schema
+reads as correct, and return a plausible **wrong number** on re-read. No exception, no
+warning, no diagnostic.
+
+**Proven instance — GeoJSON, with our type mapping correct.** Writing
+`1_000_000_000_000_000_007` to a `LongFT` column and reading it back yields
+`1000000000000000000` while reporting declared `OFTInteger64` and a boxed `long`.
+Correct schema, correct CLR type, corrupted digits: GDAL's GeoJSON reader parses JSON
+numbers through a `double`, so anything above 2^53 (9 007 199 254 740 992) is rounded.
+This is the worst failure profile in the library — undetectable by the type system, by the
+schema, or by inspecting the output file.
+
+**Measured limits by driver.** The honest supported range is the intersection:
+
+| | \|v\| ≤ 2^53 | \|v\| &gt; 2^53 |
+|---|---|---|
+| GeoJSON | digits and type preserved | digits silently lost |
+| ESRI Shapefile (DBF) | digits preserved; declared type depends on field width | digits lost, type demoted |
+
+**DBF width rule** ([RFC 31](https://gdal.org/en/stable/development/rfc/rfc31_ogr_64.html),
+[shapefile driver](https://gdal.org/en/latest/drivers/vector/shapefile.html)): DBF stores
+no field type, only width and decimals, so GDAL infers on read — an `N` field with 0
+decimals is `OFTInteger` at width ≤ 9, **`OFTInteger64` at width 10–18, `OFTReal` above
+18**. `OFTInteger64` columns are auto-extended "to 19 or 20 if needed", and that
+auto-extension is what crosses the threshold. `ADJUST_TYPE=YES` is the documented open
+option that rescans the DBF to recover the narrower type. Consequence for this library:
+`SpatialWriter` calls `fdefn.SetWidth(c.Length)` with `Length == 0`, so the driver picks,
+and **the width ceiling for a `long` is 18 — never 20.** A width of 20 *causes* the
+demotion rather than preventing it. (An earlier revision of this analysis recommended 20;
+the probe table disproved it — requested widths 0/6/10/18/19 all read back as 19 because
+one 19-digit value in the layer drove every column.)
+
+**Fix:** reject loudly at write time instead of writing a file whose contents changed — a
+per-driver representability check naming the driver. For `long`: support \|v\| ≤ 2^53 in
+every reachable driver, throw above it. This is a *class*, not a `long` symptom —
+oversized strings against a short `TextFT` width and out-of-range dates join it.
+
+**Still open inside P-64, same shape, untested:**
+- `bool` is written as `"1"`/`"0"` into an `OFTString` column (`MapFieldType` has no
+  `BooleanFT` arm) and `AttributeColumn.Coerce`'s `BooleanFT` branch uses `bool.TryParse`,
+  which rejects `"1"`. A `bool` does not survive a round trip as a `bool` — it returns
+  `null`. Needs `BoolFieldTests` mirroring `FieldTypeTests`, plus the three arms.
+- `FloatFT` is written via `SetField(name, (double)fl)`, so a `float` returns as a boxed
+  `double`. Whether that is acceptable is undecided; it is at least undocumented.
+
+**Test debt:** once the writer rejects, `AboveDoublePrecision` must stop being a
+round-trip assertion — the correct test is `Assert.Throws`, which is *stronger*: it pins
+the behaviour instead of merely declining to observe the corruption. `4_000_000_000`
+becomes the positive golden, `9_000_000_000_000_000` the maximum-safe boundary.
+
+**Why P1 and not P0:** it requires the caller to write a type the library never advertised
+support for. Reading is unaffected, and P-06 covers that.
 
 ---
 
@@ -348,6 +436,20 @@ treating the five alike:
   Delete, or justify and test it.
 Resolve inside P-39's change so guards are not written around members about to go.
 
+### P-65 Four hand-maintained field-type tables with nothing keeping them in agreement  *(new; extracted from P-06)*
+The `FieldType`↔OGR↔CLR mapping is spread over `SpatialReader.MapFieldType`,
+`SpatialWriter.MapFieldType`, `SpatialReader.ReadFieldValue` (which additionally decides
+that `Double|Float|Numeric|Single` are all doubles) and `AttributeColumn.FieldTypeToType`.
+Nothing cross-checks them, so adding a type means editing four files and forgetting is
+silent. **P-06 is the proof, not the motivation:** `LongFT` was absent from three of the
+four, and the reader half of the absence was a live defect for any file authored by
+someone else.
+
+**Fix:** one internal `OgrMapping` (or equivalent) holding both directions of each pair
+adjacent, so a divergence is visible in the diff. Behaviour-preserving; no public surface
+change. Land it with P-64, whose `BooleanFT`/`FloatFT` gaps are the same absence in the
+other three tables.
+
 ---
 
 ## 4. P3 — hygiene
@@ -391,16 +493,20 @@ merge safe. Also halves `Measure()`'s work.
 
 ### P-30 README and warnings-as-errors
 Four factual errors in the README; the spherical feature is undocumented.
-`TreatWarningsAsErrors=false` is legitimately required because the GDAL NuGet package's
-own generated `obj/.../GdalConfiguration.cs` emits 3× `CS8600`. Note that
-`[obj/**/*] generated_code = true` suppresses **CA analyzers only** — compiler
+`TreatWarningsAsErrors=false` in `Directory.Build.props` is legitimately required because
+the GDAL NuGet package's own generated `obj/.../GdalConfiguration.cs` emits 3× `CS8600`
+(confirmed present on the `Nsi.Geospatial.Io` build, so a clean CI build will show them).
+Note that `[obj/**/*] generated_code = true` suppresses **CA analyzers only** — compiler
 diagnostics still fire, which is why no `CA` warnings appear from that file but three
 `CS` ones do. Scope `<NoWarn>$(NoWarn);CS8600</NoWarn>` to `Nsi.Geospatial.Io.csproj`
 only — a global one would silence the real `CS8600`s in `RTreeNode.cs`.
 
 ### P-31 SDK policy
-The pinned SDK version is stated five inconsistent ways across `global.json`,
-`ci.yml`, `release.yml`, the README and `Directory.Build.props`.
+The pinned SDK version is stated five inconsistent ways across `global.json`, `ci.yml`,
+`release.yml`, the README and `Directory.Build.props`.
+Sixth inconsistency, and the local machine has already drifted: `dotnet test` reports
+`xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 10.0.11)` while every project
+targets `net8.0`. Nothing noticed, which is the point of pinning.
 
 ### P-32 `IsPackable`
 Test projects are packable.
@@ -424,6 +530,8 @@ absolute-floor guard). Both assertions worth keeping were ported first
 `PointToSegmentEastOfNorthSouthSegmentIsOneDegreeOfLongitude`), and the D-B spec tests
 survived. Two files remain, still in two namespaces inside one assembly — which is *why*
 the duplicate went unnoticed: the classes could not collide by name.
+**Grown by PR #8 `9bee4e4`:** `FieldTypeTests.cs` adds a **third** copy of
+`TempDir()`/`Cleanup()`. Hoist before adding a fourth.
 **Still duplicated:**
 - `Cell(lon, lat, w, h)` — byte-identical in `SphericalMetricsTests` and
   `CrsInspectionTests`. (`LonLatCell(lonMin, lonMax, latMin, latMax)`, the incompatible
@@ -432,7 +540,7 @@ the duplicate went unnoticed: the classes could not collide by name.
   arguments that look interchangeable.)
 - `IntoFeature(Part)` — identical in `SphericalMetricsTests` and `CrsInspectionTests`.
 - `Ring` / `Polygon` / `Geographic()` / `Projected()` — re-derived per class.
-- `TempDir()` / `Cleanup(dir)` — in both Io test classes.
+- `TempDir()` / `Cleanup(dir)` — now in all three Io test classes.
 - **Golden values duplicated across assemblies:** `8.8187588297044e9` is
   `SphericalMetricsTests.CellAt44N` *and* a bare literal in `CrsInspectionTests`; ditto
   `8.8373695264e9` / `EllipsoidCellAt44N`. Changing `EarthRadiusAuthalicMeters` therefore
@@ -450,6 +558,10 @@ the duplicate went unnoticed: the classes could not collide by name.
 `BuildOgrGeometry` builds geometry through the OGR API because `CreateFromWkt` rejects
 valid polygon WKT on the 3.11.3 binding. Keep that comment; without it the helpers look
 like an accidental omission.
+**Recurrence to avoid:** `9bee4e4` added two more diagnostic-only tests
+(`DbfWidthAndPrecisionWindow`, `DbfInt64Probe.ReportDeclaredTypePerWidthAndPrecision`),
+both unconditional `Assert.Fail`. They earned their keep as measurement, but they must
+not reach `main` — see section 5.
 
 ### P-38 `Feature.ShapeType` vs `FeatureCollection.ShapeType`
 Two sources of truth, free to disagree.
@@ -464,14 +576,27 @@ produce same-level siblings. Add the guard while in the file; do not prioritise.
 `Nsi.Geospatial.Geometry`, so IDEs auto-suggest `Nsi.Geospatial.Geometry.Enums` — which
 cost a real compile error during this branch. Decide the convention across `Enums/`.
 
-### P-63 Writer/reader local hygiene  *(new, PR #8 review)*
+### P-63 Writer/reader local hygiene  *(new, PR #8 review; alias advice reversed)*
 - `SpatialWriter`'s polygon branch states the degenerate-ring guard twice with different
   messages and identical conditions (`i == 0 && verts.Count < 3`,
   `i > 0 && verts.Count < 3`). One guard naming the role in the message.
-- `SpatialReader` and `SpatialWriter` carry ~15 fully-qualified names per file
-  (`global::System.IO.File`, `global::System.Globalization.CultureInfo`,
-  `OSGeo.OGR.Feature`, `Nsi.Geospatial.Enums.FieldType`) to dodge two collisions. Two
-  `using` alias blocks per file remove the noise without changing behaviour.
+- **Do not add `using` alias blocks to `SpatialReader`/`SpatialWriter`.** This entry
+  originally recommended them; the evidence says the opposite. Io is already 100 %
+  consistent about fully-qualified `OSGeo.OGR.*`, and that style is load-bearing rather
+  than accidental: inside `namespace Nsi.Geospatial.Io.Tests`, bare `Geometry` binds to
+  the namespace `Nsi.Geospatial.Geometry` — C# resolves enclosing namespaces before
+  consulting file-level `using` directives — so `using OSGeo.OGR;` is never reached and
+  you get `CS0118: 'Geometry' is a namespace but is used like a type`. Bare `Feature`, by
+  contrast, resolves to *OGR's*, because `Feature` is not a direct member of
+  `Nsi.Geospatial`. Same file, opposite outcomes, one rule. An alias block would make
+  `Feature` mean ours — a behaviour change, not a readability fix. Keep aliases only where
+  both names are genuine members and the alias is the only disambiguator, i.e. `FieldType`
+  (as in `FieldTypeTests`).
+- `dotnet format` details that will bite, both from `.editorconfig`: `indent_size = 2` for
+  `*.cs`, and `csharp_style_var_when_type_is_apparent = true:warning`. `dotnet format`
+  defaults to `--severity-level warn`, so explicit types where the type is apparent get
+  rewritten and `--verify-no-changes` fails on them. That is why production code uses `var`
+  everywhere, and it is the likeliest CI trip in any new test file.
 - README calls the core project `Nsi.Geospatial.Core` while the assembly is
   `Nsi.Geospatial` (P-30). The split test namespaces in P-36 are the fossil record of
   that abandoned rename; settle the name once.
@@ -493,6 +618,25 @@ cost a real compile error during this branch. Decide the convention across `Enum
 
 Residue the PR created, all small: `"peremiter"` label, `Deg2Rad` inconsistency, and the
 axis-order guarantee now resting on one untested path (T-14) — all filed above.
+
+### Added by PR #8 `9bee4e4` ("fixing long") — +345/−54, behaviour change on the read path
+| Change | Recorded under |
+|---|---|
+| `SpatialReader.MapFieldType` `+ OFTInteger64 => LongFT`; `ReadFieldValue` `+ LongFT => GetFieldAsInteger64` | **P-06 closed** |
+| `SpatialWriter.MapFieldType` `+ LongFT => OFTInteger64`; `SetOgrField` `case long l:` no longer casts to `int` | P-64 (partial — write path still unbounded) |
+| `D-C` answered by compiling, not by reflection | **D-C closed**, N-14 |
+| `FieldTypeTests.cs` added, incl. two `Assert.Fail` diagnostics and a third `TempDir` copy | P-36, P-37 |
+
+**The branch is red at `9bee4e4` and must not merge as-is** (`total: 107, failed: 5,
+skipped: 2`). All five failures are in the new file and none is a production defect:
+`DbfWidthAndPrecisionWindow` and `DbfInt64Probe.ReportDeclaredTypePerWidthAndPrecision`
+are deliberate `Assert.Fail` diagnostics; the two shapefile theory cases and
+`LongColumnIsInteger64InGeoJsonToo(value: 1000000000000000007)` assert round trips above
+the formats' documented limits and **can never pass** (P-64). Delete all four in the
+commit that closes P-06, leaving the passing `value: 4000000000` cases as the guard.
+Also verify `SpatialWriter`'s `SetWidth` call did **not** land with a `LongFT`-specific
+width of 20 — that value causes the demotion (P-64); the ceiling is 18, or leave it at
+`c.Length`.
 
 ### P-07 Open vs closed geometry  *(substantially done)*
 Done: `PartType` enum; required `Part(PartType)` constructor; `Kind` get-only;
@@ -531,7 +675,8 @@ test T-8.
 | T-12 | `EmptyPartDoesNotInflateFeatureBoundingBox` | P-39 |
 | T-13 | Degenerate ring `[A,B,A]` — assert whichever of `0.0` / `null` is chosen, in both CRS kinds | P-07 |
 | T-14 | **`ReprojectToUsesTraditionalGisOrder`** — read a lon/lat fixture into a projected CRS and assert X is still longitude. Also closes N-2 (`Transformer_EatsLonLatNotLatLon`). The only path that pins axis order now, since the P/Invoke path that ignored it was deleted in PR #8 | P-14 |
-| T-15 | `CrsTokenDoesNotDoublePrefixANonEpsgAuthority` — `Projection(epsgCode: "ESRI:102003")` must not produce `"EPSG:ESRI:102003"` | D-D, P-14 |
+| T-15 | ~~`CrsTokenDoesNotDoublePrefixANonEpsgAuthority`~~ **invalid as written — it passes today**, because the `StartsWith("EPSG:")` guard already exists (D-D). Rewrite once the model is chosen, to assert what should hold: `Projection("ESRI:102003")` resolves to the same SRS GDAL reports for `ESRI:102003` **without emitting a warning**, and `CrsInfo` round-trips the authority rather than relabelling it `EpsgCode` | D-D, P-14 |
+| T-16 | **`ReadsAnInteger64AuthoredElsewhere`** — hand-write a GeoJSON fixture as text (`"BIG":4000000000, "SMALL":7`), read it, assert `BIG` is boxed `long` / `Schema["BIG"].FieldType == LongFT` and `SMALL` is still boxed `int`. Non-circular by construction: no writer is involved, so it cannot be fooled by our writer agreeing with our reader, and it pins the `Integer`/`Integer64` split that P-65's consolidation could collapse | P-06 guard (replaces the circular one), P-65 |
 
 ---
 
@@ -552,6 +697,9 @@ test T-8.
   derives `IsHole = !Direction`*" — `Part.Direction` was deleted in `44fbf06`, so the
   comment now describes an invariant the code cannot enforce.
   `grep -rn "CloseRing\|Direction" --include=*.cs .` after each cleanup.
+  **Add one more to sweep:** `grep -rn "P0-4\|intentionally left unchanged"` — the
+  `SpatialWriter.SetOgrField` comment now asserts the code does something it no longer
+  does (N-6).
 - **N-5** `CHANGES_09012026.md` below P3-5 and parts of `CHANGES_09082026.md`'s narrative
   have never been readable through any fetch path. Do not assume they are empty.
 - **N-6** Keep `CHANGES_08312026.md`'s `fix(#N)` legend: those markers live in
@@ -559,6 +707,10 @@ test T-8.
   `Feature`, and they index *that* file, not this one. `CHANGES_08312026.md` also claims
   the R-tree files are "restored verbatim from master, all original typos included" —
   that has been false since `16585ef` and `ac3bb82`.
+  **Live collision, worth fixing on sight:** `SpatialWriter.SetOgrField`'s comment carries
+  `P0-4`, which reads as `P-04` in this file (`EarthRadiusFeet`) but means
+  `CHANGES_08312026.md` item 4 (field typing). Two unrelated defects, one glyph, in the
+  one method whose behaviour this branch just changed.
 - **N-7** Timeline rule: `CHANGES_09012026.md`'s P0-1 blamed the containment gate for
   missing features; `16585ef` fixed the actual cause (MBR propagation) four and a half
   hours later and the changelog was never reconciled. Any row citing 0901 P0-1 must be
@@ -570,23 +722,36 @@ test T-8.
   behind its back. That holds for `Part` (`Vertices` is read-only) but **not** for
   `Feature.Parts` (P-17) or `FeatureCollection.Features` (also a public `List`). Fixing
   P-17 should close the last hole.
-- **N-11** `dotnet test` currently reports 2 skips: `EarthRadiusFeetIsTheAuthalicRadiusIn
-  Feet` (P-04) and `PointToSegmentWhenFootIsBehindTheNearEndpointReturnsDistanceToA`
-  (P-03). Those two are the entire skip budget; a new skip is a new defect being hidden.
-  (`RTreeTests.BulkInsertAllFeaturesFindableByPoint` carries a commented-out `Skip` from
-  `16585ef`; leave it as history, do not re-enable.)
+- **N-11** `dotnet test` at `9bee4e4` reports `total: 107, failed: 5, succeeded: 100,
+  skipped: 2`. The two skips are unchanged and are the entire skip budget:
+  `EarthRadiusFeetIsTheAuthalicRadiusInFeet` (P-04) and
+  `PointToSegmentWhenFootIsBehindTheNearEndpointReturnsDistanceToA` (P-03). A new skip is
+  a new defect being hidden. The five failures are all in the new `FieldTypeTests.cs` and
+  are *not* hidden defects — see section 5 for why each must be deleted rather than
+  relaxed. (`RTreeTests.BulkInsertAllFeaturesFindableByPoint` carries a commented-out
+  `Skip` from `16585ef`; leave it as history, do not re-enable.)
 - **N-12** Dangling `P-` references: **P-20** (cited by D-C), **P-54** (cited by P-13,
   T-8, and `Part`'s `_measuredCrs` comment), **P-55** (cited by P-22, and its subject
   `Feature._crs` no longer exists), **P-59** (cited twice by section 9) have no entry in
   this file. Either they were closed by deletion without the citations being cleaned, or
   they live in the unreadable changelogs (N-5). Do not reuse these numbers; restore the
-  definitions or mark the citations dead.
+  definitions or mark the citations dead. D-C's closure removes one citation to P-20 but
+  P-20 itself is still undefined.
 - **N-13** Duplication tends to arrive as a *second* correct implementation rather than a
   second broken one. Three cases so far: `BoundingBox.Overlaps` vs
   `RTreeNode.getMBRoverlap` (P-01), `BoundingBox.EnlargementToContain` vs
   `getAddedSizeToAccomodate` (P-41), and two reprojection engines with different axis
   handling (P-14). When adding a predicate, grep for one that already exists — and when
   deleting a duplicate, check whether the survivor is the *correct* one.
+- **N-14** Answer a binding-surface question by compiling against it, not by reflecting
+  over it. D-C sat open across two revisions and talked itself into contradicting the
+  0901 changelog, because each reflection pass produced another unreadable dump instead of
+  a yes/no. Three lines of code settled it: `SetField(string, long)` exists, the getter is
+  `GetFieldAsInteger64` (`GetFieldAsLong` does not exist), and `GetLayerDefn()` returns
+  `FeatureDefn` (there is no `LayerDefn`). The compile errors that produced this —
+  `CS0104` ambiguity, two `CS0246`s, `CS0118` — were the answer all along. Corollary: when
+  a comment in production code contradicts a changelog, compile a probe before editing
+  either.
 
 ---
 
@@ -599,6 +764,9 @@ test T-8.
   `Max/MinChidrens` explicitly `= 0` — check which is the real default, against P-43).
   Line numbers shifted after PR #8 removed the unused `using` blocks — re-run a clean
   build before annotating.
+  Separate and *not* ours: 3× `CS8600` on the `Nsi.Geospatial.Io` build, all from the
+  package-generated `obj/.../GDAL/3.11.3/GdalConfiguration.cs`. Cannot fail CI while
+  `TreatWarningsAsErrors=false`; scoped `NoWarn` per P-30 is the only action.
 - **`CA1829` at `RTreeNode.cs:104` may be a hot path.** If line 104 is the split loop's
   bound, `Children.Count()` allocates an enumerator on every iteration of a loop that
   runs on every insert. Hoist it.
@@ -611,20 +779,30 @@ test T-8.
   has been failing. See P-59 for why the diff may be much larger than expected. Note also
   that PR #8 relocated test bodies by hand (`7b4c6aa`) — hand-moved blocks are the
   classic csharpier failure, so re-verify the format step on the PR head before assuming
-  the remaining diff predates it.
+  the remaining diff predates it. `9bee4e4` adds a new file with `using`-alias blocks,
+  explicit types where the type is apparent, and no repo precedent for its formatting;
+  check `dotnet format tests/Nsi.Geospatial.Io.Tests/FieldTypeTests.cs
+  --verify-no-changes` first, as the cheapest way to find out whether the format step is
+  still failing for the old reasons or for new ones (P-63).
 
 ---
 
 ## 10. Recommended order
 
+0. **Make the branch green before anything else.** Delete the two `Assert.Fail`
+   diagnostics and the two above-2^53 round-trip cases from `FieldTypeTests.cs`; verify
+   no `SetWidth(20)` landed; confirm the format step's status on the head (section 9).
+   Until then no other step in this list can be measured.
 1. Green build and format: the six real warnings, `CA1711` suppression, P-59, then
-   `TreatWarningsAsErrors=true`. Re-run format on the PR #8 head first (section 9).
-2. P-53 + P-36 (one `AssertRel`, shared geometry helpers, shared golden constants) —
-   needed *before* the zero-assertion tests land, or they demand bit-exactness.
+   `TreatWarningsAsErrors=true`.
+2. P-53 + P-36 (one `AssertRel`, shared geometry helpers, shared golden constants, and
+   the now-triplicated `TempDir`/`Cleanup`) — needed *before* the zero-assertion tests
+   land, or they demand bit-exactness.
 3. P-56 + P-57 together (storage convention), then T-1…T-4, T-7, T-13.
 4. **T-5** — the read-path hole test. Highest value per line in this file.
 5. **T-14** — axis order. One test, closes N-2, and guards the sole remaining transform
-   path. Cheap enough to fold into step 4.
+   path. Cheap enough to fold into step 4. **T-16** also belongs here: it is one small
+   fixture and it replaces P-06's only circular guard.
 6. P-05 remainder (`Parts[0].IsHole` check, null-hole handling), P-21 (silent geometry
    drop — likely to surface as T-3 failures).
 7. T-8…T-12, then P-17 so the cache invariant has no remaining hole (N-10).
@@ -633,8 +811,11 @@ test T-8.
    P-42/P-46/P-50/P-15/P-51**, with D-E resolved before P-02. P-62 moves first so P-01
    and P-41 can consume `Overlaps`/`EnlargementToContain` instead of re-deriving them,
    and P-22's `addFeatureChild`/dead-field deletions ride along.
-10. Structural cleanups while their files are already open: P-61 (fold the Reprojection
-    project into `Io`), P-23a (`Walk`/`Shoelace`), P-63 (writer/reader hygiene), P-26
-    (join duplication). All behaviour-preserving; all cheapest immediately after the
-    tests in steps 2–7 are green.
-11. Everything else as touched.
+10. Field typing, once, in one change: **P-65** (one mapper, both directions adjacent)
+    with **P-64** (reject unrepresentable values; `bool` and `float` arms;
+    `BoolFieldTests`). Both are cheapest immediately after T-16 pins the read side, and
+    splitting them risks a second round of the same three-file hunt.
+11. Structural cleanups while their files are already open: P-61 (fold the Reprojection
+    project into `Io`), P-23a (`Walk`/`Shoelace`), P-63 (writer/reader hygiene — no alias
+    blocks), P-26 (join duplication). All behaviour-preserving.
+12. Everything else as touched.
