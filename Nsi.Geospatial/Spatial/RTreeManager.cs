@@ -17,6 +17,21 @@ public class RTreeManager
 
   public void addFeature(int[] featInd, BoundingBox bbox)
   {
+    if (bbox == BoundingBox.Empty)
+    {
+      throw new ArgumentException($"Feature has no extent and cannot be indexed.", nameof(bbox));
+    }
+
+    if (
+      !double.IsFinite(bbox.MinX)
+      || !double.IsFinite(bbox.MinY)
+      || !double.IsFinite(bbox.MaxX)
+      || !double.IsFinite(bbox.MaxY)
+    )
+    {
+      throw new ArgumentException($"Feature has non-finite extent {bbox}.", nameof(bbox));
+    }
+
     RTreeNode featNode = new(this, MaxChildren, MinChildren, featInd);
     featNode.BoundingBox = bbox;
     Root.addFeatureChildEnforceIntersect(featNode);

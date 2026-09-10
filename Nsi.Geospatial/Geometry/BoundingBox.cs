@@ -66,7 +66,29 @@ public struct BoundingBox
 
   public bool ContainsPoint(double x, double y) => MinX <= x && x <= MaxX && MinY <= y && y <= MaxY;
 
+  /// <summary>
+  /// Area shared with <paramref name="other"/>; 0 when the boxes miss or merely touch.
+  /// Zero-area contact is <see cref="Overlaps"/>'s question, not this one's.
+  /// </summary>
+  public double OverlappingArea(BoundingBox other)
+  {
+    if (this == Empty || other == Empty)
+      return 0;
+
+    double dx = Math.Min(MaxX, other.MaxX) - Math.Max(MinX, other.MinX);
+    if (dx <= 0)
+      return 0;
+
+    double dy = Math.Min(MaxY, other.MaxY) - Math.Max(MinY, other.MinY);
+    if (dy <= 0)
+      return 0;
+
+    return dx * dy;
+  }
+
   public double Area() => (MaxX - MinX) * (MaxY - MinY);
+
+  public double Perimeter() => 2 * ((MaxX - MinX) + (MaxY - MinY));
 
   public BoundingBox Union(BoundingBox other)
   {
@@ -96,3 +118,4 @@ public struct BoundingBox
 
   public static bool operator !=(BoundingBox a, BoundingBox b) => !(a == b);
 }
+

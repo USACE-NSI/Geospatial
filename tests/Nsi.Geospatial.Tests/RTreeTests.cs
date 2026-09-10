@@ -109,10 +109,11 @@ public class RTreeTests
       foreach (var child in leaf.Children)
       {
         var ind = child.FeatureIndex;
-        if (ind is not null && child.getMBRoverlap(new BoundingBox(x, y, x, y)) > 0)
+        if (ind is not null && child.BoundingBox.Overlaps(new BoundingBox(x, y, x, y)))
           indices.Add(ind[0]);
       }
     }
     return indices;
   }
 }
+
