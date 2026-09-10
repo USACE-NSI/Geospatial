@@ -11,4 +11,4 @@ Geospatial model + spatial-index + IO library for HEC/USACE-NSI workflows.
 GDAL managed assemblies plus the native GDAL runtime on `PATH` (or `GDAL_DATA`/`PROJ_LIB` set).
 
 ## Conventions
-File-scoped namespaces, nullable enabled, `TreatWarningsAsErrors`. No `Microsoft.VisualBasic`.
+File-scoped namespaces, nullable enabled, `TreatWarningsAsErrors=false`. No `Microsoft.VisualBasic`.
