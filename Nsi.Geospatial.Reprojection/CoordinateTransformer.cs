@@ -87,7 +87,7 @@ public sealed class CoordinateTransformer : IDisposable
   /// </summary>
   private static SpatialReference CreateSpatialReference(Projection projection, string argName)
   {
-    string token = Reprojector.CrsToken(projection, argName);
+    string token = CrsToken(projection, argName);
     var srs = new SpatialReference(null);
     if (srs.SetFromUserInput(token) != 0)
     {
@@ -102,4 +102,15 @@ public sealed class CoordinateTransformer : IDisposable
     srs.SetAxisMappingStrategy(AxisMappingStrategy.OAMS_TRADITIONAL_GIS_ORDER);
     return srs;
   }
+
+  private static string CrsToken(Projection p, string argName)
+  {
+    string? epsg = p.EpsgCode;
+    if (!string.IsNullOrWhiteSpace(epsg))
+      return epsg.StartsWith("EPSG:", StringComparison.OrdinalIgnoreCase) ? epsg : $"EPSG:{epsg}";
+    if (!string.IsNullOrWhiteSpace(p.Wkt))
+      return p.Wkt!;
+    throw new ArgumentException($"{argName} must supply an EpsgCode or Wkt.", argName);
+  }
 }
+

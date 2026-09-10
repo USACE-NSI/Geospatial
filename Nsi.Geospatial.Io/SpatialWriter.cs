@@ -185,27 +185,9 @@ public sealed class SpatialWriter : IFeatureSink
     }
   }
 
-  /// A WKT ring must be closed: repeat the first vertex unless the ring already is.
-  private static List<Vertex> ClosedRing(Part part)
-  {
-    var verts = new List<Vertex>(part.Vertices);
-    if (verts.Count > 1 && verts[0].Coordinates != verts[^1].Coordinates)
-      verts.Add(verts[0]);
-    return verts;
-  }
-
-  /// "x y, x y, ..." for one ring or line, invariant-culture coordinates.
-  private static string RingWkt(IReadOnlyList<Vertex> ring) =>
-    string.Join(", ", ring.Select(v => $"{Fmt(v.X)} {Fmt(v.Y)}"));
-
-  private static string Fmt(double value) =>
-    value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);
-
   // The OSGeo binding's SetField takes a field NAME plus a typed value (no object
   // overload, and no Layer.FieldIndex in 3.11.3), so resolve by name and dispatch
   // on the CLR value type. The string setter works for any OGR field type.
-  // P0-4 (long→int cast, Long→OFTString, bool "1"/"0") is a known adjacent issue,
-  // intentionally left unchanged in this class.
   private static void SetOgrField(OSGeo.OGR.Feature f, string name, object? value)
   {
     if (value is null)
@@ -222,7 +204,7 @@ public sealed class SpatialWriter : IFeatureSink
         f.SetField(name, i);
         break;
       case long l:
-        f.SetField(name, (int)l);
+        f.SetField(name, l);
         break;
       case float fl:
         f.SetField(name, (double)fl);
@@ -256,6 +238,7 @@ public sealed class SpatialWriter : IFeatureSink
     t switch
     {
       Nsi.Geospatial.Enums.FieldType.IntegerFT => OSGeo.OGR.FieldType.OFTInteger,
+      Nsi.Geospatial.Enums.FieldType.LongFT => OSGeo.OGR.FieldType.OFTInteger64, // new
       Nsi.Geospatial.Enums.FieldType.DoubleFT
       or Nsi.Geospatial.Enums.FieldType.FloatFT
       or Nsi.Geospatial.Enums.FieldType.NumericFT

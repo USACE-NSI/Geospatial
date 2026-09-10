@@ -48,6 +48,7 @@ public class SphericalMetricsTests
 
   private const double QuarterMeridian = 10007557.1760931872; // pi/2 * Rmean
   private const double OneDegree = 111195.0797343687; // pi/180 * Rmean
+  private const double Deg2Rad = Math.PI / 180.0;
 
   // ---------------------------------------------------------------- helpers
 
@@ -463,6 +464,18 @@ public class SphericalMetricsTests
   }
 
   // ======================================================== SphericalPerimeter
+  [Fact]
+  public void SphericalPerimeterIsTheSumOfGreatCircleEdges()
+  {
+    var ring = Cell(0, 44);
+    double expected = 0;
+    for (int i = 0; i < ring.Count; i++)
+    {
+      expected += GeometryMath.SphericalDistance(ring[i], ring[(i + 1) % ring.Count]);
+    }
+
+    Rel(expected, GeometryMath.SphericalPerimeter(ring), 1e-12, "perimeter = sum of edges");
+  }
 
   [Fact]
   public void SphericalPerimeterOfClosedCellSumsItsEdges()
@@ -534,6 +547,20 @@ public class SphericalMetricsTests
   }
 
   // ============================================ SphericalPointToSegmentDistance
+  [Fact]
+  public void PointToSegmentEastOfNorthSouthSegmentIsOneDegreeOfLongitude()
+  {
+    // Segment runs north along lon 0 from the equator; the perpendicular from
+    // (1E, 0N) is the equator itself, meeting the segment at its endpoint.
+    double expected = GeometryMath.EarthRadiusMeanMeters * Deg2Rad;
+
+    Rel(
+      expected,
+      GeometryMath.SphericalPointToSegmentDistance((1, 0), (0, 0), (0, 1)),
+      1e-9,
+      "cross-track meeting the near endpoint"
+    );
+  }
 
   [Fact]
   public void PointToSegmentWhenFootIsInsideSegmentIsTheCrossTrackDistance()
