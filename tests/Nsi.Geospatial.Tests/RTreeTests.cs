@@ -7,9 +7,10 @@ using Xunit;
 namespace Nsi.Geospatial.Tests;
 
 /// <summary>
-/// Tests for the original RTreeManager/RTreeNode algorithm (restored verbatim).
-/// These assert the original implementation's behavior — including its
-/// getMBRoverlap gate semantics — and deliberately do NOT assert fixed behavior.
+/// Tests for RTreeManager/RTreeNode: index construction, split behaviour, and search.
+/// The original algorithm's getMBRoverlap gate was deleted in 9c7124a in favour of
+/// BoundingBox.Overlaps; where a test pins post-fix behaviour it says so in its own
+/// docstring. See Issues.md P-48 for what still has no coverage.
 /// </summary>
 public class RTreeTests
 {
