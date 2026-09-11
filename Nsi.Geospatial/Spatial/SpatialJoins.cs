@@ -153,7 +153,9 @@ public static class SpatialJoins
         best = Math.Min(best, GeometryMath.Distance((px, py), (first.X, first.Y)));
         continue;
       }
-      for (int i = 0; i < part.Vertices.Count - 1; i++)
+      int n = part.Vertices.Count;
+      int edges = part.IsRing ? n : n - 1; // ClosedWalk's %n rule
+      for (int i = 0; i < edges; i++)
       {
         Vertex a = part.Vertices[i];
         Vertex b = part.Vertices[i + 1];
@@ -200,3 +202,4 @@ public static class SpatialJoins
 
   private static bool ContainsIndex(int index, long candidate) => candidate == index;
 }
+
