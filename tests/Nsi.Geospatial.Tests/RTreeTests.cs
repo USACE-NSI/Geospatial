@@ -274,6 +274,93 @@ public class RTreeTests
   }
 
   /// <summary>
+  /// T-23, the case the diagonal grid avoids: every box overlaps its neighbours, so
+  /// interior node unions overlap and a pruning predicate has room to be wrong.
+  /// Boxes are [4i, 4i+9] in both axes -- consecutive features overlap by 5 units.
+  /// </summary>
+  [Fact]
+  public void OverlappingBoxesAreNeverDroppedAndTheFilterStillFilters()
+  {
+    const int count = 200;
+    var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
+    for (int i = 0; i < count; i++)
+    {
+      tree.addFeature([i], OverlappingBox(i));
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+      double qx = i * 4 + 4.5;
+      double qy = i * 4 + 4.5;
+      var candidates = CandidateFeatureIds(tree, qx, qy);
+
+      Assert.True(
+        candidates.Contains(i),
+        $"feature {i} contains ({qx},{qy}) but the traversal did not offer it"
+      );
+
+      // On overlapping data this stops being free: feature i overlaps only i-1, i and
+      // i+1, so a working filter offers at most a handful of the 200.
+      Assert.True(
+        candidates.Count <= 8,
+        $"query ({qx},{qy}) offered {candidates.Count} of {count}: the index is not pruning"
+      );
+    }
+  }
+
+  /// <summary>
+  /// T-23, "no MBR-propagation test". Asserts the union EXACTLY, not merely coverage --
+  /// coverage passes on a box that grew too large, which is the shape P-42's addChild into
+  /// throwaway nodes would produce. Walked from Root by direct recursion so a traversal bug
+  /// cannot mask a propagation bug.
+  /// </summary>
+  [Fact]
+  public void EveryNodeBoxIsExactlyTheUnionOfItsChildren()
+  {
+    const int count = 200;
+    var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
+    for (int i = 0; i < count; i++)
+    {
+      tree.addFeature([i], OverlappingBox(i));
+    }
+
+    AssertIsExactUnion(tree.Root);
+
+    // One closed-form value that catches drift anywhere in the tree: the root must be the
+    // bounding box of every feature ever inserted, no larger.
+    double edge = (count - 1) * 4 + 9;
+    Assert.Equal(new BoundingBox(0, 0, edge, edge), tree.Root.BoundingBox);
+  }
+
+  /// Box for feature i: [4i, 4i+9] in both axes, so neighbours overlap by 5 units.
+  private static BoundingBox OverlappingBox(int i) => new(i * 4, i * 4, i * 4 + 9, i * 4 + 9);
+
+  private static void AssertIsExactUnion(RTreeNode node)
+  {
+    if (node.Children.Count == 0)
+    {
+      return;
+    }
+
+    double minX = double.MaxValue,
+      minY = double.MaxValue,
+      maxX = double.MinValue,
+      maxY = double.MinValue;
+
+    foreach (var child in node.Children)
+    {
+      var b = child.BoundingBox;
+      minX = Math.Min(minX, b.MinX);
+      minY = Math.Min(minY, b.MinY);
+      maxX = Math.Max(maxX, b.MaxX);
+      maxY = Math.Max(maxY, b.MaxY);
+      AssertIsExactUnion(child);
+    }
+
+    Assert.Equal(new BoundingBox(minX, minY, maxX, maxY), node.BoundingBox);
+  }
+
+  /// <summary>
   /// T-23 / P-48.2. BulkInsertAllFeaturesFindableByPoint asserts through FeatureIndicesAt,
   /// which calls BoundingBox.Overlaps -- the same predicate getCandidateFeatNodesByMBR uses.
   /// A wrong Overlaps makes the traversal and the helper agree, so the test passes on the
