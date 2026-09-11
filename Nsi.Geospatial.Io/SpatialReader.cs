@@ -264,7 +264,15 @@ public sealed class SpatialReader : IFeatureSource
       // Shapefiles have no true date field; the OSGeo binding's GetFieldAsDateTime
       // returns void, so read the date as a string instead.
       Nsi.Geospatial.Enums.FieldType.DateFT => feat.IsFieldSet(i) ? feat.GetFieldAsString(i) : null,
-      _ => feat.GetFieldAsString(i),
+      // Text and bool both arrive as strings, because the writer declares BooleanFT as
+      // OFTString. One policy in two places -- change both or neither (P-21).
+      Nsi.Geospatial.Enums.FieldType.TextFT or Nsi.Geospatial.Enums.FieldType.BooleanFT =>
+        feat.GetFieldAsString(i),
+      _ => throw new ArgumentOutOfRangeException(
+        nameof(type),
+        type,
+        "FieldType has no OGR accessor; add it here rather than reading a value as text."
+      ),
     };
 
   private static ShapeType MapGeomType(wkbGeometryType t) =>
