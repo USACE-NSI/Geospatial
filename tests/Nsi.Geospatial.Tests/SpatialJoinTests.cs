@@ -8,6 +8,9 @@ namespace Nsi.Geospatial.Core.Tests;
 
 public class SpatialJoinTests
 {
+  /// CA1861: the join methods take string[] and are called from more than one test here.
+  private static readonly string[] IdFields = ["ID"];
+
   [Fact]
   public void NearestPointsToPolygonsFirstJoinCopiesValue()
   {
@@ -44,30 +47,72 @@ public class SpatialJoinTests
     Assert.Equal(42.0, p1.Attributes["VALUE"]);
   }
 
+  /// <summary>
+  /// T-7 / P-56: the nearest polygon must not depend on whether the caller typed
+  /// the closing vertex. Part permits either authoring (see its Vertices docstring)
+  /// and the metric primitives close implicitly, so the join has to as well.
+  ///
+  /// The answer and the failure pick different winners, which is the only way to
+  /// guard a private distance method through the public API:
+  ///   A measures 1.0 (foot at (0,5) on its left edge) but its nearest VERTEX is
+  ///   (0,0) at sqrt(26) = 5.0990.  B measures 3.6401, vertex and edge alike.
+  /// So a loop that degenerates to nearest-vertex picks B, and a loop that skips
+  /// the closing edge picks B for the open authoring only.
+  /// </summary>
   [Theory]
-  [InlineData(false)] // authored open
-  [InlineData(true)] // authored closed — the representation Part permits either way
-  public void JoinDistanceIsRepresentationIndependent(bool closeTheRing)
+  [InlineData(false)] // authored open: the wrap supplies the closing edge
+  [InlineData(true)] // authored closed: the closing edge is an ordinary edge
+  public void NearestPolygonIsIdenticalUnderEitherRingAuthoring(bool closeAuthoredRing)
   {
-    Feature Square()
-    {
-      var p = new Part(PartType.Ring);
-      foreach (var (x, y) in new[] { (0d, 0d), (10d, 0d), (10d, 10d), (0d, 10d) })
-        p.AddVertex(new Vertex(x, y));
-      if (closeTheRing)
-        p.AddVertex(new Vertex(0, 0));
-      var f = new Feature();
-      f.AddPart(p);
-      return f;
-    }
-    var polys = new Features { Crs = Projected };
-    polys.AddFeature(Square()); // nearest, distance 1.0
-    polys.AddFeature(SquareAt(2, 4, 4, 6)); // distance 3.0
-    var pts = new Features { Crs = Projected };
+    var polys = new Features { ShapeType = ShapeType.Polygon };
+    polys.Schema.AddField("ID", FieldType.IntegerFT, 10, 0);
+    polys.AddFeature(Rectangle(0, 0, 10, 10, id: 0, closeAuthoredRing)); // truth 1.0
+    polys.AddFeature(Rectangle(0, -1.5, 10, 1.5, id: 1, closeAuthoredRing)); // truth 3.6401
+
+    var pts = new Features { ShapeType = ShapeType.Point };
     pts.AddFeature(PointAt(-1, 5));
-    // destFields/sourceFields sized 1 against an existing column
-    SpatialJoins.NearestPolygonsToPoints(pts, polys, new[] { "J" }, new[] { "ID" });
-    Assert.Equal(0L, pts[0].Attributes["J"]); // picks the square, both representations
+
+    SpatialJoins.NearestPolygonsToPoints(pts, polys, destFields: IdFields, sourceFields: IdFields);
+
+    Assert.Equal(0, pts[0].Attributes["ID"]);
+  }
+
+  private static Feature Rectangle(
+    double minX,
+    double minY,
+    double maxX,
+    double maxY,
+    int id,
+    bool closeAuthoredRing
+  )
+  {
+    var ring = new Part(PartType.Ring);
+    ring.AddVertex(new Vertex(minX, minY));
+    ring.AddVertex(new Vertex(maxX, minY));
+    ring.AddVertex(new Vertex(maxX, maxY));
+    ring.AddVertex(new Vertex(minX, maxY));
+    if (closeAuthoredRing)
+    {
+      ring.AddVertex(new Vertex(minX, minY));
+    }
+    ring.Seal();
+
+    var feature = new Feature { ShapeType = ShapeType.Polygon };
+    feature.AddPart(ring);
+    feature.ComputeBoundingBox();
+    feature.Attributes["ID"] = id;
+    return feature;
+  }
+
+  private static Feature PointAt(double x, double y)
+  {
+    var point = new Part(PartType.Point);
+    point.AddVertex(new Vertex(x, y));
+    point.Seal();
+
+    var feature = new Feature { ShapeType = ShapeType.Point };
+    feature.AddPart(point);
+    feature.ComputeBoundingBox(); // DistanceFeatureToFeature reads BoundingBox.MinX/MinY
+    return feature;
   }
 }
-
