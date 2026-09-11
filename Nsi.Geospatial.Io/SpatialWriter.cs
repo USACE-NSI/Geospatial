@@ -13,7 +13,7 @@ public sealed class SpatialWriter : IFeatureSink
   /// Every ESRI shapefile sidecar, so pre-cleanup removes all files a previous run left.
   private static readonly string[] ShapefileSidecars = { ".shp", ".shx", ".dbf", ".prj" };
 
-  public void Write(Features collection, string path, string driverName = "ESRI Shapefile")
+  public void Write(Features features, string path, string driverName = "ESRI Shapefile")
   {
     Ogr.RegisterAll();
 
@@ -53,30 +53,30 @@ public sealed class SpatialWriter : IFeatureSink
       target = baseName + ".shp";
     }
 
-    string? collectionWkt = collection.Crs.Wkt;
+    string? collectionWkt = features.Crs.Wkt;
     using var srs = new SpatialReference(
       string.IsNullOrEmpty(collectionWkt) ? null : collectionWkt
     );
     using var ds = driver.CreateDataSource(target, Array.Empty<string>());
     using var layer = ds.CreateLayer(
-      collection.Name ?? "layer",
+      features.Name ?? "layer",
       srs,
-      MapShapeTypeToOgr(collection.ShapeType),
+      MapShapeTypeToOgr(features.ShapeType),
       Array.Empty<string>()
     );
 
     var defn = layer.GetLayerDefn();
 
-    foreach (var col in collection.Schema.ColumnNames)
+    foreach (var col in features.Schema.ColumnNames)
     {
-      var c = collection.Schema[col];
+      var c = features.Schema[col];
       var fdefn = new FieldDefn(c.Name, MapFieldType(c.FieldType));
       fdefn.SetWidth(c.Length);
       fdefn.SetPrecision(c.DecimalPlaces);
       layer.CreateField(fdefn, 1);
     }
 
-    foreach (var feat in collection.FeatureSet)
+    foreach (var feat in features.FeatureSet)
     {
       using var of = new OSGeo.OGR.Feature(defn);
       foreach (var kv in feat.Attributes)
@@ -89,7 +89,7 @@ public sealed class SpatialWriter : IFeatureSink
       // OSGeo.OGR 3.11.3 CreateFromWkt path rejects valid polygon WKT in this
       // native environment ("OGR Error %d: General Error"); the programmatic
       // API works for all shape types.
-      var geom = BuildOgrGeometry(collection.ShapeType, feat);
+      var geom = BuildOgrGeometry(features.ShapeType, feat);
       if (geom is not null)
       {
         of.SetGeometry(geom); // OGR copies the geometry into the feature
