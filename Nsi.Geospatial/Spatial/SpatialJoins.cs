@@ -27,12 +27,8 @@ public static class SpatialJoins
         polygons.Schema.AddField(d, src.FieldType, src.Length, src.DecimalPlaces);
       }
     }
-
-    // The original RTreeManager's getMBRoverlap gate reports no overlap when
-    // the query box fully contains a feature's MBR, and a nearest-join
-    // candidate can sit outside the target's MBR entirely — so candidate
-    // selection scans the collection instead of querying the tree.
-    // pointTree is kept for API continuity and findByXY lookups.
+    // Tree is built but not queried: an MBR cannot bound distance-to-segment, so
+    // candidate selection is a full scan. Open question — see Issues.md P-02 / D-E.
     _ = pointTree ?? BuildTree(points);
 
     var matched = new List<long>();
@@ -153,10 +149,12 @@ public static class SpatialJoins
         best = Math.Min(best, GeometryMath.Distance((px, py), (first.X, first.Y)));
         continue;
       }
-      for (int i = 0; i < part.Vertices.Count - 1; i++)
+      int n = part.Vertices.Count;
+      int edges = part.IsRing ? n : n - 1; // ClosedWalk's %n rule
+      for (int i = 0; i < edges; i++)
       {
         Vertex a = part.Vertices[i];
-        Vertex b = part.Vertices[i + 1];
+        Vertex b = part.Vertices[(i + 1) % n];
         best = Math.Min(
           best,
           GeometryMath.PointToSegmentDistance((px, py), (a.X, a.Y), (b.X, b.Y))
@@ -200,3 +198,4 @@ public static class SpatialJoins
 
   private static bool ContainsIndex(int index, long candidate) => candidate == index;
 }
+
