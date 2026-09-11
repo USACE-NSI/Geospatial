@@ -39,7 +39,7 @@ public static class SpatialJoins
 
       var poly = polygons[polyIdx];
 
-      double? best = double.MaxValue;
+      double? best = null;
       var nearestPoints = new List<Feature>();
       foreach (var p in points.FeatureSet)
       {
@@ -98,7 +98,7 @@ public static class SpatialJoins
     for (int pIdx = 0; pIdx < points.Count; pIdx++)
     {
       var p = points[pIdx];
-      double? best = double.MaxValue;
+      double? best = null;
       Feature? bestPoly = null;
       foreach (var poly in polygons.FeatureSet)
       {
