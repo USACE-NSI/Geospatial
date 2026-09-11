@@ -67,17 +67,38 @@ public sealed class Part
   /// <summary>See CentroidX.</summary>
   public double CentroidY { get; private set; }
 
-  /// <summary>Planar shoelace area in the square linear units of Crs, or null when
-  /// this geometry has no area: a Polyline, a Point, or fewer than three vertices.
-  /// Zero is reported only for a degenerate ring (collinear or coincident vertices).
-  /// For a usable unit ask AreaSquareMeters — this value is in whatever the CRS's
-  /// units are, which for a geographic CRS is square degrees.</summary>
-  public double? Area { get; private set; }
+  private double? _area;
+  private double _perimeter;
 
-  /// <summary>Walk length in the linear units of Crs: every edge of a ring including
-  /// the closing edge, every edge of a polyline excluding one. Zero for a single
-  /// vertex. Populated by Measure().</summary>
-  public double Perimeter { get; private set; }
+  /// <summary>
+  /// Planar shoelace area in the square linear units of Crs, or null when this
+  /// geometry has no area. Reading it measures the part if needed, so the answer
+  /// does not depend on whether Seal() was called -- and null means "no area",
+  /// never "not yet measured", which is why the getter must measure: an
+  /// unmeasured part would otherwise report the same value as a degenerate one.
+  /// </summary>
+  public double? Area
+  {
+    get
+    {
+      EnsureMeasured();
+      return _area;
+    }
+  }
+
+  /// <summary>
+  /// Walk length in the linear units of Crs. Reading it measures the part if
+  /// needed; without that, an unmeasured part reports 0 -- the honest answer
+  /// for a single vertex -- and no caller can tell the two apart.
+  /// </summary>
+  public double Perimeter
+  {
+    get
+    {
+      EnsureMeasured();
+      return _perimeter;
+    }
+  }
 
   /// <summary>Set by Feature.AddPart. The single route to a CRS.</summary>
   internal Feature? Owner
@@ -177,8 +198,8 @@ public sealed class Part
 
     if (_vertices.Count == 0)
     {
-      Perimeter = 0;
-      Area = null;
+      _perimeter = 0;
+      _area = null;
       CentroidX = 0;
       CentroidY = 0;
       _lengthMeters = null;
@@ -189,8 +210,8 @@ public sealed class Part
     var xy = _vertices.Select(v => v.XY).ToList();
     bool hasArea = IsRing && _vertices.Count >= 3;
 
-    Perimeter = IsRing ? GeometryMath.ClosedWalk(xy) : GeometryMath.OpenWalk(xy);
-    Area = hasArea ? GeometryMath.Area(xy) : null;
+    _perimeter = IsRing ? GeometryMath.ClosedWalk(xy) : GeometryMath.OpenWalk(xy);
+    _area = hasArea ? GeometryMath.Area(xy) : null;
     if (hasArea)
       (CentroidX, CentroidY) = GeometryMath.Centroid(xy);
     else
@@ -216,4 +237,3 @@ public sealed class Part
       };
   }
 }
-

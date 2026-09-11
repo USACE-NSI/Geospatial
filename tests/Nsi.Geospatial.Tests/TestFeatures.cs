@@ -183,7 +183,7 @@ internal static class TestFeatures
     {
       part.AddVertex(new Vertex(x, y));
     }
-    part.Seal();
+    //part.Seal();
     return part;
   }
 }
