@@ -279,11 +279,10 @@ public class RTreeTests
   /// Boxes are [4i, 4i+9] in both axes -- consecutive features overlap by 5 units, and
   /// feature i overlaps i-2..i+2.
   ///
-  /// The assertion is on the FILTERED answer, not the candidate count. How many nodes a
-  /// traversal may offer is an undocumented policy that Issues.md P-47 leaves open (a node
-  /// holding six features spans 29 units where one feature spans 9, so tens of candidates
-  /// are legitimate). What is determined: box j contains (4i+4.5, 4i+4.5) iff j is in
-  /// {i-1, i, i+1}, so that must be the answer exactly -- no false negatives, no extras.
+  /// Asserting the FILTERED answer rather than the candidate count is a strengthening, not a
+  /// workaround: exact set equality also catches a feature offered that should not be, which
+  /// a "no false negatives + a small candidate set" check cannot. box j contains
+  /// (4i+4.5, 4i+4.5) iff j is in {i-1, i, i+1}, so that triple is the answer exactly.
   /// </summary>
   [Fact]
   public void OverlappingBoxesResolveToExactlyTheContainingFeatures()
