@@ -27,7 +27,8 @@ public static class SpatialJoins
         polygons.Schema.AddField(d, src.FieldType, src.Length, src.DecimalPlaces);
       }
     }
-
+    // Tree is built but not queried: an MBR cannot bound distance-to-segment, so
+    // candidate selection is a full scan. Open question — see Issues.md P-02 / D-E.
     _ = pointTree ?? BuildTree(points);
 
     var matched = new List<long>();
