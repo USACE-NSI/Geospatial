@@ -75,7 +75,7 @@ public class RTreeNode
 
   private void buildChildOptions(List<(RTreeNode[], double[])> options, bool xAxis, bool min)
   {
-    List<RTreeNode> sortedChidrens = null;
+    List<RTreeNode>? sortedChidrens = null;
     if (xAxis)
     {
       if (min)
@@ -148,7 +148,7 @@ public class RTreeNode
     }
     else
     {
-      RTreeNode bestCandidate = null;
+      RTreeNode? bestCandidate = null;
       double minExtension = double.MaxValue;
       foreach (RTreeNode childnode in Children)
       {
@@ -179,7 +179,7 @@ public class RTreeNode
     {
       candidateKids = TreeManager.getEndNodes;
     }
-    RTreeNode bestCandidate = null;
+    RTreeNode? bestCandidate = null;
     double minExtension = double.MaxValue;
     foreach (RTreeNode candidate in candidateKids)
     {
@@ -290,7 +290,7 @@ public class RTreeNode
     {
       foreach (RTreeNode node in Children)
       {
-        if (node.FeatureIndex[0] == ind)
+        if (node.FeatureIndex is { Length: > 0 } && node.FeatureIndex[0] == ind)
         {
           getPathReverse(nodeWalk);
           break;
@@ -342,3 +342,4 @@ public class RTreeNode
 
   public double Perimeter => BoundingBox.Perimeter();
 }
+
