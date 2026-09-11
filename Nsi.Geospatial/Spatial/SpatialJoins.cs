@@ -153,7 +153,7 @@ public static class SpatialJoins
       for (int i = 0; i < edges; i++)
       {
         Vertex a = part.Vertices[i];
-        Vertex b = part.Vertices[i % n];
+        Vertex b = part.Vertices[(i + 1) % n];
         best = Math.Min(
           best,
           GeometryMath.PointToSegmentDistance((px, py), (a.X, a.Y), (b.X, b.Y))
