@@ -43,4 +43,31 @@ public class SpatialJoinTests
 
     Assert.Equal(42.0, p1.Attributes["VALUE"]);
   }
+
+  // [Theory]
+  // [InlineData(false)] // authored open
+  // [InlineData(true)] // authored closed — the representation Part permits either way
+  // public void JoinDistanceIsRepresentationIndependent(bool closeTheRing)
+  // {
+  //   Feature Square()
+  //   {
+  //     var p = new Part(PartType.Ring);
+  //     foreach (var (x, y) in new[] { (0d, 0d), (10d, 0d), (10d, 10d), (0d, 10d) })
+  //       p.AddVertex(new Vertex(x, y));
+  //     if (closeTheRing)
+  //       p.AddVertex(new Vertex(0, 0));
+  //     var f = new Feature();
+  //     f.AddPart(p);
+  //     return f;
+  //   }
+  //   var polys = new Features { Crs = Projected };
+  //   polys.AddFeature(Square()); // nearest, distance 1.0
+  //   polys.AddFeature(SquareAt(2, 4, 4, 6)); // distance 3.0
+  //   var pts = new Features { Crs = Projected };
+  //   pts.AddFeature(PointAt(-1, 5));
+  //   // destFields/sourceFields sized 1 against an existing column
+  //   SpatialJoins.NearestPolygonsToPoints(pts, polys, new[] { "J" }, new[] { "ID" });
+  //   Assert.Equal(0L, pts[0].Attributes["J"]); // picks the square, both representations
+  // }
 }
+
