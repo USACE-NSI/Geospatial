@@ -44,6 +44,10 @@ public static class SpatialJoins
       foreach (var p in points.FeatureSet)
       {
         double? d = DistanceFeatureToFeature(p, poly);
+        if (d is null)
+        {
+          continue;
+        }
         if (best is null || d < best)
         {
           best = d;
@@ -99,6 +103,10 @@ public static class SpatialJoins
       foreach (var poly in polygons.FeatureSet)
       {
         double? d = DistanceFeatureToFeature(p, poly);
+        if (d is null)
+        {
+          continue;
+        }
         if (best is null || d < best)
         {
           best = d;
