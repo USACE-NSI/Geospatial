@@ -28,11 +28,6 @@ public static class SpatialJoins
       }
     }
 
-    // The original RTreeManager's getMBRoverlap gate reports no overlap when
-    // the query box fully contains a feature's MBR, and a nearest-join
-    // candidate can sit outside the target's MBR entirely — so candidate
-    // selection scans the collection instead of querying the tree.
-    // pointTree is kept for API continuity and findByXY lookups.
     _ = pointTree ?? BuildTree(points);
 
     var matched = new List<long>();
