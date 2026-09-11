@@ -60,22 +60,12 @@ public class CrsInfoAndAreaTests
     return fc;
   }
 
+  private static void Rel(double expected, double? actual, double tol = 1e-9) =>
+    Tolerance.Rel(expected, actual, tol);
+
   /// <summary>100 x 50 unit rectangle, CCW.</summary>
   private static (double X, double Y)[] Rect(double w = 100, double h = 50) =>
     [(0, 0), (w, 0), (w, h), (0, h)];
-
-  private static void Rel(double expected, double? actual, double tol = 1e-9)
-  {
-    Assert.True(
-      actual.HasValue,
-      $"expected {expected:R}, got null (no such measure for this PartType)"
-    );
-    double diff = Math.Abs(expected - actual.Value);
-    Assert.True(
-      diff <= Math.Abs(expected) * tol,
-      $"expected {expected:R}, actual {actual:R}, rel diff {diff / Math.Abs(expected):E}"
-    );
-  }
 
   // ----------------------------------------------------------- CrsInfo
 
@@ -387,3 +377,4 @@ public class CrsInfoAndAreaTests
     Assert.True(part.Area > 0);
   }
 }
+
