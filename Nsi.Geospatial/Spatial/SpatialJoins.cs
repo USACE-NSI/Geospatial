@@ -43,14 +43,14 @@ public static class SpatialJoins
       var nearestPoints = new List<Feature>();
       foreach (var p in points.FeatureSet)
       {
-        double d = DistanceFeatureToFeature(p, poly);
+        double? d = DistanceFeatureToFeature(p, poly);
         if (best is null || d < best)
         {
           best = d;
           nearestPoints.Clear();
           nearestPoints.Add(p);
         }
-        else if (Math.Abs(d - best.Value) < 1e-9)
+        else if (Math.Abs(d.Value - best!.Value) < 1e-9)
         {
           nearestPoints.Add(p);
         }
@@ -98,7 +98,7 @@ public static class SpatialJoins
       Feature? bestPoly = null;
       foreach (var poly in polygons.FeatureSet)
       {
-        double d = DistanceFeatureToFeature(p, poly);
+        double? d = DistanceFeatureToFeature(p, poly);
         if (best is null || d < best)
         {
           best = d;
@@ -134,7 +134,7 @@ public static class SpatialJoins
     return tree;
   }
 
-  private static double DistanceFeatureToFeature(Feature point, Feature polygon)
+  private static double? DistanceFeatureToFeature(Feature point, Feature polygon)
   {
     if (polygon.Parts.Count == 0)
       return double.MaxValue;
@@ -145,6 +145,10 @@ public static class SpatialJoins
     {
       if (part.Vertices.Count < 2)
       {
+        if (part.Vertices.Count == 0)
+        {
+          continue;
+        }
         var first = part.Vertices[0];
         best = Math.Min(best, GeometryMath.Distance((px, py), (first.X, first.Y)));
         continue;
@@ -161,7 +165,7 @@ public static class SpatialJoins
         );
       }
     }
-    return best;
+    return best == double.MaxValue ? null : best;
   }
 
   private static object? Aggregate(List<Feature> points, string sourceField, JoinType joinType)
