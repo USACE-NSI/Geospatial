@@ -352,15 +352,20 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void AreaAndPerimeterMeasureOnDemandWithoutSealing()
   {
-    // P-71: Area/Perimeter were bare auto-properties written only by Measure(), so an
-    // unsealed part reported null -- the value reserved for "this geometry has no area" --
-    // and Perimeter reported 0, the value for a single vertex. TestFeatures.Ring does not
-    // Seal(), which is what keeps this reachable; if that ever changes, this test is the
-    // only remaining route to the bug.
-    Part part = TestFeatures.Ring(TestFeatures.Rect(100, 50));
-
+    // P-71: Area/Perimeter/Centroid were auto-properties written only by Measure(), so an
+    // unsealed part reported null area -- the value reserved for "this geometry has no
+    // area" -- and 0 perimeter, the value for a single vertex. Built here rather than via
+    // TestFeatures.Ring: a fixture must not be what keeps this reachable, because adding
+    // Seal() to the fixture is a plausible cleanup that would silently retire this test.
+    var part = new Part(PartType.Ring);
+    foreach ((double x, double y) in TestFeatures.Rect(100, 50))
+    {
+      part.AddVertex(new Vertex(x, y));
+    }
     Rel(5000.0, part.Area);
     Rel(300.0, part.Perimeter);
+    Assert.Equal(50.0, part.CentroidX, 12);
+    Assert.Equal(25.0, part.CentroidY, 12);
   }
 }
 
