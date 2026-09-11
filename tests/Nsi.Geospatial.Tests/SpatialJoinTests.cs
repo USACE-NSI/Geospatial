@@ -77,6 +77,97 @@ public class SpatialJoinTests
     Assert.Equal(0, pts[0].Attributes["ID"]);
   }
 
+  /// <summary>
+  /// P-11a. A part with no vertices used to reach `part.Vertices[0]` and throw
+  /// IndexOutOfRangeException from inside a join, for every point in the collection.
+  /// It is skipped now, so the feature's other part still measures and still wins.
+  /// </summary>
+  [Fact]
+  public void PolygonWithAZeroVertexPartIsSkippedAndStillMeasurable()
+  {
+    var polys = new Features { ShapeType = ShapeType.Polygon };
+    polys.Schema.AddField("ID", FieldType.IntegerFT, 10, 0);
+
+    var near = Rectangle(0, 0, 10, 10, id: 0, closeAuthoredRing: false);
+    near.AddPart(new Part(PartType.Ring)); // zero vertices, added last so order is not doing the work
+    polys.AddFeature(near);
+
+    polys.AddFeature(Rectangle(0, -1.5, 10, 1.5, id: 1, closeAuthoredRing: false)); // 3.6401
+
+    var pts = new Features { ShapeType = ShapeType.Point };
+    pts.AddFeature(PointAt(-1, 5));
+
+    SpatialJoins.NearestPolygonsToPoints(pts, polys, destFields: IdFields, sourceFields: IdFields);
+
+    // The empty part costs nothing: the ring still measures 1.0 and still wins.
+    Assert.Equal(0, pts[0].Attributes["ID"]);
+  }
+
+  /// <summary>
+  /// P-11b. A polygon with no parts is unmeasurable, not infinitely far. Before the fix it
+  /// returned double.MaxValue, which was non-null, so every point tied against every other
+  /// (|MaxValue - MaxValue| == 0 < 1e-9): the polygon landed in matched and Aggregate wrote a
+  /// Count/Sum computed over the entire point collection into a feature with no geometry.
+  /// </summary>
+  [Fact]
+  public void PolygonWithNoPartsIsNotMatchedAndWritesNoAttributes()
+  {
+    var polys = new Features { ShapeType = ShapeType.Polygon };
+    polys.Schema.AddField("VALUE", FieldType.DoubleFT, 12, 2);
+
+    var empty = new Feature { ShapeType = ShapeType.Polygon };
+    empty.ComputeBoundingBox(); // no parts at all
+    polys.AddFeature(empty); // index 0
+
+    var square = Rectangle(0, 0, 10, 10, id: 1, closeAuthoredRing: false);
+    square.Attributes["VALUE"] = 7.0;
+    polys.AddFeature(square); // index 1
+
+    var pts = new Features { ShapeType = ShapeType.Point };
+    pts.AddFeature(PointAt(-1, 5));
+    pts.Schema.AddField("VALUE", FieldType.DoubleFT, 12, 2);
+    pts[0].Attributes["VALUE"] = 42.0;
+
+    var matched = SpatialJoins.NearestPointsToPolygons(
+      polys,
+      pts,
+      destFields: ["VALUE"],
+      sourceFields: ["VALUE"],
+      joinType: JoinType.First
+    );
+
+    Assert.Single(matched);
+    Assert.Equal(1L, matched[0]);
+    Assert.False(empty.Attributes.ContainsKey("VALUE")); // no fabrication, not even a null
+    Assert.Equal(42.0, square.Attributes["VALUE"]);
+  }
+
+  /// <summary>
+  /// P-11c. Unmeasurable candidates must not win by being first. best starts null, so the
+  /// first candidate measured wins by default; with MaxValue candidates that default landed on
+  /// an empty polygon and copied its attributes into the point. Now they are skipped, so when
+  /// nothing is measurable nothing is written at all.
+  /// </summary>
+  [Fact]
+  public void UnmeasurablePolygonsWinNothingEvenWhenTheyComeFirst()
+  {
+    var polys = new Features { ShapeType = ShapeType.Polygon };
+    polys.Schema.AddField("ID", FieldType.IntegerFT, 10, 0);
+    foreach (int id in new[] { 0, 1, 2 })
+    {
+      var f = new Feature { ShapeType = ShapeType.Polygon };
+      f.Attributes["ID"] = id;
+      polys.AddFeature(f);
+    }
+
+    var pts = new Features { ShapeType = ShapeType.Point };
+    pts.AddFeature(PointAt(-1, 5));
+
+    SpatialJoins.NearestPolygonsToPoints(pts, polys, destFields: IdFields, sourceFields: IdFields);
+
+    Assert.False(pts[0].Attributes.ContainsKey("ID"));
+  }
+
   private static Feature Rectangle(
     double minX,
     double minY,
@@ -116,3 +207,4 @@ public class SpatialJoinTests
     return feature;
   }
 }
+
