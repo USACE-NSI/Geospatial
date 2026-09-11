@@ -3,7 +3,7 @@ using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Projections;
 using Xunit;
 
-namespace Nsi.Geospatial.Core.Tests;
+namespace Nsi.Geospatial.Tests;
 
 /// <summary>
 /// Evaluation of the spherical metrics added on feature/spherical:
@@ -857,3 +857,4 @@ public class SphericalMetricsTests
     );
   }
 }
+

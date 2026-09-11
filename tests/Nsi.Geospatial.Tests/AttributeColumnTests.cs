@@ -3,7 +3,7 @@ using Nsi.Geospatial.Attributes;
 using Nsi.Geospatial.Enums;
 using Xunit;
 
-namespace Nsi.Geospatial.Core.Tests; // copy this line from a sibling file; P-53
+namespace Nsi.Geospatial.Tests;
 
 public class AttributeColumnTests
 {

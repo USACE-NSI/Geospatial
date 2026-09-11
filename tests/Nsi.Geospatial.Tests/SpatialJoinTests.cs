@@ -4,7 +4,7 @@ using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Spatial;
 using Xunit;
 
-namespace Nsi.Geospatial.Core.Tests;
+namespace Nsi.Geospatial.Tests;
 
 public class SpatialJoinTests
 {
