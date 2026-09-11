@@ -62,7 +62,7 @@ public sealed class SpatialReader : IFeatureSource
       {
         using var defn = feat.GetFieldDefnRef(i);
         string name = defn.GetName();
-        Nsi.Geospatial.Enums.FieldType type = MapFieldType(defn.GetFieldType());
+        Nsi.Geospatial.Enums.FieldType type = OgrFieldTypes.ToFieldType(defn.GetFieldType());
         fc.Schema.AddField(name, type, defn.GetWidth(), defn.GetPrecision());
         f.Attributes[name] = ReadFieldValue(feat, i, type);
       }
@@ -264,7 +264,15 @@ public sealed class SpatialReader : IFeatureSource
       // Shapefiles have no true date field; the OSGeo binding's GetFieldAsDateTime
       // returns void, so read the date as a string instead.
       Nsi.Geospatial.Enums.FieldType.DateFT => feat.IsFieldSet(i) ? feat.GetFieldAsString(i) : null,
-      _ => feat.GetFieldAsString(i),
+      // Text and bool both arrive as strings, because the writer declares BooleanFT as
+      // OFTString. One policy in two places -- change both or neither (P-21).
+      Nsi.Geospatial.Enums.FieldType.TextFT or Nsi.Geospatial.Enums.FieldType.BooleanFT =>
+        feat.GetFieldAsString(i),
+      _ => throw new ArgumentOutOfRangeException(
+        nameof(type),
+        type,
+        "FieldType has no OGR accessor; add it here rather than reading a value as text."
+      ),
     };
 
   private static ShapeType MapGeomType(wkbGeometryType t) =>
@@ -277,20 +285,6 @@ public sealed class SpatialReader : IFeatureSource
       or wkbGeometryType.wkbPolygon25D
       or wkbGeometryType.wkbMultiPolygon => ShapeType.Polygon,
       _ => ShapeType.Point,
-    };
-
-  private static Nsi.Geospatial.Enums.FieldType MapFieldType(OSGeo.OGR.FieldType t) =>
-    t switch
-    {
-      OSGeo.OGR.FieldType.OFTInteger => Nsi.Geospatial.Enums.FieldType.IntegerFT,
-      OSGeo.OGR.FieldType.OFTInteger64 => Nsi.Geospatial.Enums.FieldType.LongFT,
-      OSGeo.OGR.FieldType.OFTReal => Nsi.Geospatial.Enums.FieldType.DoubleFT,
-      OSGeo.OGR.FieldType.OFTString => Nsi.Geospatial.Enums.FieldType.TextFT,
-      OSGeo.OGR.FieldType.OFTDate or OSGeo.OGR.FieldType.OFTDateTime => Nsi.Geospatial
-        .Enums
-        .FieldType
-        .DateFT,
-      _ => Nsi.Geospatial.Enums.FieldType.TextFT,
     };
 }
 
