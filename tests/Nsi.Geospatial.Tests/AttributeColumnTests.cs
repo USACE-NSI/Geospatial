@@ -1,4 +1,3 @@
-using System.Globalization;
 using Nsi.Geospatial.Attributes;
 using Nsi.Geospatial.Enums;
 using Xunit;
