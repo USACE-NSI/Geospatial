@@ -136,11 +136,6 @@ internal static class TestFeatures
 
   // ---- from CrsInfoAndAreaTests ----------------------------------------------------------
 
-  /// <summary>
-  /// Direction is set before the first AddVertex on purpose: AddVertex derives
-  /// IsHole = !Direction only while the ring is still empty, so setting it later silently
-  /// leaves IsHole wrong.
-  /// </summary>
   internal static Part Ring(params (double X, double Y)[] points) => Build(true, points);
 
   internal static Part Hole(params (double X, double Y)[] points) => Build(false, points);
@@ -176,6 +171,11 @@ internal static class TestFeatures
   /// <summary>Returns a CRSINFO. The Features form is Geographic().</summary>
   internal static CrsInfo GeographicCrs { get; } = new() { Kind = CrsKind.Geographic };
 
+  /// <summary>
+  /// Order preserved. No Seal(): P-71 made every accessor measure on demand, so sealing
+  /// here is warm-up only — and leaving it out is the only thing that keeps an unmeasured
+  /// part reachable from a test.
+  /// </summary>
   private static Part Build(bool exterior, params (double X, double Y)[] points)
   {
     var part = new Part(PartType.Ring) { IsHole = !exterior };
@@ -183,7 +183,6 @@ internal static class TestFeatures
     {
       part.AddVertex(new Vertex(x, y));
     }
-    //part.Seal();
     return part;
   }
 }

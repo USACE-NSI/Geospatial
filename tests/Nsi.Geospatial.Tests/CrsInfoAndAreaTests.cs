@@ -348,5 +348,19 @@ public class CrsInfoAndAreaTests
     // ...while the native planar numbers remain available and unchanged.
     Assert.True(part.Area > 0);
   }
+
+  [Fact]
+  public void AreaAndPerimeterMeasureOnDemandWithoutSealing()
+  {
+    // P-71: Area/Perimeter were bare auto-properties written only by Measure(), so an
+    // unsealed part reported null -- the value reserved for "this geometry has no area" --
+    // and Perimeter reported 0, the value for a single vertex. TestFeatures.Ring does not
+    // Seal(), which is what keeps this reachable; if that ever changes, this test is the
+    // only remaining route to the bug.
+    Part part = TestFeatures.Ring(TestFeatures.Rect(100, 50));
+
+    Rel(5000.0, part.Area);
+    Rel(300.0, part.Perimeter);
+  }
 }
 
