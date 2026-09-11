@@ -3,7 +3,7 @@ using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Projections;
 using Xunit;
 
-namespace Nsi.Geospatial.Core.Tests;
+namespace Nsi.Geospatial.Tests;
 
 /// <summary>
 /// Evaluation of the spherical metrics added on feature/spherical:
@@ -51,13 +51,9 @@ public class SphericalMetricsTests
   private const double Deg2Rad = Math.PI / 180.0;
 
   // ---------------------------------------------------------------- helpers
-
-  private static List<(double X, double Y)> Cell(
-    double lon,
-    double lat,
-    double w = 1,
-    double h = 1
-  ) => new() { (lon, lat), (lon + w, lat), (lon + w, lat + h), (lon, lat + h) };
+  // Delegates to Tolerance (P-53). RelD was only ever called from here, so it went with it.
+  private static void Rel(double expected, double? actual, double relTol, string what) =>
+    Tolerance.Rel(expected, actual, relTol, what);
 
   /// <summary>Closed-form sphere area of a graticule cell — the reference the code is checked against.</summary>
   private static double AnalyticCell(double lonSpan, double lat1, double lat2) =>
@@ -65,74 +61,6 @@ public class SphericalMetricsTests
     * GeometryMath.EarthRadiusAuthalicMeters
     * (lonSpan * Math.PI / 180.0)
     * (Math.Sin(lat2 * Math.PI / 180.0) - Math.Sin(lat1 * Math.PI / 180.0));
-
-  /// <summary>Relative-tolerance compare. A null actual is a failure, not a skip —
-  /// null means "this geometry kind has no such measure", which is exactly what
-  /// these tests are asserting against.</summary>
-  private static void Rel(double expected, double? actual, double relTol, string what)
-  {
-    Assert.True(
-      actual.HasValue,
-      $"{what}: expected {expected:R}, got null (no such measure for this PartType)"
-    );
-
-    RelD(expected, actual.Value, relTol);
-  }
-
-  private static void RelD(double expected, double actual, double relTol, double absTol = 1e-9)
-  {
-    double diff = Math.Abs(expected - actual);
-    // Relative tolerance is meaningless at expected == 0 (and prints rel diff ∞),
-    // so fall back to an absolute floor. Callers comparing metres should pass an
-    // absTol in metres; comparing degrees needs a much smaller one.
-    Assert.True(
-      diff <= Math.Max(Math.Abs(expected) * relTol, absTol),
-      $"expected {expected:R}, actual {actual:R}, diff {diff:E}, rel {diff / Math.Abs(expected):E}"
-    );
-  }
-
-  private static Part Ring(IEnumerable<(double X, double Y)> ring, bool exterior)
-  {
-    var part = new Part(PartType.Ring) { IsHole = !exterior };
-    foreach (var (x, y) in ring)
-      part.AddVertex(new Vertex(x, y));
-    part.Seal();
-    return part;
-  }
-
-  private static Feature Polygon(Features owner, Part exterior, params Part[] holes)
-  {
-    var f = new Feature();
-    f.AddPart(exterior);
-    foreach (var h in holes)
-      f.AddPart(h);
-    owner.AddFeature(f);
-    return f;
-  }
-
-  private static Features Geographic(ShapeType shape = ShapeType.Polygon) =>
-    new()
-    {
-      ShapeType = shape,
-      Crs = new CrsInfo
-      {
-        Kind = CrsKind.Geographic,
-        Wkt = Projection.Wgs84.Wkt,
-        EpsgCode = 4326,
-      },
-    };
-
-  private static Features Projected(double unitToMeters, LinearUnit unit = LinearUnit.Meter) =>
-    new()
-    {
-      ShapeType = ShapeType.Polygon,
-      Crs = new CrsInfo
-      {
-        Kind = CrsKind.Projected,
-        Unit = unit,
-        UnitToMeters = unitToMeters,
-      },
-    };
 
   // ============================================================ SphericalArea
 
@@ -143,7 +71,7 @@ public class SphericalMetricsTests
     // edge follows a meridian or a parallel, which is what graticule cells do.
     foreach (double lat in new[] { 0.0, 30.0, 44.0, 60.0, 65.0 })
     {
-      double got = GeometryMath.SphericalArea(Cell(0, lat));
+      double got = GeometryMath.SphericalArea(TestFeatures.Cell(0, lat));
       Rel(AnalyticCell(1, lat, lat + 1), got, 1e-12, $"1x1 cell at {lat}N");
     }
   }
@@ -153,13 +81,20 @@ public class SphericalMetricsTests
   [InlineData(44.0, CellAt44N)]
   [InlineData(65.0, CellAt65N)]
   public void SphericalAreaMatchesPinnedValues(double lat, double expected) =>
-    Rel(expected, GeometryMath.SphericalArea(Cell(0, lat)), 1e-12, $"1x1 cell at {lat}N");
+    Rel(
+      expected,
+      GeometryMath.SphericalArea(TestFeatures.Cell(0, lat)),
+      1e-12,
+      $"1x1 cell at {lat}N"
+    );
 
   [Fact]
   public void SphericalAreaShrinksWithLatitudeAsCosineOfMidLatitude()
   {
     // A degree of longitude halves by 60N, so a 1x1 cell must halve (to first order).
-    double ratio = GeometryMath.SphericalArea(Cell(0, 0)) / GeometryMath.SphericalArea(Cell(0, 60));
+    double ratio =
+      GeometryMath.SphericalArea(TestFeatures.Cell(0, 0))
+      / GeometryMath.SphericalArea(TestFeatures.Cell(0, 60));
     double expected = 1.0 / Math.Cos(60 * Math.PI / 180.0);
     Rel(expected, ratio, 2e-2, "equatorial/60N area ratio");
 
@@ -174,9 +109,10 @@ public class SphericalMetricsTests
   public void SphericalAreaIsAdditiveOverStackedCells()
   {
     // No overlap term: tiling must sum, or the metric cannot be aggregated.
-    double whole = GeometryMath.SphericalArea(Cell(0, 44, 1, 2));
+    double whole = GeometryMath.SphericalArea(TestFeatures.Cell(0, 44, 1, 2));
     double parts =
-      GeometryMath.SphericalArea(Cell(0, 44, 1, 1)) + GeometryMath.SphericalArea(Cell(0, 45, 1, 1));
+      GeometryMath.SphericalArea(TestFeatures.Cell(0, 44, 1, 1))
+      + GeometryMath.SphericalArea(TestFeatures.Cell(0, 45, 1, 1));
     Rel(whole, parts, 1e-13, "stacked cells");
   }
 
@@ -196,8 +132,8 @@ public class SphericalMetricsTests
   {
     // Depends on the latitude band only, not where the cell sits in longitude.
     Rel(
-      GeometryMath.SphericalArea(Cell(0, 44)),
-      GeometryMath.SphericalArea(Cell(-93, 44)),
+      GeometryMath.SphericalArea(TestFeatures.Cell(0, 44)),
+      GeometryMath.SphericalArea(TestFeatures.Cell(-93, 44)),
       1e-15,
       "lon 0 vs lon -93"
     );
@@ -206,7 +142,7 @@ public class SphericalMetricsTests
   [Fact]
   public void SphericalAreaIgnoresRingOrientation()
   {
-    var ccw = Cell(0, 44);
+    var ccw = TestFeatures.Cell(0, 44);
     var cw = new List<(double X, double Y)>(ccw);
     cw.Reverse();
     Rel(GeometryMath.SphericalArea(ccw), GeometryMath.SphericalArea(cw), 1e-15, "CW vs CCW");
@@ -217,7 +153,7 @@ public class SphericalMetricsTests
   {
     // SpatialReader calls CloseRing(), so every ring arrives with the first
     // vertex repeated. A repeated point must contribute nothing.
-    var open = Cell(0, 44);
+    var open = TestFeatures.Cell(0, 44);
     var closed = new List<(double X, double Y)>(open) { open[0] };
     Assert.Equal(GeometryMath.SphericalArea(open), GeometryMath.SphericalArea(closed));
   }
@@ -245,7 +181,7 @@ public class SphericalMetricsTests
   [InlineData(0)]
   public void SphericalAreaOfDegenerateRingIsZero(int vertexCount)
   {
-    var ring = Cell(0, 44).Take(vertexCount).ToList();
+    var ring = TestFeatures.Cell(0, 44).Take(vertexCount).ToList();
     Assert.Equal(0.0, GeometryMath.SphericalArea(ring));
   }
 
@@ -253,9 +189,9 @@ public class SphericalMetricsTests
   public void SphericalAreaUsesSuppliedRadius()
   {
     // Passing a radius in feet yields square feet; scaling must be R^2.
-    double metres = GeometryMath.SphericalArea(Cell(0, 44));
+    double metres = GeometryMath.SphericalArea(TestFeatures.Cell(0, 44));
     double feet = GeometryMath.SphericalArea(
-      Cell(0, 44),
+      TestFeatures.Cell(0, 44),
       GeometryMath.EarthRadiusAuthalicMeters / CrsInfo.MetersPerFoot
     );
     Rel(metres / (CrsInfo.MetersPerFoot * CrsInfo.MetersPerFoot), feet, 1e-12, "square feet");
@@ -266,7 +202,7 @@ public class SphericalMetricsTests
   {
     // The whole point of the addition: planar shoelace on (lon, lat) returns
     // square degrees, which is 1.0 for a 1x1 cell and useless downstream.
-    var ring = Cell(0, 44);
+    var ring = TestFeatures.Cell(0, 44);
     Assert.Equal(1.0, GeometryMath.Area(ring), 9);
     Assert.True(GeometryMath.SphericalArea(ring) > 1e9, "spherical area must be square metres");
   }
@@ -279,9 +215,11 @@ public class SphericalMetricsTests
     // Docstring: "the only error is sphere-vs-ellipsoid, about 0.20% low at 44N
     // and 0.63% low at 65N."
     double at44 =
-      (GeometryMath.SphericalArea(Cell(0, 44)) - EllipsoidCellAt44N) / EllipsoidCellAt44N;
+      (GeometryMath.SphericalArea(TestFeatures.Cell(0, 44)) - EllipsoidCellAt44N)
+      / EllipsoidCellAt44N;
     double at65 =
-      (GeometryMath.SphericalArea(Cell(0, 65)) - EllipsoidCellAt65N) / EllipsoidCellAt65N;
+      (GeometryMath.SphericalArea(TestFeatures.Cell(0, 65)) - EllipsoidCellAt65N)
+      / EllipsoidCellAt65N;
 
     Assert.InRange(at44 * 100, -0.30, -0.10); // measured -0.211%
     Assert.InRange(at65 * 100, -0.75, -0.55); // measured -0.661%, doc says 0.63%
@@ -300,7 +238,12 @@ public class SphericalMetricsTests
     // Compare against the computed cell, not the pinned literal: the literal is
     // truncated at 14 significant digits (3.2e-15), and the two rings sum their
     // terms in different orders (~8e-15). Both are float noise, not error.
-    Rel(GeometryMath.SphericalArea(Cell(0, 44)) / 2.0, got, 1e-13, "triangle is half the cell");
+    Rel(
+      GeometryMath.SphericalArea(TestFeatures.Cell(0, 44)) / 2.0,
+      got,
+      1e-13,
+      "triangle is half the cell"
+    );
 
     double errorPct = (got - TrueTriangleAt44N) / TrueTriangleAt44N * 100.0;
     Assert.InRange(errorPct, -0.90, -0.80); // ~-0.85% at 1 degree of edge length
@@ -464,7 +407,7 @@ public class SphericalMetricsTests
   [Fact]
   public void SphericalPerimeterIsTheSumOfGreatCircleEdges()
   {
-    var ring = Cell(0, 44);
+    var ring = TestFeatures.Cell(0, 44);
     double expected = 0;
     for (int i = 0; i < ring.Count; i++)
     {
@@ -479,13 +422,18 @@ public class SphericalMetricsTests
   {
     // 1x1 cell on the equator: three 1-degree edges plus the top edge shortened
     // by one degree of latitude's worth of longitude convergence.
-    Rel(444763.3829584258, GeometryMath.SphericalPerimeter(Cell(0, 0)), 1e-12, "perimeter");
+    Rel(
+      444763.3829584258,
+      GeometryMath.SphericalPerimeter(TestFeatures.Cell(0, 0)),
+      1e-12,
+      "perimeter"
+    );
   }
 
   [Fact]
   public void SphericalPerimeterIsInvariantToTheClosingVertex()
   {
-    var open = Cell(0, 44);
+    var open = TestFeatures.Cell(0, 44);
     var closed = new List<(double X, double Y)>(open) { open[0] };
     Rel(
       GeometryMath.SphericalPerimeter(open),
@@ -519,10 +467,10 @@ public class SphericalMetricsTests
     part2.AddVertex(new Vertex(0, 0));
     part2.AddVertex(new Vertex(1, 0));
     part2.Seal();
-    var geographic = Geographic(ShapeType.Line);
+    var geographic = TestFeatures.Geographic(ShapeType.Line);
     geographic.AddFeature(IntoFeature(part2));
 
-    var projected = Projected(1.0);
+    var projected = TestFeatures.Projected(1.0);
     var planar = new Part(PartType.Polyline);
     planar.AddVertex(new Vertex(0, 0));
     planar.AddVertex(new Vertex(OneDegree, 0));
@@ -677,7 +625,10 @@ public class SphericalMetricsTests
 
     // Consequence, stated as a number rather than a comment: areas computed with
     // EarthRadiusFeet and converted back to square metres are ~0.22% high.
-    double squareFeet = GeometryMath.SphericalArea(Cell(0, 44), GeometryMath.EarthRadiusFeet);
+    double squareFeet = GeometryMath.SphericalArea(
+      TestFeatures.Cell(0, 44),
+      GeometryMath.EarthRadiusFeet
+    );
     double backToMetres = squareFeet * CrsInfo.MetersPerFoot * CrsInfo.MetersPerFoot;
     double inflationPct = (backToMetres - CellAt44N) / CellAt44N * 100.0;
     Assert.InRange(inflationPct, 0.20, 0.25);
@@ -701,8 +652,8 @@ public class SphericalMetricsTests
   [Fact]
   public void PartAreaSquareMetersUsesTheSphereForGeographicRings()
   {
-    var fc = Geographic();
-    var part = Ring(Cell(0, 44), exterior: true);
+    var fc = TestFeatures.Geographic();
+    var part = TestFeatures.Ring(TestFeatures.Cell(0, 44), exterior: true);
     fc.AddFeature(IntoFeature(part));
 
     Rel(CellAt44N, part.AreaSquareMeters!.Value, 1e-12, "geographic area");
@@ -719,22 +670,22 @@ public class SphericalMetricsTests
     // US survey feet must read the survey-foot conversion -- no reprojection.
     var square = new List<(double X, double Y)> { (0, 0), (1000, 0), (1000, 1000), (0, 1000) };
 
-    var metres = Projected(1.0);
-    var metrePart = Ring(square, true);
+    var metres = TestFeatures.Projected(1.0);
+    var metrePart = TestFeatures.Ring(square, true);
     metres.AddFeature(IntoFeature(metrePart));
     Rel(1_000_000.0, metrePart.AreaSquareMeters!.Value, 1e-12, "metres");
 
     double feet = 1000.0 / CrsInfo.MetersPerFoot;
     var footSquare = new List<(double X, double Y)> { (0, 0), (feet, 0), (feet, feet), (0, feet) };
-    var imperial = Projected(CrsInfo.MetersPerFoot, LinearUnit.Foot);
-    var footPart = Ring(footSquare, true);
+    var imperial = TestFeatures.Projected(CrsInfo.MetersPerFoot, LinearUnit.Foot);
+    var footPart = TestFeatures.Ring(footSquare, true);
     imperial.AddFeature(IntoFeature(footPart));
     Rel(1_000_000.0, footPart.AreaSquareMeters!.Value, 1e-9, "international feet");
 
     double uss = 1000.0 / CrsInfo.MetersPerUsSurveyFoot;
     var usssSquare = new List<(double X, double Y)> { (0, 0), (uss, 0), (uss, uss), (0, uss) };
-    var usss = Projected(CrsInfo.MetersPerUsSurveyFoot, LinearUnit.UsSurveyFoot);
-    var usssPart = Ring(usssSquare, true);
+    var usss = TestFeatures.Projected(CrsInfo.MetersPerUsSurveyFoot, LinearUnit.UsSurveyFoot);
+    var usssPart = TestFeatures.Ring(usssSquare, true);
     usss.AddFeature(IntoFeature(usssPart));
     Rel(1_000_000.0, usssPart.AreaSquareMeters!.Value, 1e-9, "US survey feet");
   }
@@ -744,7 +695,7 @@ public class SphericalMetricsTests
   {
     // The point of CrsKind.Unknown: refuse rather than guess a unit.
     var fc = new Features { ShapeType = ShapeType.Polygon };
-    var part = Ring(Cell(0, 44), exterior: true);
+    var part = TestFeatures.Ring(TestFeatures.Cell(0, 44), exterior: true);
     fc.AddFeature(IntoFeature(part));
 
     Assert.Null(part.AreaSquareMeters);
@@ -756,11 +707,11 @@ public class SphericalMetricsTests
   [Fact]
   public void PartCrsResolvesThroughTheOwnerChainAndIsUnknownWhenDetached()
   {
-    var detached = Ring(Cell(0, 44), exterior: true);
+    var detached = TestFeatures.Ring(TestFeatures.Cell(0, 44), exterior: true);
     Assert.Equal(CrsKind.Unknown, detached.Crs.Kind);
 
-    var fc = Geographic();
-    var part = Ring(Cell(0, 44), exterior: true);
+    var fc = TestFeatures.Geographic();
+    var part = TestFeatures.Ring(TestFeatures.Cell(0, 44), exterior: true);
     var f = IntoFeature(part);
     fc.AddFeature(f);
 
@@ -772,10 +723,10 @@ public class SphericalMetricsTests
   [Fact]
   public void FeatureAreaSquareMetersSubtractsHoleParts()
   {
-    var fc = Geographic();
-    var shell = Ring(Cell(0, 44, 1, 1), exterior: true);
-    var hole = Ring(Cell(0.25, 44.25, 0.1, 0.1), exterior: false);
-    Polygon(fc, shell, hole);
+    var fc = TestFeatures.Geographic();
+    var shell = TestFeatures.Ring(TestFeatures.Cell(0, 44, 1, 1), exterior: true);
+    var hole = TestFeatures.Ring(TestFeatures.Cell(0.25, 44.25, 0.1, 0.1), exterior: false);
+    TestFeatures.Polygon(fc, shell, hole);
 
     double expected = CellAt44N - 8.8490668742e7;
     Assert.False(shell.IsHole);
@@ -788,13 +739,13 @@ public class SphericalMetricsTests
   public void FeatureAreaSquareMetersIsNullWithoutGeometryOrCrs()
   {
     var noGeometry = new Features { ShapeType = ShapeType.Polygon };
-    noGeometry.Crs = Geographic().Crs;
+    noGeometry.Crs = TestFeatures.Geographic().Crs;
     var empty = new Feature();
     noGeometry.AddFeature(empty);
     Assert.Null(empty.AreaSquareMeters);
 
     var noCrs = new Features { ShapeType = ShapeType.Polygon };
-    var f = IntoFeature(Ring(Cell(0, 44), exterior: true));
+    var f = IntoFeature(TestFeatures.Ring(TestFeatures.Cell(0, 44), exterior: true));
     noCrs.AddFeature(f);
     Assert.Null(f.AreaSquareMeters);
   }
@@ -804,8 +755,8 @@ public class SphericalMetricsTests
   {
     // ~1 km x ~1 km at 44N, in Minnesota's longitude: about 0.89 km2, i.e. the
     // order of magnitude an NSI structure footprint's parent parcel implies.
-    var fc = Geographic();
-    var part = Ring(Cell(-93.0, 44.0, 0.01, 0.01), exterior: true);
+    var fc = TestFeatures.Geographic();
+    var part = TestFeatures.Ring(TestFeatures.Cell(-93.0, 44.0, 0.01, 0.01), exterior: true);
     fc.AddFeature(IntoFeature(part));
 
     double acres = part.AreaSquareMeters!.Value / 4046.8564224;
@@ -857,3 +808,4 @@ public class SphericalMetricsTests
     );
   }
 }
+

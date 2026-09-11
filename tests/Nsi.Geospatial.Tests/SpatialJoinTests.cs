@@ -4,7 +4,7 @@ using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Spatial;
 using Xunit;
 
-namespace Nsi.Geospatial.Core.Tests;
+namespace Nsi.Geospatial.Tests;
 
 public class SpatialJoinTests
 {
@@ -66,11 +66,11 @@ public class SpatialJoinTests
   {
     var polys = new Features { ShapeType = ShapeType.Polygon };
     polys.Schema.AddField("ID", FieldType.IntegerFT, 10, 0);
-    polys.AddFeature(Rectangle(0, 0, 10, 10, id: 0, closeAuthoredRing)); // truth 1.0
-    polys.AddFeature(Rectangle(0, -1.5, 10, 1.5, id: 1, closeAuthoredRing)); // truth 3.6401
+    polys.AddFeature(TestFeatures.Rectangle(0, 0, 10, 10, id: 0, closeAuthoredRing)); // truth 1.0
+    polys.AddFeature(TestFeatures.Rectangle(0, -1.5, 10, 1.5, id: 1, closeAuthoredRing)); // truth 3.6401
 
     var pts = new Features { ShapeType = ShapeType.Point };
-    pts.AddFeature(PointAt(-1, 5));
+    pts.AddFeature(TestFeatures.PointAt(-1, 5));
 
     SpatialJoins.NearestPolygonsToPoints(pts, polys, destFields: IdFields, sourceFields: IdFields);
 
@@ -88,14 +88,14 @@ public class SpatialJoinTests
     var polys = new Features { ShapeType = ShapeType.Polygon };
     polys.Schema.AddField("ID", FieldType.IntegerFT, 10, 0);
 
-    var near = Rectangle(0, 0, 10, 10, id: 0, closeAuthoredRing: false);
+    var near = TestFeatures.Rectangle(0, 0, 10, 10, id: 0, closeAuthoredRing: false);
     near.AddPart(new Part(PartType.Ring)); // zero vertices, added last so order is not doing the work
     polys.AddFeature(near);
 
-    polys.AddFeature(Rectangle(0, -1.5, 10, 1.5, id: 1, closeAuthoredRing: false)); // 3.6401
+    polys.AddFeature(TestFeatures.Rectangle(0, -1.5, 10, 1.5, id: 1, closeAuthoredRing: false)); // 3.6401
 
     var pts = new Features { ShapeType = ShapeType.Point };
-    pts.AddFeature(PointAt(-1, 5));
+    pts.AddFeature(TestFeatures.PointAt(-1, 5));
 
     SpatialJoins.NearestPolygonsToPoints(pts, polys, destFields: IdFields, sourceFields: IdFields);
 
@@ -119,12 +119,12 @@ public class SpatialJoinTests
     empty.ComputeBoundingBox(); // no parts at all
     polys.AddFeature(empty); // index 0
 
-    var square = Rectangle(0, 0, 10, 10, id: 1, closeAuthoredRing: false);
+    var square = TestFeatures.Rectangle(0, 0, 10, 10, id: 1, closeAuthoredRing: false);
     square.Attributes["VALUE"] = 7.0;
     polys.AddFeature(square); // index 1
 
     var pts = new Features { ShapeType = ShapeType.Point };
-    pts.AddFeature(PointAt(-1, 5));
+    pts.AddFeature(TestFeatures.PointAt(-1, 5));
     pts.Schema.AddField("VALUE", FieldType.DoubleFT, 12, 2);
     pts[0].Attributes["VALUE"] = 42.0;
 
@@ -161,50 +161,11 @@ public class SpatialJoinTests
     }
 
     var pts = new Features { ShapeType = ShapeType.Point };
-    pts.AddFeature(PointAt(-1, 5));
+    pts.AddFeature(TestFeatures.PointAt(-1, 5));
 
     SpatialJoins.NearestPolygonsToPoints(pts, polys, destFields: IdFields, sourceFields: IdFields);
 
     Assert.False(pts[0].Attributes.ContainsKey("ID"));
-  }
-
-  private static Feature Rectangle(
-    double minX,
-    double minY,
-    double maxX,
-    double maxY,
-    int id,
-    bool closeAuthoredRing
-  )
-  {
-    var ring = new Part(PartType.Ring);
-    ring.AddVertex(new Vertex(minX, minY));
-    ring.AddVertex(new Vertex(maxX, minY));
-    ring.AddVertex(new Vertex(maxX, maxY));
-    ring.AddVertex(new Vertex(minX, maxY));
-    if (closeAuthoredRing)
-    {
-      ring.AddVertex(new Vertex(minX, minY));
-    }
-    ring.Seal();
-
-    var feature = new Feature { ShapeType = ShapeType.Polygon };
-    feature.AddPart(ring);
-    feature.ComputeBoundingBox();
-    feature.Attributes["ID"] = id;
-    return feature;
-  }
-
-  private static Feature PointAt(double x, double y)
-  {
-    var point = new Part(PartType.Point);
-    point.AddVertex(new Vertex(x, y));
-    point.Seal();
-
-    var feature = new Feature { ShapeType = ShapeType.Point };
-    feature.AddPart(point);
-    feature.ComputeBoundingBox(); // DistanceFeatureToFeature reads BoundingBox.MinX/MinY
-    return feature;
   }
 }
 

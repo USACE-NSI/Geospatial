@@ -2,7 +2,7 @@ using Nsi.Geospatial.Attributes;
 using Nsi.Geospatial.Enums;
 using Xunit;
 
-namespace Nsi.Geospatial.Core.Tests;
+namespace Nsi.Geospatial.Tests;
 
 public class AttributeTableTests
 {

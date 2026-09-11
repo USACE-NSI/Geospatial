@@ -15,67 +15,8 @@ namespace Nsi.Geospatial.Tests;
 /// </summary>
 public class CrsInfoAndAreaTests
 {
-  private static CrsInfo Projected(double unitToMeters) =>
-    new() { Kind = CrsKind.Projected, UnitToMeters = unitToMeters };
-
-  private static readonly CrsInfo Geographic = new() { Kind = CrsKind.Geographic };
-
-  /// <summary>
-  /// Direction is set before the first AddVertex on purpose: AddVertex derives
-  /// IsHole = !Direction only while the ring is still empty, so setting it later
-  /// silently leaves IsHole wrong.
-  /// </summary>
-  private static Part Ring(params (double X, double Y)[] points) => Build(true, points);
-
-  private static Part Hole(params (double X, double Y)[] points) => Build(false, points);
-
-  private static Part Build(bool exterior, params (double X, double Y)[] points)
-  {
-    var part = new Part(PartType.Ring) { IsHole = !exterior };
-    foreach ((double x, double y) in points)
-    {
-      part.AddVertex(new Vertex(x, y));
-    }
-    part.Seal();
-    return part;
-  }
-
-  private static Feature FeatureOf(params Part[] parts)
-  {
-    var feature = new Feature();
-    foreach (Part part in parts)
-    {
-      feature.AddPart(part);
-    }
-    return feature;
-  }
-
-  private static Features CollectionOf(CrsInfo crs, params Feature[] features)
-  {
-    var fc = new Features { Crs = crs };
-    foreach (Feature f in features)
-    {
-      fc.AddFeature(f);
-    }
-    return fc;
-  }
-
-  /// <summary>100 x 50 unit rectangle, CCW.</summary>
-  private static (double X, double Y)[] Rect(double w = 100, double h = 50) =>
-    [(0, 0), (w, 0), (w, h), (0, h)];
-
-  private static void Rel(double expected, double? actual, double tol = 1e-9)
-  {
-    Assert.True(
-      actual.HasValue,
-      $"expected {expected:R}, got null (no such measure for this PartType)"
-    );
-    double diff = Math.Abs(expected - actual.Value);
-    Assert.True(
-      diff <= Math.Abs(expected) * tol,
-      $"expected {expected:R}, actual {actual:R}, rel diff {diff / Math.Abs(expected):E}"
-    );
-  }
+  private static void Rel(double expected, double? actual, double tol = 1e-9) =>
+    Tolerance.Rel(expected, actual, tol);
 
   // ----------------------------------------------------------- CrsInfo
 
@@ -97,11 +38,11 @@ public class CrsInfoAndAreaTests
   {
     // A projected CRS whose unit GDAL reported but that matched no named unit
     // still converts: the double carries the scale, the enum is diagnostics.
-    Assert.Equal(1.0, Projected(0).UnitToMetersOrMeter);
-    Assert.Equal(0.3048, Projected(CrsInfo.MetersPerFoot).UnitToMetersOrMeter);
+    Assert.Equal(1.0, TestFeatures.ProjectedCrs(0).UnitToMetersOrMeter);
+    Assert.Equal(0.3048, TestFeatures.ProjectedCrs(CrsInfo.MetersPerFoot).UnitToMetersOrMeter);
     Assert.Equal(
       CrsInfo.MetersPerUsSurveyFoot,
-      Projected(CrsInfo.MetersPerUsSurveyFoot).UnitToMetersOrMeter,
+      TestFeatures.ProjectedCrs(CrsInfo.MetersPerUsSurveyFoot).UnitToMetersOrMeter,
       15
     );
   }
@@ -115,7 +56,13 @@ public class CrsInfoAndAreaTests
       CrsInfo.MetersPerUsSurveyFoot != CrsInfo.MetersPerFoot,
       "US survey foot and international foot must not share a factor"
     );
-    Rel(1200.0 / 3937.0, CrsInfo.MetersPerUsSurveyFoot, 1e-15);
+    Tolerance.Rel(
+      1200.0 / 3937.0,
+      CrsInfo.MetersPerUsSurveyFoot,
+      1e-15,
+      "us survey foot metres",
+      0.0
+    );
     Assert.Equal(0.3048, CrsInfo.MetersPerFoot, 15);
   }
 
@@ -124,7 +71,7 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void StandalonePartHasUnknownCrsAndNullNamedMetrics()
   {
-    Part part = Ring(Rect());
+    Part part = TestFeatures.Ring(TestFeatures.Rect());
 
     Assert.Equal(CrsKind.Unknown, part.Crs.Kind);
     Assert.Null(part.AreaSquareMeters);
@@ -134,7 +81,7 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void FeatureWithoutCollectionHasUnknownCrsAndNullArea()
   {
-    Feature feature = FeatureOf(Ring(Rect()));
+    Feature feature = TestFeatures.FeatureOf(TestFeatures.Ring(TestFeatures.Rect()));
 
     Assert.Equal(CrsKind.Unknown, feature.Crs.Kind);
     Assert.Null(feature.AreaSquareMeters);
@@ -143,10 +90,10 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void AddFeatureWiresTheChainSoPartsResolveTheCollectionsCrs()
   {
-    CrsInfo crs = Projected(1.0);
-    Part part = Ring(Rect());
-    Feature feature = FeatureOf(part);
-    Features fc = CollectionOf(crs, feature);
+    CrsInfo crs = TestFeatures.ProjectedCrs(1.0);
+    Part part = TestFeatures.Ring(TestFeatures.Rect());
+    Feature feature = TestFeatures.FeatureOf(part);
+    Features fc = TestFeatures.CollectionOf(crs, feature);
 
     Assert.Same(crs, fc.Crs);
     Assert.Same(crs, feature.Crs);
@@ -158,10 +105,10 @@ public class CrsInfoAndAreaTests
   {
     // The chain is assembled after CloseRing has already run, so AreaSquareMeters
     // must resolve lazily rather than being cached at CloseRing time.
-    Part part = Ring(Rect());
+    Part part = TestFeatures.Ring(TestFeatures.Rect());
     Assert.Null(part.AreaSquareMeters);
 
-    CollectionOf(Projected(1.0), FeatureOf(part));
+    TestFeatures.CollectionOf(TestFeatures.ProjectedCrs(1.0), TestFeatures.FeatureOf(part));
     Rel(5000.0, part.AreaSquareMeters!.Value);
   }
 
@@ -171,8 +118,8 @@ public class CrsInfoAndAreaTests
     // Documents CURRENT behaviour: RemoveFeature renumbers ids but does not clear
     // Owner, so a detached feature still reports the collection's CRS. Deliberately
     // pinned so that clearing Owner becomes an intentional, reviewed change.
-    Feature feature = FeatureOf(Ring(Rect()));
-    var fc = CollectionOf(Projected(1.0), feature);
+    Feature feature = TestFeatures.FeatureOf(TestFeatures.Ring(TestFeatures.Rect()));
+    var fc = TestFeatures.CollectionOf(TestFeatures.ProjectedCrs(1.0), feature);
 
     fc.RemoveFeature(0);
 
@@ -184,8 +131,8 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void ProjectedMetresAreaAndLengthConvertByUnitFactor()
   {
-    Part part = Ring(Rect(100, 50));
-    CollectionOf(Projected(1.0), FeatureOf(part));
+    Part part = TestFeatures.Ring(TestFeatures.Rect(100, 50));
+    TestFeatures.CollectionOf(TestFeatures.ProjectedCrs(1.0), TestFeatures.FeatureOf(part));
 
     Rel(5000.0, part.AreaSquareMeters!.Value);
     Rel(300.0, part.LengthMeters!.Value);
@@ -194,8 +141,11 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void ProjectedFeetAreaConvertsByTheSquareOfTheFactor()
   {
-    Part part = Ring(Rect(100, 50));
-    CollectionOf(Projected(CrsInfo.MetersPerFoot), FeatureOf(part));
+    Part part = TestFeatures.Ring(TestFeatures.Rect(100, 50));
+    TestFeatures.CollectionOf(
+      TestFeatures.ProjectedCrs(CrsInfo.MetersPerFoot),
+      TestFeatures.FeatureOf(part)
+    );
 
     Rel(5000.0 * 0.3048 * 0.3048, part.AreaSquareMeters!.Value, 1e-12);
     Rel(300.0 * 0.3048, part.LengthMeters!.Value, 1e-12);
@@ -204,10 +154,16 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void ProjectedUsSurveyFootDoesNotSilentlyUseTheInternationalFoot()
   {
-    Part survey = Ring(Rect(100, 50));
-    Part intl = Ring(Rect(100, 50));
-    CollectionOf(Projected(CrsInfo.MetersPerUsSurveyFoot), FeatureOf(survey));
-    CollectionOf(Projected(CrsInfo.MetersPerFoot), FeatureOf(intl));
+    Part survey = TestFeatures.Ring(TestFeatures.Rect(100, 50));
+    Part intl = TestFeatures.Ring(TestFeatures.Rect(100, 50));
+    TestFeatures.CollectionOf(
+      TestFeatures.ProjectedCrs(CrsInfo.MetersPerUsSurveyFoot),
+      TestFeatures.FeatureOf(survey)
+    );
+    TestFeatures.CollectionOf(
+      TestFeatures.ProjectedCrs(CrsInfo.MetersPerFoot),
+      TestFeatures.FeatureOf(intl)
+    );
 
     double ratio = survey.AreaSquareMeters!.Value / intl.AreaSquareMeters!.Value;
 
@@ -215,7 +171,7 @@ public class CrsInfoAndAreaTests
     // definitions rather than from CrsInfo's constants, so that a constant
     // drifted to the wrong value fails here instead of cancelling out.
     double expected = (1200.0 / 3937.0 / 0.3048) * (1200.0 / 3937.0 / 0.3048);
-    Rel(expected, ratio, 1e-12);
+    Tolerance.Rel(expected, ratio, 1e-12, "survey-foot/international-foot area ratio", 0.0);
     Assert.True(ratio > 1.000003 && ratio < 1.000005, $"unexpected ratio {ratio:E}");
   }
 
@@ -225,10 +181,13 @@ public class CrsInfoAndAreaTests
     // The design decision: Part.Area/Perimeter are honest planar math over the
     // stored vertices. They must not be quietly rescaled when a CRS is attached,
     // or the metric would disagree with the geometry it describes.
-    Part metres = Ring(Rect());
-    Part feet = Ring(Rect());
-    CollectionOf(Projected(1.0), FeatureOf(metres));
-    CollectionOf(Projected(CrsInfo.MetersPerFoot), FeatureOf(feet));
+    Part metres = TestFeatures.Ring(TestFeatures.Rect());
+    Part feet = TestFeatures.Ring(TestFeatures.Rect());
+    TestFeatures.CollectionOf(TestFeatures.ProjectedCrs(1.0), TestFeatures.FeatureOf(metres));
+    TestFeatures.CollectionOf(
+      TestFeatures.ProjectedCrs(CrsInfo.MetersPerFoot),
+      TestFeatures.FeatureOf(feet)
+    );
 
     Rel(5000.0, metres.Area);
     Rel(5000.0, feet.Area);
@@ -243,8 +202,11 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void ProjectedWithUnrecognisedUnitStillConvertsViaUnitToMeters()
   {
-    Part part = Ring(Rect());
-    CollectionOf(new CrsInfo { Kind = CrsKind.Projected, UnitToMeters = 1.8288 }, FeatureOf(part));
+    Part part = TestFeatures.Ring(TestFeatures.Rect());
+    TestFeatures.CollectionOf(
+      new CrsInfo { Kind = CrsKind.Projected, UnitToMeters = 1.8288 },
+      TestFeatures.FeatureOf(part)
+    );
 
     Assert.Equal(LinearUnit.Unknown, part.Crs.Unit);
     Rel(5000.0 * 1.8288 * 1.8288, part.AreaSquareMeters!.Value, 1e-12);
@@ -255,10 +217,10 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void FeatureAreaSubtractsPartsFlaggedAsHoles()
   {
-    Part outer = Ring(Rect(100, 100));
-    Part hole = Hole(Rect(20, 20));
-    Feature feature = FeatureOf(outer, hole);
-    CollectionOf(Projected(1.0), feature);
+    Part outer = TestFeatures.Ring(TestFeatures.Rect(100, 100));
+    Part hole = TestFeatures.Hole(TestFeatures.Rect(20, 20));
+    Feature feature = TestFeatures.FeatureOf(outer, hole);
+    TestFeatures.CollectionOf(TestFeatures.ProjectedCrs(1.0), feature);
 
     Assert.True(hole.IsHole);
     Assert.False(outer.IsHole);
@@ -269,10 +231,10 @@ public class CrsInfoAndAreaTests
   public void FeatureAreaIgnoresNonHoleAdditionalParts()
   {
     // A second exterior part (multi-polygon) adds area; only IsHole subtracts.
-    Part outer = Ring(Rect(100, 100));
-    Part second = Ring((200, 200), (210, 200), (210, 210), (200, 210));
-    Feature feature = FeatureOf(outer, second);
-    CollectionOf(Projected(1.0), feature);
+    Part outer = TestFeatures.Ring(TestFeatures.Rect(100, 100));
+    Part second = TestFeatures.Ring((200, 200), (210, 200), (210, 210), (200, 210));
+    Feature feature = TestFeatures.FeatureOf(outer, second);
+    TestFeatures.CollectionOf(TestFeatures.ProjectedCrs(1.0), feature);
 
     Assert.False(second.IsHole);
     Rel(10000.0, feature.AreaSquareMeters!.Value);
@@ -281,13 +243,13 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void FeatureAreaFeatureWithoutCollectionReturnsNull()
   {
-    Assert.Null(FeatureOf(Ring(Rect())).AreaSquareMeters);
+    Assert.Null(TestFeatures.FeatureOf(TestFeatures.Ring(TestFeatures.Rect())).AreaSquareMeters);
   }
 
   [Fact]
   public void FeatureAreaCollectionWithNoPartsYetReturnsNull()
   {
-    var fc = new Features { Crs = Projected(1.0) };
+    var fc = new Features { Crs = TestFeatures.ProjectedCrs(1.0) };
     fc.AddFeature(new Feature());
 
     Assert.Null(fc[0].AreaSquareMeters);
@@ -311,8 +273,8 @@ public class CrsInfoAndAreaTests
     // The whole point of the CrsKind branch: planar shoelace on degrees yields
     // ~1e-7 for this footprint (square degrees), so any plausible value here can
     // only come from the spherical path.
-    Part part = Ring(Footprint());
-    CollectionOf(Geographic, FeatureOf(part));
+    Part part = TestFeatures.Ring(Footprint());
+    TestFeatures.CollectionOf(TestFeatures.GeographicCrs, TestFeatures.FeatureOf(part));
 
     double? area = part.AreaSquareMeters;
     Assert.NotNull(area);
@@ -322,8 +284,8 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void GeographicRingPlanarAreaIsAbsurdlySmallAndNamedAreaIsNot()
   {
-    Part part = Ring(Footprint());
-    CollectionOf(Geographic, FeatureOf(part));
+    Part part = TestFeatures.Ring(Footprint());
+    TestFeatures.CollectionOf(TestFeatures.GeographicCrs, TestFeatures.FeatureOf(part));
 
     Assert.True(part.Area < 1e-6, $"planar area should be square degrees, was {part.Area:E}");
     Assert.True(part.AreaSquareMeters!.Value > 300);
@@ -332,8 +294,8 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void GeographicRingLengthIsSpherical()
   {
-    Part part = Ring(Footprint());
-    CollectionOf(Geographic, FeatureOf(part));
+    Part part = TestFeatures.Ring(Footprint());
+    TestFeatures.CollectionOf(TestFeatures.GeographicCrs, TestFeatures.FeatureOf(part));
 
     double length = part.LengthMeters!.Value;
     Assert.True(length > 80 && length < 120, $"implausible perimeter {length:E}");
@@ -351,16 +313,16 @@ public class CrsInfoAndAreaTests
       (-73.20995, 44.47512),
     ];
 
-    Part outerPart = Ring(outer);
-    Part holePart = Hole(inner);
-    Feature feature = FeatureOf(outerPart, holePart);
-    CollectionOf(Geographic, feature);
+    Part outerPart = TestFeatures.Ring(outer);
+    Part holePart = TestFeatures.Hole(inner);
+    Feature feature = TestFeatures.FeatureOf(outerPart, holePart);
+    TestFeatures.CollectionOf(TestFeatures.GeographicCrs, feature);
 
     // A second feature carrying only the exterior, attached before anything is
     // read: AreaSquareMeters resolves through the owner chain and is null on a
     // detached feature.
-    Part wholePart = Ring(outer);
-    CollectionOf(Geographic, FeatureOf(wholePart));
+    Part wholePart = TestFeatures.Ring(outer);
+    TestFeatures.CollectionOf(TestFeatures.GeographicCrs, TestFeatures.FeatureOf(wholePart));
 
     Assert.True(holePart.IsHole);
     Assert.NotNull(feature.AreaSquareMeters);
@@ -377,8 +339,8 @@ public class CrsInfoAndAreaTests
   [Fact]
   public void UnknownCrsReturnsNullForEveryNamedMetric()
   {
-    Part part = Ring(Footprint());
-    Feature feature = FeatureOf(part);
+    Part part = TestFeatures.Ring(Footprint());
+    Feature feature = TestFeatures.FeatureOf(part);
 
     Assert.Null(part.AreaSquareMeters);
     Assert.Null(part.LengthMeters);
@@ -386,4 +348,24 @@ public class CrsInfoAndAreaTests
     // ...while the native planar numbers remain available and unchanged.
     Assert.True(part.Area > 0);
   }
+
+  [Fact]
+  public void AreaAndPerimeterMeasureOnDemandWithoutSealing()
+  {
+    // P-71: Area/Perimeter/Centroid were auto-properties written only by Measure(), so an
+    // unsealed part reported null area -- the value reserved for "this geometry has no
+    // area" -- and 0 perimeter, the value for a single vertex. Built here rather than via
+    // TestFeatures.Ring: a fixture must not be what keeps this reachable, because adding
+    // Seal() to the fixture is a plausible cleanup that would silently retire this test.
+    var part = new Part(PartType.Ring);
+    foreach ((double x, double y) in TestFeatures.Rect(100, 50))
+    {
+      part.AddVertex(new Vertex(x, y));
+    }
+    Rel(5000.0, part.Area);
+    Rel(300.0, part.Perimeter);
+    Assert.Equal(50.0, part.CentroidX, 12);
+    Assert.Equal(25.0, part.CentroidY, 12);
+  }
 }
+
