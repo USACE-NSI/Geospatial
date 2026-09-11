@@ -274,6 +274,141 @@ public class RTreeTests
   }
 
   /// <summary>
+  /// T-23 / P-48.2. BulkInsertAllFeaturesFindableByPoint asserts through FeatureIndicesAt,
+  /// which calls BoundingBox.Overlaps -- the same predicate getCandidateFeatNodesByMBR uses.
+  /// A wrong Overlaps makes the traversal and the helper agree, so the test passes on the
+  /// bug it exists to catch. These two facts compute the truth with comparisons only and
+  /// never call Overlaps, so traversal and oracle can disagree.
+  ///
+  /// The contract asserted is a FILTER's contract, not equality: internal node boxes are
+  /// unions, so a correct tree legitimately over-reports. What it may never do is drop a
+  /// feature that is really there (1), return everything (2), or answer for a point that is
+  /// inside nothing (3).
+  /// </summary>
+  [Fact]
+  public void BulkInsertCandidateSetNeverDropsAFeatureTheArithmeticSaysIsThere()
+  {
+    const int count = 500;
+    var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
+    for (int i = 0; i < count; i++)
+    {
+      tree.addFeature([i], AuthoredBox(i));
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+      double qx = i * 10 + 2.5;
+      double qy = i * 10 + 2.5;
+      var candidates = CandidateFeatureIds(tree, qx, qy);
+
+      // (1) the query point is inside feature i's authored box by construction, so the
+      // index must offer i as a candidate. This is the assertion FeatureIndicesAt cannot
+      // make, because it filters through the predicate under test.
+      Assert.True(
+        candidates.Contains(i),
+        $"feature {i} contains ({qx},{qy}) but the traversal did not offer it"
+      );
+
+      // (2) a filter that returns everything is correct and useless.
+      Assert.True(
+        candidates.Count < count,
+        $"query ({qx},{qy}) returned all {count} features: nothing was pruned"
+      );
+    }
+
+    // (3) Mirror of the defect the deleted getMBRoverlap floor was built to excuse. -4.5 is
+    // below every box, so the honest answer is the empty set.
+    Assert.Empty(CandidateFeatureIds(tree, -4.5, -4.5));
+  }
+
+  /// <summary>
+  /// T-23, the other half of "no MBR-propagation test exists". Walked from Root by direct
+  /// recursion rather than through findByXY/getEndNodes, so a traversal bug cannot hide a
+  /// propagation bug or vice versa. Every node's box must cover every box below it, and each
+  /// feature node must still hold the box it was given: that is the invariant
+  /// RecomputeMBR exists to maintain, and the only thing P-40's four Children.Min/Max
+  /// enumerations and P-42's throwaway addChild calls can plausibly break.
+  /// </summary>
+  [Fact]
+  public void EveryNodeBoxCoversItsWholeSubtreeAndEveryFeatureKeepsItsBox()
+  {
+    const int count = 200;
+    var tree = new RTreeManager(minChilds: 3, maxChilds: 6);
+    for (int i = 0; i < count; i++)
+    {
+      tree.addFeature([i], AuthoredBox(i));
+    }
+
+    var reached = new HashSet<int>();
+    AssertCovers(tree.Root, reached);
+
+    // Lost in a split, or filed twice: both are silent today.
+    Assert.Equal(count, reached.Count);
+  }
+
+  /// The box feature i was authored with. Symmetric in x and y on purpose.
+  private static BoundingBox AuthoredBox(int i) => new(i * 10, i * 10, i * 10 + 5, i * 10 + 5);
+
+  /// Plain comparisons: deliberately NOT BoundingBox.Overlaps/Contains/ContainsPoint.
+  private static bool Covers(BoundingBox outer, BoundingBox inner) =>
+    outer.MinX <= inner.MinX
+    && outer.MinY <= inner.MinY
+    && outer.MaxX >= inner.MaxX
+    && outer.MaxY >= inner.MaxY;
+
+  private static bool ContainsPoint(BoundingBox box, double x, double y) =>
+    box.MinX <= x && x <= box.MaxX && box.MinY <= y && y <= box.MaxY;
+
+  /// Feature ids the index offers for a point query, taken from every returned node's whole
+  /// subtree -- getCandidateFeatNodesByMBR returns the parent of the matching children, so a
+  /// returned node may be an interior one whose features sit deeper.
+  private static HashSet<int> CandidateFeatureIds(RTreeManager tree, double x, double y)
+  {
+    var ids = new HashSet<int>();
+    foreach (var node in tree.findByXY(x, y))
+    {
+      CollectFeatureIds(node, ids);
+    }
+    return ids;
+  }
+
+  private static void CollectFeatureIds(RTreeNode node, HashSet<int> into)
+  {
+    foreach (var child in node.Children)
+    {
+      if (child.FeatureIndex is { Length: > 0 } id)
+      {
+        into.Add(id[0]);
+      }
+      else
+      {
+        CollectFeatureIds(child, into);
+      }
+    }
+  }
+
+  private static void AssertCovers(RTreeNode node, HashSet<int> reached)
+  {
+    foreach (var child in node.Children)
+    {
+      Assert.True(
+        Covers(node.BoundingBox, child.BoundingBox),
+        $"node {node.BoundingBox} does not cover child {child.BoundingBox}"
+      );
+
+      if (child.FeatureIndex is { Length: > 0 } id)
+      {
+        Assert.True(reached.Add(id[0]), $"feature {id[0]} is reachable more than once");
+        Assert.Equal(AuthoredBox(id[0]), child.BoundingBox);
+      }
+      else
+      {
+        AssertCovers(child, reached);
+      }
+    }
+  }
+
+  /// <summary>
   /// Deliberately does NOT call BoundingBox.Overlaps -- see P-48.2 / T-23. The existing
   /// FeatureIndicesAt oracle now calls the same predicate the traversal under test calls, so
   /// it agrees with the code by construction. This one asks only whether the traversal
@@ -310,3 +445,4 @@ public class RTreeTests
     return indices;
   }
 }
+
