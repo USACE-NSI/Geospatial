@@ -62,7 +62,7 @@ public sealed class SpatialReader : IFeatureSource
       {
         using var defn = feat.GetFieldDefnRef(i);
         string name = defn.GetName();
-        Nsi.Geospatial.Enums.FieldType type = MapFieldType(defn.GetFieldType());
+        Nsi.Geospatial.Enums.FieldType type = OgrFieldTypes.ToFieldType(defn.GetFieldType());
         fc.Schema.AddField(name, type, defn.GetWidth(), defn.GetPrecision());
         f.Attributes[name] = ReadFieldValue(feat, i, type);
       }
@@ -277,20 +277,6 @@ public sealed class SpatialReader : IFeatureSource
       or wkbGeometryType.wkbPolygon25D
       or wkbGeometryType.wkbMultiPolygon => ShapeType.Polygon,
       _ => ShapeType.Point,
-    };
-
-  private static Nsi.Geospatial.Enums.FieldType MapFieldType(OSGeo.OGR.FieldType t) =>
-    t switch
-    {
-      OSGeo.OGR.FieldType.OFTInteger => Nsi.Geospatial.Enums.FieldType.IntegerFT,
-      OSGeo.OGR.FieldType.OFTInteger64 => Nsi.Geospatial.Enums.FieldType.LongFT,
-      OSGeo.OGR.FieldType.OFTReal => Nsi.Geospatial.Enums.FieldType.DoubleFT,
-      OSGeo.OGR.FieldType.OFTString => Nsi.Geospatial.Enums.FieldType.TextFT,
-      OSGeo.OGR.FieldType.OFTDate or OSGeo.OGR.FieldType.OFTDateTime => Nsi.Geospatial
-        .Enums
-        .FieldType
-        .DateFT,
-      _ => Nsi.Geospatial.Enums.FieldType.TextFT,
     };
 }
 

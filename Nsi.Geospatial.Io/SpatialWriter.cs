@@ -70,7 +70,7 @@ public sealed class SpatialWriter : IFeatureSink
     foreach (var col in features.Schema.ColumnNames)
     {
       var c = features.Schema[col];
-      var fdefn = new FieldDefn(c.Name, MapFieldType(c.FieldType));
+      var fdefn = new FieldDefn(c.Name, OgrFieldTypes.ToOgrFieldType(c.FieldType));
       fdefn.SetWidth(c.Length);
       fdefn.SetPrecision(c.DecimalPlaces);
       layer.CreateField(fdefn, 1);
@@ -232,19 +232,6 @@ public sealed class SpatialWriter : IFeatureSink
       ShapeType.Line => wkbGeometryType.wkbLineString,
       ShapeType.Polygon => wkbGeometryType.wkbPolygon,
       _ => wkbGeometryType.wkbPoint,
-    };
-
-  private static OSGeo.OGR.FieldType MapFieldType(Nsi.Geospatial.Enums.FieldType t) =>
-    t switch
-    {
-      Nsi.Geospatial.Enums.FieldType.IntegerFT => OSGeo.OGR.FieldType.OFTInteger,
-      Nsi.Geospatial.Enums.FieldType.LongFT => OSGeo.OGR.FieldType.OFTInteger64, // new
-      Nsi.Geospatial.Enums.FieldType.DoubleFT
-      or Nsi.Geospatial.Enums.FieldType.FloatFT
-      or Nsi.Geospatial.Enums.FieldType.NumericFT
-      or Nsi.Geospatial.Enums.FieldType.SingleFT => OSGeo.OGR.FieldType.OFTReal,
-      Nsi.Geospatial.Enums.FieldType.DateFT => OSGeo.OGR.FieldType.OFTDate,
-      _ => OSGeo.OGR.FieldType.OFTString,
     };
 }
 
