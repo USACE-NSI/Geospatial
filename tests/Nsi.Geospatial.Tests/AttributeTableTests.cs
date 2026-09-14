@@ -6,8 +6,6 @@ namespace Nsi.Geospatial.Tests;
 
 public class AttributeTableTests
 {
-  // Reached through AttributeTable.Coerce: that is the only public route to a column's
-  // coercion, so "column test" and "table-driven setup" are not in tension here.
   [Fact]
   public void CoerceNullYieldsNullNotThrow()
   {
