@@ -54,8 +54,10 @@ public class FeatureAreaTests
   /// <summary>
   /// The three parts are always present; only the IsHole flags vary, so each row isolates
   /// one subtraction and row 1 proves the flags are load-bearing -- an unflagged interior
-  /// must change nothing. Row 4 needs the loop. All four are green today and none of them
-  /// says anything about ORDER, which is the next test's job.
+  /// must change nothing. Row 4 needs the loop.
+  /// Row 1 (nothing flagged -> 6400) is what constrains the fix: "sum the unflagged parts,
+  /// subtract the flagged" would answer 6700 and is therefore wrong. The shell is the first
+  /// unflagged part, not the aggregate of unflagged parts.
   /// </summary>
   [Theory]
   [InlineData(false, false, 6400)] // neither flagged: nothing subtracted
@@ -80,18 +82,15 @@ public class FeatureAreaTests
   }
 
   /// <summary>
-  /// P-05, T-5. CHARACTERISATION -- this is the bug, not the spec. Area is a property of the
-  /// geometry, so the order rings were appended in cannot change it: the answer is 6100.
-  /// Feature.AreaSquareMeters seeds `total` from Parts[0] unconditionally, so with a hole
-  /// first it computes 100 - 200 = -100: the exterior is skipped as a "hole" and one hole is
-  /// subtracted from another. NEGATIVE, not merely too small -- which is what makes this
-  /// worth a guard, since a negative area is measurable, compares normally, and escapes.
-  ///
-  /// Change the expectation to 6100 in the SAME commit as the fix (T-24's rule); do not
-  /// delete this test first, or the fix ships unguarded and P-05 reopens green.
+  /// P-05. The shell is found by flag, not by slot. Area is a property of the geometry, so
+  /// the order rings were appended in cannot change it: 6100. Before the fix this answered
+  /// -100 -- Parts[0] seeded `total`, so the 6400 exterior was skipped as a "hole" and one
+  /// hole was subtracted from another. NEGATIVE, not merely too small: a negative area is
+  /// measurable, compares normally, and reaches joins and any area-sorted selection
+  /// unchecked. Reverted, this fails; that is the whole point of keeping it.
   /// </summary>
   [Fact]
-  public void HoleFirstFeatureSeedsFromPartsZeroSoTheExteriorIsNeverCounted()
+  public void AreaSquareMetersFindsTheShellByFlagNotByPosition()
   {
     var features = TestFeatures.Projected(1.0);
     var feature = TestFeatures.Polygon(
@@ -102,7 +101,7 @@ public class FeatureAreaTests
     );
 
     Assert.True(feature.Parts[0].IsHole); // the premise, stated rather than assumed
-    Assert.Equal(6100d, feature.AreaSquareMeters!.Value, 6); // 6100 after P-05
+    Assert.Equal(6100d, feature.AreaSquareMeters!.Value, 6);
   }
 }
 

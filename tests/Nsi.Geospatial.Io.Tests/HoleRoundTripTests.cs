@@ -1,3 +1,4 @@
+using System.Globalization;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
 using Nsi.Geospatial.Io;
@@ -29,6 +30,12 @@ public class HoleRoundTripTests
   static readonly (double X, double Y)[] Triangle = [(5, 5), (25, 5), (5, 25)];
   static readonly (double X, double Y)[] Square = [(5, 60), (15, 60), (15, 70), (5, 70)];
 
+  /// Three tests because they fail for unrelated reasons, plus a fourth that asks a question
+  /// the first three cannot: the AREA is our claim, the ring ORDER is the driver's, and the
+  /// hole FLAGS are neither -- SpatialReader assigns them from ring position, so a file whose
+  /// order was already conventional round-trips its flags for a reason that has nothing to
+  /// do with the write. HoleFlagsSurviveRoundTripWhenTheShellIsNotFirst authors the shell at
+  /// Parts[1] so position and flag disagree, and says which rule the reader implements.
   [Fact]
   public void PolygonHoleIsSubtractedAfterRead()
   {
@@ -57,12 +64,16 @@ public class HoleRoundTripTests
   }
 
   /// <summary>
-  /// T-5's literal "IsHole == true on ring 1" claim, kept separate because it is the FRAGILE
-  /// one. SpatialReader derives the flag positionally (`IsHole = r > 0`) and SpatialWriter
-  /// emits Parts order without consulting IsHole, so nothing in this repository decides ring
-  /// order -- OGR does, from winding. If a GDAL upgrade reorders rings THIS is the test that
-  /// breaks, and the two above keep guarding the arithmetic. Fix the expectation here; do not
-  /// touch the area tests.
+  /// T-5, P-05. The ring ORDER claim, and the FRAGILE one. What this fixture actually
+  /// demonstrates is narrower than it looks: all three rings are authored CCW, so winding
+  /// could not have told OGR which was the shell -- the ESRI spec's rule is exterior
+  /// clockwise, hole counter-clockwise, and this file violates it on all three rings. OGR
+  /// preserved our order (or used containment), repaired the winding, and the reader then
+  /// assigned IsHole from position. So this pins that this GDAL build preserves order for
+  /// input whose order was already conventional. It is NOT evidence that positional
+  /// assignment is sound -- see HoleFlagsSurviveRoundTripWhenTheShellIsNotFirst.
+  /// If a GDAL upgrade reorders rings THIS is the test that breaks; fix the expectation here
+  /// and leave the area tests alone.
   /// </summary>
   [Fact]
   public void ExteriorIsRingZeroAndHolesFollowAfterRead()
@@ -75,13 +86,8 @@ public class HoleRoundTripTests
     Assert.True(parts[2].IsHole);
   }
 
-  static Features RoundTrip(bool exteriorOnly)
+  static Features RoundTrip(bool exteriorOnly, bool shellFirst = true)
   {
-    // .prj comes from Crs.Wkt and nothing else. Without WKT the writer emits no .prj,
-    // CrsInspector reports Unknown, AreaSquareMeters returns null, and every assertion in
-    // this file passes while proving nothing. Resolved through OSR rather than hand-authored
-    // so the WKT is authoritative; metre units, so UnitToMeters is 1 and 6400 planar units
-    // are exactly 6400 square metres.
     var srs = new SpatialReference(null);
     try
     {
@@ -95,11 +101,23 @@ public class HoleRoundTripTests
         Crs = new CrsInfo { Kind = CrsKind.Projected, Wkt = wkt },
       };
       var feature = new Feature();
-      feature.AddPart(Ring(Exterior, isHole: false));
-      if (!exteriorOnly)
+      if (exteriorOnly)
       {
+        feature.AddPart(Ring(Exterior, isHole: false));
+      }
+      else if (shellFirst)
+      {
+        feature.AddPart(Ring(Exterior, isHole: false));
         feature.AddPart(Ring(Triangle, isHole: true));
         feature.AddPart(Ring(Square, isHole: true));
+      }
+      else
+      {
+        // The state P-05 makes reachable in memory and the reader cannot represent:
+        // position and flag disagree.
+        feature.AddPart(Ring(Square, isHole: true)); // Parts[0] is a hole
+        feature.AddPart(Ring(Exterior, isHole: false)); // Parts[1] is the shell
+        feature.AddPart(Ring(Triangle, isHole: true));
       }
       write.AddFeature(feature);
 
@@ -113,11 +131,52 @@ public class HoleRoundTripTests
     }
   }
 
-  /// <summary>Sealed and CCW, matching TestFeatures.Ring. The writer closes rings itself, so
-  /// 6 vertices go out and 7 come back; no test here asserts counts -- that is T-3.</summary>
+  /// <summary>
+  /// P-05, P-21. What PolygonHoleIsSubtractedAfterRead cannot assert: that the flag we wrote
+  /// is the flag we read back. SpatialReader assigns IsHole from ring position, so a
+  /// positionally-conforming file round-trips its flags for a reason that has nothing to do
+  /// with the write -- the three tests above pass whether or not IsHole survives anything.
+  /// This one authors the shell at Parts[1], so position and flag disagree.
+  /// </summary>
+  [Fact]
+  public void HoleFlagsSurviveRoundTripWhenTheShellIsNotFirst()
+  {
+    var feature = Assert.Single(RoundTrip(exteriorOnly: false, shellFirst: false).FeatureSet);
+    var parts = feature.Parts;
+    // Each ring is identified by its own area (6400 exterior, 200 triangle, 100 square)
+    // rather than by the slot we wrote it into, and the two holes are unordered. Asserting
+    // flags by index before knowing which ring landed where is what made the last run
+    // uninformative: positional assignment and driver reordering both answer False.
+    Assert.Equal(
+      "shell=6400 hole=200 hole=100",
+      string.Join(
+        " ",
+        feature
+          .Parts.OrderByDescending(p => p.AreaSquareMeters ?? 0)
+          .Select(p =>
+            $"{(p.IsHole ? "hole" : "shell")}={p.AreaSquareMeters?.ToString(
+                "0",
+                CultureInfo.InvariantCulture
+              ) ?? "null"}"
+          )
+      )
+    );
+    Assert.Equal(6100d, feature.AreaSquareMeters!.Value, 6);
+    Assert.Equal(3, parts.Count); // else the two below throw instead of reporting
+    Assert.True(parts[0].IsHole, $"Parts[0].IsHole came back {parts[0].IsHole}");
+    Assert.False(parts[1].IsHole, $"Parts[1].IsHole came back {parts[1].IsHole}");
+    Assert.True(parts[2].IsHole, $"Parts[2].IsHole came back {parts[2].IsHole}");
+    Assert.Equal(6100d, feature.AreaSquareMeters!.Value, 6);
+  }
+
+  /// <summary>
+  /// Sealed and CCW, matching TestFeatures.Ring. No test here asserts vertex counts -- that
+  /// is T-3. IsHole is authored faithfully; whether it SURVIVES the round trip is a separate
+  /// question, because SpatialReader assigns the flag from ring position.
+  /// </summary>
   static Part Ring((double X, double Y)[] points, bool isHole)
   {
-    var part = new Part(PartType.Ring) { IsHole = !isHole };
+    var part = new Part(PartType.Ring) { IsHole = isHole };
     foreach (var (x, y) in points)
       part.AddVertex(new Vertex(x, y));
     part.Seal();
