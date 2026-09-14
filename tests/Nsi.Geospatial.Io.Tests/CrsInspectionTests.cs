@@ -285,6 +285,11 @@ public class CrsInspectionTests
       var f = new Feature { ShapeType = ShapeType.Polygon };
       f.Attributes["id"] = 1;
       var ring = new Part(PartType.Ring) { IsHole = false };
+      // -93/44 is load-bearing, not arbitrary: it is also an axis-order guard. If the source
+      // SRS ever stops being pinned to traditional GIS order, GDAL reads -93 as a latitude,
+      // aea rejects it, and this throws instead of comparing areas. Move the fixture to a
+      // mid-latitude lon/lat and that signal disappears -- CoordinateTransformerTests is where
+      // the ordinate-level assertion lives, and it does not depend on the target CRS objecting.
       foreach (var (x, y) in Cell(-93.0, 44.0))
         ring.AddVertex(new Vertex(x, y));
       ring.Seal();
@@ -367,3 +372,4 @@ public class CrsInspectionTests
     }
   }
 }
+

@@ -113,4 +113,3 @@ public sealed class CoordinateTransformer : IDisposable
     throw new ArgumentException($"{argName} must supply an EpsgCode or Wkt.", argName);
   }
 }
-
