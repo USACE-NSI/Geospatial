@@ -11,9 +11,9 @@ namespace Nsi.Geospatial.Tests;
 ///     land on 6400 by accident.
 ///   Triangle (5,5)(25,5)(5,25) = 200. THREE vertices and a 400 bounding box, so neither a
 ///     four-vertex assumption nor a box-shaped hole produces 200.
-///   Square   (5,60)(15,60)(15,70)(5,70) = 100. A SECOND hole: P-05 subtracts inside a loop
-///     over Parts[1..], and with one hole "subtracts holes" is indistinguishable from
-///     "subtracts Parts[1]".
+/// Square (5,60)(15,60)(15,70)(5,70) = 100. A SECOND hole: with one hole, "subtracts every
+/// hole" is indistinguishable from "subtracts the part after the exterior", which is what
+/// P-05 did. Two holes is what makes the loop observable.
 /// Every expected value is distinct (6400/6200/6300/6100), so a row that subtracts the wrong
 /// ring, or the wrong count of rings, cannot land on another row's answer.
 ///

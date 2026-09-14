@@ -114,7 +114,7 @@ public class HoleRoundTripTests
       {
         feature.AddPart(Ring(Exterior, isHole: false));
       }
-      else if (shellFirst)
+      else if (!holeFirst)
       {
         feature.AddPart(Ring(Exterior, isHole: false));
         feature.AddPart(Ring(Triangle, isHole: true));
