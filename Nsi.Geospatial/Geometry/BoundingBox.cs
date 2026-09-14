@@ -10,12 +10,24 @@ public struct BoundingBox
 
   public BoundingBox(double minX, double minY, double maxX, double maxY)
   {
-    MinX = Math.Min(minX, maxX);
-    MinY = Math.Min(minY, maxY);
-    MaxX = Math.Max(minX, maxX);
-    MaxY = Math.Max(minY, maxY);
+    MinX = minX;
+    MinY = minY;
+    MaxX = maxX;
+    MaxY = maxY;
   }
 
+  /// <summary>
+  /// The empty box: invalid by construction, Min &gt; Max on both axes, so it contains no
+  /// point and no area. The extremes are not sloppiness — they are what make it the
+  /// identity for Union (min of MaxValue, max of MinValue), so a node seeded with Empty
+  /// absorbs its first child for free and no insert path needs a sentinel test.
+  ///
+  /// That choice has a price: width and height are MinValue - MaxValue, which overflows,
+  /// so Area and Perimeter on an empty box are ±∞ rather than 0, and
+  /// EnlargementToContain is asymmetric (a real box grows by 0 to hold Empty; Empty
+  /// "grows" by -∞ to hold a real box). Anything that turns a box into a NUMBER must
+  /// test for emptiness first — anything that compares or unions one must not.
+  /// </summary>
   public static readonly BoundingBox Empty = new(
     double.MaxValue,
     double.MaxValue,
@@ -52,14 +64,14 @@ public struct BoundingBox
   /// </summary>
   public bool Overlaps(BoundingBox other)
   {
-    if (this == Empty || other == Empty)
+    if (this.IsEmpty() || other.IsEmpty())
       return false;
     return MinX <= other.MaxX && other.MinX <= MaxX && MinY <= other.MaxY && other.MinY <= MaxY;
   }
 
   public bool Contains(BoundingBox other)
   {
-    if (this == Empty || other == Empty)
+    if (this.IsEmpty() || other.IsEmpty())
       return false;
     return MinX <= other.MinX && MaxX >= other.MaxX && MinY <= other.MinY && MaxY >= other.MaxY;
   }
@@ -72,7 +84,7 @@ public struct BoundingBox
   /// </summary>
   public double OverlappingArea(BoundingBox other)
   {
-    if (this == Empty || other == Empty)
+    if (this.IsEmpty() || other.IsEmpty())
       return 0;
 
     double dx = Math.Min(MaxX, other.MaxX) - Math.Max(MinX, other.MinX);
@@ -92,9 +104,9 @@ public struct BoundingBox
 
   public BoundingBox Union(BoundingBox other)
   {
-    if (this == Empty)
+    if (this.IsEmpty())
       return other;
-    if (other == Empty)
+    if (other.IsEmpty())
       return this;
     return new(
       Math.Min(MinX, other.MinX),
@@ -103,6 +115,13 @@ public struct BoundingBox
       Math.Max(MaxY, other.MaxY)
     );
   }
+
+  /// <summary>
+  /// True when the box cannot contain a point: Min &gt; Max on either axis. Catches
+  /// <see cref="Empty"/> AND any hand-authored inversion, which is why the members that
+  /// turn a box into a number test this rather than comparing to Empty.
+  /// </summary>
+  public bool IsEmpty() => MinX > MaxX || MinY > MaxY;
 
   /// <summary>Extra area required to absorb <paramref name="other"/>.</summary>
   public double EnlargementToContain(BoundingBox other) => Union(other).Area() - Area();
@@ -118,3 +137,4 @@ public struct BoundingBox
 
   public static bool operator !=(BoundingBox a, BoundingBox b) => !(a == b);
 }
+

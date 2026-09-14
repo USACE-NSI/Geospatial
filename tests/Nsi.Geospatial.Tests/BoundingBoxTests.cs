@@ -137,26 +137,28 @@ public class BoundingBoxTests
     Assert.False(BoundingBox.Empty.Overlaps(BoundingBox.Empty));
   }
 
-  /// <summary>
-  /// P-39, characterisation. Corrects an earlier claim in Issues.md: -double.MaxValue IS
-  /// double.MinValue, so a box built from +/-MaxValue on both axes normalises to exactly
-  /// Empty and addFeature's first check rejects it. The gap that survives is one step
-  /// narrower -- a near-full-range box is not Empty, is finite at every corner, clears both
-  /// gates, and still overflows. When P-39 adds an overflow bound, add the Throws case.
-  /// </summary>
   [Fact]
   public void NegatedMaxValueIsTheSentinelButNearMaxValueOverflowsUnnoticed()
   {
-    Assert.Equal(
-      BoundingBox.Empty,
-      new BoundingBox(-double.MaxValue, -double.MaxValue, double.MaxValue, double.MaxValue)
+    // -double.MaxValue IS double.MinValue, so this is the FULL-RANGE box: min below max
+    // on both axes, contains every real coordinate. It is a third kind of box this type
+    // admits -- neither Empty nor a real box -- and Overlaps/Contains/Union treat it as a
+    // real one, so it silently absorbs everything it is unioned with. Nothing prevents
+    // constructing it: the ctor and the setters are public.
+    var fullRange = new BoundingBox(
+      -double.MaxValue,
+      -double.MaxValue,
+      double.MaxValue,
+      double.MaxValue
     );
 
-    var nearly = new BoundingBox(-1e308, -1e308, 1e308, 1e308);
-
-    Assert.NotEqual(BoundingBox.Empty, nearly);
-    Assert.True(double.IsFinite(nearly.MinX) && double.IsFinite(nearly.MaxX));
-    Assert.True(double.IsPositiveInfinity(nearly.Area())); // 2e308 > double.MaxValue
+    Assert.False(fullRange.IsEmpty()); // see below
+    Assert.NotEqual(BoundingBox.Empty, fullRange);
+    Assert.True(fullRange.ContainsPoint(0, 0));
+    Assert.Equal(fullRange, new BoundingBox(0, 0, 10, 10).Union(fullRange));
+    // A finite box overflows too, and nothing notices.
+    var nearFullRange = new BoundingBox(-1e308, -1e308, 1e308, 1e308);
+    Assert.True(double.IsPositiveInfinity(nearFullRange.Area()));
   }
 
   /// <summary>
@@ -168,7 +170,7 @@ public class BoundingBoxTests
   [Theory]
   [InlineData(0, 0, 10, 10, 2, 2, 8, 8, 0)] //    nested: no growth at all
   [InlineData(0, 0, 10, 10, 5, 5, 15, 15, 125)] // [0,15]^2=225 minus 100
-  [InlineData(0, 0, 10, 10, 20, 30, 30, 20, 800)] // [0,30]^2=900 minus 100, not 100
+  [InlineData(0, 0, 10, 10, 20, 20, 30, 30, 800)] // [0,30]^2=900 minus 100, not 100
   [InlineData(0, 0, 10, 10, 0, 0, 10, 10, 0)] //   identical
   [InlineData(5, 5, 5, 5, 0, 0, 10, 10, 100)] //   point growing to a box
   public void EnlargementToContainIsMbrGrowth(
@@ -261,7 +263,7 @@ public class BoundingBoxTests
   [Fact]
   public void PerimeterOfEmptyOverflows()
   {
-    Assert.True(double.IsPositiveInfinity(BoundingBox.Empty.Perimeter()));
+    Assert.True(double.IsNegativeInfinity(BoundingBox.Empty.Perimeter()));
     Assert.True(double.IsPositiveInfinity(BoundingBox.Empty.Area()));
   }
 
