@@ -32,16 +32,11 @@ public class HoleRoundTripTests
   static readonly (double X, double Y)[] Triangle = [(5, 5), (25, 5), (5, 25)];
   static readonly (double X, double Y)[] Square = [(5, 60), (15, 60), (15, 70), (5, 70)];
 
-  /// Three tests because they fail for unrelated reasons, plus a fourth that asks a question
-  /// the first three cannot: the AREA is our claim, the ring ORDER is the driver's, and the
-  /// hole FLAGS are neither -- SpatialReader assigns them from ring position, so a file whose
-  /// order was already conventional round-trips its flags for a reason that has nothing to
-  /// do with the write. HoleFlagsSurviveRoundTripWhenTheShellIsNotFirst authors the shell at
-  /// Parts[1] so position and flag disagree, and says which rule the reader implements.
   /// <summary>
   /// The claim through the driver: one feature, three rings, two of them flagged, 6100.
-  /// The Crs premises are the load-bearing part -- without a .prj every area below is null
-  /// and null!.Value throws rather than mis-asserts.
+  /// The Crs premises are the load-bearing part -- without a .prj every area below is null,
+  /// and null!.Value throws rather than mis-asserting, so a writer regression here surfaces
+  /// as an exception and not as a wrong number.
   /// </summary>
   [Fact]
   public void PolygonHoleIsSubtractedAfterRead()
@@ -77,9 +72,9 @@ public class HoleRoundTripTests
   /// normalises ring order itself. That makes this STABLE against a GDAL reorder, and also
   /// much weaker than it looks: for an already-conventional file, positional assignment and
   /// winding-based assignment give the same answer, so this cannot distinguish them.
-  /// The reader's positional rule is observable by inspection of SpatialReader only --
-  /// nothing can reach it through the writer, because the writer cannot emit a file that
-  /// contradicts it.
+  /// The reader's positional rule is reachable by inspection of SpatialReader only -- for a
+  /// single-shell polygon the writer cannot emit a file that contradicts it, and
+  /// multi-shell polygons are untested in either direction.
   /// </summary>
   [Fact]
   public void ExteriorIsRingZeroAndHolesFollowAfterRead()
@@ -100,7 +95,7 @@ public class HoleRoundTripTests
   /// the WKT is authoritative; metre units, so UnitToMeters is 1 and 6400 planar units are
   /// exactly 6400 square metres.
   /// </summary>
-  static Features RoundTrip(bool exteriorOnly, bool holeFirst = true)
+  static Features RoundTrip(bool exteriorOnly, bool holeFirst = false)
   {
     var srs = new SpatialReference(null);
     try
@@ -127,8 +122,10 @@ public class HoleRoundTripTests
       }
       else
       {
-        // The state P-05 makes reachable in memory and the reader cannot represent:
-        // position and flag disagree.
+        // The state P-05 makes reachable in memory and no shapefile can hold: Parts order
+        // and the flags disagree. The driver moves the shell to ring 0, so the read never
+        // sees this arrangement -- that is what this fixture established, not what it
+        // assumes..
         feature.AddPart(Ring(Square, isHole: true)); // Parts[0] is a hole
         feature.AddPart(Ring(Exterior, isHole: false)); // Parts[1] is the shell
         feature.AddPart(Ring(Triangle, isHole: true));

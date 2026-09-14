@@ -56,8 +56,9 @@ public class FeatureAreaTests
   /// expression was `total -= Parts[i].AreaSquareMeters ?? 0`, which turned "no area" into
   /// "zero area" -- Part.AreaSquareMeters names exactly that caller mistake in its own
   /// docstring. The hole here has TWO vertices, so its area is null by Part's documented
-  /// rule ("fewer than three vertices"), not by a fixture quirk. Restoring `?? 0` makes the
-  /// feature answer 6400 and this fail.
+  /// rule ("fewer than three vertices") rather than by a fixture quirk, and the premise
+  /// assert fails loudly if Part ever starts reporting 0. Restoring `?? 0` makes this
+  /// feature report a number again, and this test is what notices.
   /// </summary>
   [Fact]
   public void AreaOfAFeatureWithAHoleOfUnknownAreaIsUnknown()
@@ -73,10 +74,11 @@ public class FeatureAreaTests
   /// <summary>
   /// P-05. Every part flagged IsHole: there is no exterior to subtract FROM, so the answer
   /// is null and not the negation of a sum. A feature with no shell is authored data, not a
-  /// hypothetical -- the reader cannot produce one, joins and hand-built geometry can.
-  /// Pre-fix this seeded `total` from Parts[0] regardless of its flag and answered 100: a
-  /// plausible, positive, entirely fabricated number, since 200 - 100 is the SQUARE's own
-  /// area by coincidence. That is the worst failure this member can have.
+  /// hypothetical -- the reader cannot produce one; joins and hand-built geometry can.
+  /// Pre-fix, `total` was seeded from Parts[0] regardless of its flag, so this feature
+  /// reported a plausible positive area for geometry containing no exterior at all. That is
+  /// the worst failure this member can have, and null is the only answer that cannot be
+  /// mistaken for a measurement.
   /// </summary>
   [Fact]
   public void AreaOfAFeatureWithNoShellIsUnknown()
@@ -104,7 +106,7 @@ public class FeatureAreaTests
   [InlineData(false, false, 6400)] // neither flagged: nothing subtracted
   [InlineData(true, false, 6200)] //  6400 - 200, triangle only
   [InlineData(false, true, 6300)] //  6400 - 100, square only
-  [InlineData(true, true, 6100)] //   both: Parts[1..] summed, not stopped at the first
+  [InlineData(true, true, 6100)] //   both: every flagged part subtracted, not stopped at the first
   public void AreaSquareMetersSubtractsEveryHole(
     bool triangleIsHole,
     bool squareIsHole,
@@ -124,11 +126,11 @@ public class FeatureAreaTests
 
   /// <summary>
   /// P-05. The shell is found by flag, not by slot. Area is a property of the geometry, so
-  /// the order rings were appended in cannot change it: 6100. Before the fix this answered
-  /// -100 -- Parts[0] seeded `total`, so the 6400 exterior was skipped as a "hole" and one
-  /// hole was subtracted from another. NEGATIVE, not merely too small: a negative area is
-  /// measurable, compares normally, and reaches joins and any area-sorted selection
-  /// unchecked. Reverted, this fails; that is the whole point of keeping it.
+  /// the order rings were appended in cannot change it: 6100. Pre-fix, Parts[0] seeded
+  /// `total` unconditionally, so a hole-first feature never counted its exterior at all and
+  /// the result was a combination of holes that happened to be a number -- measurable,
+  /// comparable, and unchecked on its way into joins and any area-sorted selection.
+  /// Reverted, this fails; that is the whole point of keeping it.
   /// </summary>
   [Fact]
   public void AreaSquareMetersFindsTheShellByFlagNotByPosition()

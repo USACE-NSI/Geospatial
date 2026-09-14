@@ -6,8 +6,8 @@ namespace Nsi.Geospatial.Geometry;
 
 /// <summary>
 /// A single feature: geometry (parts + MBR) *and* its attribute row, held together.
-/// fix: replaces the old Feat parallel lists (_parts[i]/_vertices[i]/row i) where
-/// any add/remove on one list silently desynced the others.
+/// Replaces the old Feat parallel lists (_parts[i]/_vertices[i]/row i), where any add
+/// or remove on one list silently desynced the others.
 /// </summary>
 public sealed class Feature
 {
