@@ -20,9 +20,9 @@ namespace Nsi.Geospatial.Tests;
 /// sharpest evidence in this row. They are therefore Geographic()/Projected() for the collection
 /// form and GeographicCrs/ProjectedCrs() for the CrsInfo form. Do not "unify" them.
 ///
-/// These build GEOMETRY. They deliberately do not absorb the R-tree's Covers/ContainsPoint/
-/// AssertCovers/AssertIsExactUnion helpers: those reimplement BoundingBox members and should be
-/// deleted in favour of the members, which is P-39's work, not a relocation.
+/// These build GEOMETRY. The R-tree's box predicates call BoundingBox members directly
+/// (P-39); what remains in RTreeTests is tree-level (subtree cover, exact tiling), which
+/// no member expresses — do not relocate those either.
 /// </summary>
 internal static class TestFeatures
 {
