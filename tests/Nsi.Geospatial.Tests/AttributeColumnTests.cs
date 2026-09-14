@@ -6,6 +6,30 @@ namespace Nsi.Geospatial.Tests;
 
 public class AttributeColumnTests
 {
+  [Fact]
+  public void CoerceNullYieldsNullNotThrow()
+  {
+    var table = new AttributeTable();
+    table.AddField("NAME", FieldType.TextFT, 8, 0);
+    Assert.Null(table.Coerce("NAME", null));
+  }
+
+  [Fact]
+  public void CoerceTextTruncatesToLength()
+  {
+    var table = new AttributeTable();
+    table.AddField("NAME", FieldType.TextFT, 3, 0);
+    Assert.Equal("abc", table.Coerce("NAME", "abcdef"));
+  }
+
+  [Fact]
+  public void CoerceDoubleRoundsToDecimals()
+  {
+    var table = new AttributeTable();
+    table.AddField("NUM", FieldType.DoubleFT, 12, 1);
+    Assert.Equal(3.1, table.Coerce("NUM", "3.14159"));
+  }
+
   /// <summary>
   /// P-65: the six TryParse calls this consolidates used the host culture. Asserted without
   /// mutating CurrentCulture, because xunit parallelises across assemblies and Io.Tests'
