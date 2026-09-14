@@ -52,6 +52,47 @@ public class FeatureAreaTests
   }
 
   /// <summary>
+  /// P-05. A hole whose area is unknown makes the FEATURE's area unknown. The pre-fix
+  /// expression was `total -= Parts[i].AreaSquareMeters ?? 0`, which turned "no area" into
+  /// "zero area" -- Part.AreaSquareMeters names exactly that caller mistake in its own
+  /// docstring. The hole here has TWO vertices, so its area is null by Part's documented
+  /// rule ("fewer than three vertices"), not by a fixture quirk. Restoring `?? 0` makes the
+  /// feature answer 6400 and this fail.
+  /// </summary>
+  [Fact]
+  public void AreaOfAFeatureWithAHoleOfUnknownAreaIsUnknown()
+  {
+    var features = TestFeatures.Projected(1.0);
+    var noArea = TestFeatures.Hole((5, 5), (25, 5)); // two vertices: no area, by Part's rule
+    var feature = TestFeatures.Polygon(features, TestFeatures.Ring(Exterior), noArea);
+
+    Assert.Null(noArea.AreaSquareMeters); // the premise, stated rather than assumed
+    Assert.Null(feature.AreaSquareMeters);
+  }
+
+  /// <summary>
+  /// P-05. Every part flagged IsHole: there is no exterior to subtract FROM, so the answer
+  /// is null and not the negation of a sum. A feature with no shell is authored data, not a
+  /// hypothetical -- the reader cannot produce one, joins and hand-built geometry can.
+  /// Pre-fix this seeded `total` from Parts[0] regardless of its flag and answered 100: a
+  /// plausible, positive, entirely fabricated number, since 200 - 100 is the SQUARE's own
+  /// area by coincidence. That is the worst failure this member can have.
+  /// </summary>
+  [Fact]
+  public void AreaOfAFeatureWithNoShellIsUnknown()
+  {
+    var features = TestFeatures.Projected(1.0);
+    var feature = TestFeatures.Polygon(
+      features,
+      TestFeatures.Hole(Triangle),
+      TestFeatures.Hole(Square)
+    );
+
+    Assert.Equal(2, feature.Parts.Count(p => p.IsHole)); // premise: no exterior exists
+    Assert.Null(feature.AreaSquareMeters);
+  }
+
+  /// <summary>
   /// The three parts are always present; only the IsHole flags vary, so each row isolates
   /// one subtraction and row 1 proves the flags are load-bearing -- an unflagged interior
   /// must change nothing. Row 4 needs the loop.

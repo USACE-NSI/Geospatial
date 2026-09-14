@@ -76,7 +76,9 @@ public sealed class Feature
   /// member does not turn it into a number.
   /// Parts beyond the first unflagged one that are not holes contribute nothing: a flat
   /// Parts list cannot say which exterior a hole belongs to, so a feature with two shells
-  /// reports one shell and is not detectably wrong here.
+  /// reports one shell and is not detectably wrong here. That is a decision, not an
+  /// oversight, and FeatureAreaTests row 1 (nothing flagged -> 6400) is the only place the
+  /// behaviour is observable.
   /// </summary>
   public double? AreaSquareMeters
   {
