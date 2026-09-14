@@ -29,6 +29,7 @@ public class BoundingBoxTests
     Assert.False(inverted.ContainsPoint(5, 5));
     Assert.False(inverted.Overlaps(BoundingBox.Point(5, 5)));
     Assert.Equal(new BoundingBox(0, 0, 10, 10), new BoundingBox(0, 0, 10, 10).Union(inverted));
+    Assert.True(double.IsNaN(new BoundingBox(-1e308, 5, 1e308, 5).Area()));
   }
 
   /// <summary>
@@ -225,6 +226,37 @@ public class BoundingBoxTests
   }
 
   /// <summary>
+  /// P-39, P-41. A NaN growth needs the RECEIVER's overflow to survive into the Union, so
+  /// every row is non-empty: EnlargementToContain is Union(other).Area() - Area(), and with
+  /// Area() = +∞ and Union keeping the receiver's corners, that is ∞ - ∞. Emptiness is NOT
+  /// the cause -- see EnlargementToContainIsAsymmetricAboutEmpty, where an Empty receiver
+  /// gives -∞ instead, because Union's guard returns the argument and throws the receiver's
+  /// +∞ away before the subtraction.
+  /// It matters because every comparison against NaN is false: seed a min-selection with one
+  /// and `next < best` never fires again, so the node keeps whichever child it looked at
+  /// first. Unlike -∞, NaN does not even sort consistently.
+  /// Rows are the receiver (minX,minY,maxX,maxY); the argument is a real box.
+  /// </summary>
+  [Theory]
+  [InlineData(-double.MaxValue, -double.MaxValue, double.MaxValue, double.MaxValue)] // full range: -MaxValue IS MinValue
+  [InlineData(-1e308, -1e308, 1e308, 1e308)] // finite corners, still overflows
+  [InlineData(-1e308, 0, 1e308, 10)] // one axis is enough: ∞ × 10 is ∞
+  public void EnlargementToContainIsNaNWhenTheReceiversAreaIsInfinite(
+    double minX,
+    double minY,
+    double maxX,
+    double maxY
+  )
+  {
+    var receiver = new BoundingBox(minX, minY, maxX, maxY);
+    var value = receiver.EnlargementToContain(new BoundingBox(1, 2, 3, 4));
+
+    Assert.False(receiver.IsEmpty()); // the whole claim: emptiness is not required
+    Assert.True(double.IsInfinity(receiver.Area()));
+    Assert.True(double.IsNaN(value), $"actual {value}");
+  }
+
+  /// <summary>
   /// The two Empty directions are NOT symmetric, and P-41 depends on knowing that.
   /// Empty as the argument: Union short-circuits to this, so growth is Area - Area = 0.
   /// Empty as the receiver: Union short-circuits to the argument, then Area() is +inf, so
@@ -239,6 +271,7 @@ public class BoundingBoxTests
 
     Assert.Equal(0, box.EnlargementToContain(BoundingBox.Empty));
     Assert.True(double.IsNegativeInfinity(BoundingBox.Empty.EnlargementToContain(box)));
+    Assert.True(double.IsNaN(BoundingBox.Empty.EnlargementToContain(BoundingBox.Empty)));
   }
 
   /// <summary>
@@ -313,6 +346,35 @@ public class BoundingBoxTests
   }
 
   /// <summary>
+  /// P-39, P-72. Union short-circuits on IsEmpty, not on == Empty, so an empty ARGUMENT is
+  /// dropped before any arithmetic and growth is exactly Area - Area. Rows are
+  /// (aMinX,aMinY,aMaxX,aMaxY, bMinX,bMinY,bMaxX,bMaxY). The sentinel is spelled out rather
+  /// than named so the row says what the four extremes are. Every row's receiver must have a
+  /// FINITE Area -- see the other test: overflow turns this identity into NaN.
+  /// </summary>
+  [Theory]
+  [InlineData(1, 2, 3, 4, double.MaxValue, double.MaxValue, double.MinValue, double.MinValue)] // the sentinel
+  [InlineData(1, 2, 3, 4, 10, 10, 0, 0)] //                                                        hand-authored inversion
+  [InlineData(-100, -50, 300, 250, 10, 10, 0, 0)] //                                               negative bounds, projected-CRS-shaped
+  [InlineData(5, 5, 5, 5, double.MaxValue, double.MaxValue, double.MinValue, double.MinValue)] // degenerate receiver
+  public void EnlargementOfARealBoxAgainstAnEmptyArgumentIsZero(
+    double ax,
+    double ay,
+    double bx,
+    double by,
+    double cx,
+    double cy,
+    double dx,
+    double dy
+  )
+  {
+    Assert.Equal(
+      0d,
+      new BoundingBox(ax, ay, bx, by).EnlargementToContain(new BoundingBox(cx, cy, dx, dy))
+    );
+  }
+
+  /// <summary>
   /// P-62 / P-39. A NaN vertex fails both `x < minX` and `x > maxX`, so it is dropped
   /// without a trace and the box is too small -- a finite box addFeature will accept,
   /// indexing the feature somewhere it is not. Latent only because nothing calls this.
@@ -325,6 +387,110 @@ public class BoundingBoxTests
 
     Assert.Equal(new BoundingBox(0, 0, 0, 0), box); // the NaN point vanished
     Assert.True(double.IsFinite(box.MinX)); // and addFeature would wave it through
+  }
+
+  /// <summary>
+  /// P-73. Contains had no test at all: the only member of BoundingBox with no method in
+  /// this file, and one of the four that guard Empty. Rows are shared with
+  /// OverlapsIsSymmetricAndTrueForContainment wherever the same two boxes appear, so the
+  /// pair reads as one table: where Overlaps is true and Contains is true BOTH ways the
+  /// boxes are identical, and every other true is one-way.
+  ///
+  /// Expectations are derived from the definition -- "every point of other is a point of
+  /// this" -- not read off the implementation. Rows are (this, other, this.Contains(other),
+  /// other.Contains(this)).
+  /// </summary>
+  [Theory]
+  // ---- proper containment: one way only ---------------------------------------------
+  [InlineData(0, 0, 10, 10, 2, 2, 8, 8, true, false)] //   a contains b
+  [InlineData(2, 2, 8, 8, 0, 0, 10, 10, false, true)] //   same pair, arguments swapped
+  // ---- identical: the only row true both ways, and so consistent with antisymmetry --
+  [InlineData(0, 0, 10, 10, 0, 0, 10, 10, true, true)] //  box vs itself
+  [InlineData(5, 5, 5, 5, 5, 5, 5, 5, true, true)] //      point vs itself
+  // ---- degenerate other: inside, on the boundary, just outside ----------------------
+  [InlineData(0, 0, 10, 10, 5, 5, 5, 5, true, false)] //   point strictly inside
+  [InlineData(0, 0, 10, 10, 10, 5, 10, 5, true, false)] // point ON the boundary: closed
+  [InlineData(0, 0, 10, 10, 11, 5, 11, 5, false, false)] // point outside
+  [InlineData(0, 0, 10, 10, 10, 0, 10, 10, true, false)] // zero-width line on the edge
+  [InlineData(0, 0, 10, 10, 10, 0, 20, 10, false, false)] // flush but sticking out
+  // ---- Overlaps true, Contains false both ways: the two members disagree by design -
+  [InlineData(0, 0, 10, 10, 5, 5, 15, 15, false, false)] // corner overlap
+  // ---- disjoint ---------------------------------------------------------------------
+  [InlineData(0, 0, 10, 10, 20, 20, 30, 30, false, false)] // separated
+  [InlineData(5, 5, 5, 5, 6, 6, 6, 6, false, false)] //      point vs different point
+  // ---- Contains is comparisons, not arithmetic: an infinite Area changes nothing ----
+  [InlineData(-1e308, -1e308, 1e308, 1e308, 0, 0, 1, 1, true, false)]
+  public void ContainsIsNotSymmetricAndHandCorrect(
+    double ax,
+    double ay,
+    double bx,
+    double by,
+    double cx,
+    double cy,
+    double dx,
+    double dy,
+    bool aContainsB,
+    bool bContainsA
+  )
+  {
+    var a = new BoundingBox(ax, ay, bx, by);
+    var b = new BoundingBox(cx, cy, dx, dy);
+
+    Assert.Equal(aContainsB, a.Contains(b));
+    Assert.Equal(bContainsA, b.Contains(a));
+  }
+
+  /// <summary>
+  /// P-73, P-39. The guard is what makes these false, and the inversion rows are the point:
+  /// before #28 the ctor normalised, so new(10, 10, 0, 0) WAS [0,0]-[10,10] and contained
+  /// itself. Now it is stored as written -- and a Contains written as four comparisons
+  /// returns TRUE for inverted.Contains(inverted), because 10 >= 10 and 0 <= 0. So this row
+  /// is the falsifier: if the IsEmpty() guard ever comes out, it is this assert that fails,
+  /// not one of the Empty ones. Equality would not have caught it either way.
+  /// </summary>
+  [Fact]
+  public void ContainsIsFalseWhenEitherSideIsNotABox()
+  {
+    var real = new BoundingBox(0, 0, 10, 10);
+    var inverted = new BoundingBox(10, 10, 0, 0);
+
+    Assert.False(BoundingBox.Empty.Contains(real));
+    Assert.False(real.Contains(BoundingBox.Empty));
+    Assert.False(BoundingBox.Empty.Contains(BoundingBox.Empty));
+
+    Assert.False(inverted.Contains(real)); // other side guards
+    Assert.False(real.Contains(inverted)); // this side guards
+    Assert.False(inverted.Contains(inverted)); // four comparisons alone would say TRUE
+  }
+
+  /// <summary>P-73. Contains in terms of ContainsPoint, the definition the rows above are
+  /// instances of. Holds for every row where a box has four distinct corners; degenerate
+  /// rows are the boundary cases the closed interval decides.</summary>
+  [Theory]
+  [InlineData(0, 0, 10, 10, 2, 2, 8, 8)]
+  [InlineData(0, 0, 10, 10, 5, 5, 15, 15)]
+  [InlineData(0, 0, 10, 10, 20, 20, 30, 30)]
+  public void ContainsAgreesWithItsFourCorners(
+    double ax,
+    double ay,
+    double bx,
+    double by,
+    double cx,
+    double cy,
+    double dx,
+    double dy
+  )
+  {
+    var a = new BoundingBox(ax, ay, bx, by);
+    var b = new BoundingBox(cx, cy, dx, dy);
+
+    Assert.Equal(
+      a.ContainsPoint(cx, cy)
+        && a.ContainsPoint(cx, dy)
+        && a.ContainsPoint(dx, cy)
+        && a.ContainsPoint(dx, dy),
+      a.Contains(b)
+    );
   }
 }
 
