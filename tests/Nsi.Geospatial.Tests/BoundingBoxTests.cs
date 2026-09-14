@@ -11,6 +11,39 @@ namespace Nsi.Geospatial.Tests;
 /// </summary>
 public class BoundingBoxTests
 {
+  /// <summary>
+  /// P-39. The guard #28 owed: the ctor stores what it is handed. Before #28 these same
+  /// arguments normalised to [0,0]-[10,10]. The claim is not the field values, it is that an
+  /// inverted box is the identity for Union -- it vanishes from a fold instead of correcting
+  /// itself, which is P-72.
+  /// </summary>
+  [Fact]
+  public void CtorKeepsCornerOrderSoAnInvertedPairIsNotACorrectedBox()
+  {
+    var inverted = new BoundingBox(10, 10, 0, 0);
+
+    Assert.Equal(10d, inverted.MinX);
+    Assert.Equal(0d, inverted.MaxX);
+    Assert.True(inverted.IsEmpty());
+
+    Assert.False(inverted.ContainsPoint(5, 5));
+    Assert.False(inverted.Overlaps(BoundingBox.Point(5, 5)));
+    Assert.Equal(new BoundingBox(0, 0, 10, 10), new BoundingBox(0, 0, 10, 10).Union(inverted));
+  }
+
+  /// <summary>
+  /// The answer #28 flipped: while the ctor normalised, Empty was the full-range box and this
+  /// was true of every point on earth. Now false, with no guard -- no x satisfies
+  /// MaxValue &lt;= x &lt;= MinValue.
+  /// </summary>
+  [Fact]
+  public void EmptyContainsNoPoint()
+  {
+    Assert.False(BoundingBox.Empty.ContainsPoint(0, 0));
+    Assert.False(BoundingBox.Empty.ContainsPoint(double.MaxValue, double.MaxValue));
+    Assert.False(BoundingBox.Empty.ContainsPoint(double.MinValue, double.MinValue));
+  }
+
   [Theory]
   [InlineData(0, 0, 10, 10, 2, 2, 8, 8, 36)] //      this contains other
   [InlineData(2, 2, 8, 8, 0, 0, 10, 10, 36)] //      other contains this

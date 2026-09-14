@@ -8,6 +8,14 @@ public struct BoundingBox
   public double MaxX { get; set; }
   public double MaxY { get; set; }
 
+  /// <summary>
+  /// Creates a box from two corners, exactly as given. The corners are NOT ordered and NOT
+  /// normalised: <c>new(10, 10, 0, 0)</c> is stored as written and <see cref="IsEmpty"/>
+  /// reports it as empty. That is what makes <see cref="Empty"/> empty — the extremes are only
+  /// empty because nothing rewrites them. The cost is that a call site handing the corners
+  /// over in the wrong order gets an identity box that contributes nothing to a union rather
+  /// than a corrected one. Whether to reject here is D-F's decision, not this ctor's (P-72).
+  /// </summary>
   public BoundingBox(double minX, double minY, double maxX, double maxY)
   {
     MinX = minX;
@@ -17,16 +25,30 @@ public struct BoundingBox
   }
 
   /// <summary>
-  /// The empty box: invalid by construction, Min &gt; Max on both axes, so it contains no
-  /// point and no area. The extremes are not sloppiness — they are what make it the
-  /// identity for Union (min of MaxValue, max of MinValue), so a node seeded with Empty
-  /// absorbs its first child for free and no insert path needs a sentinel test.
-  ///
-  /// That choice has a price: width and height are MinValue - MaxValue, which overflows,
-  /// so Area and Perimeter on an empty box are ±∞ rather than 0, and
-  /// EnlargementToContain is asymmetric (a real box grows by 0 to hold Empty; Empty
-  /// "grows" by -∞ to hold a real box). Anything that turns a box into a NUMBER must
-  /// test for emptiness first — anything that compares or unions one must not.
+  /// Not a box. <c>Min &gt; Max</c> on both axes, so it holds no point and no area.
+  /// <para>
+  /// The extremes are load-bearing, not sloppiness. They are the identities of
+  /// <see cref="Math.Max"/> and <see cref="Math.Min"/>, so a fold or a node seeded with
+  /// <see cref="Empty"/> absorbs its first child for free. They are also the ONLY thing that
+  /// makes the value empty now that the ctor does not normalise: a tidier inversion such as
+  /// <c>new(1, 1, 0, 0)</c> is a valid box for a positive-extent fold and a wrong one for any
+  /// CRS with a negative bound, which is every projected CRS.
+  /// </para>
+  /// <para>
+  /// Comparing and unioning are consistent with no sentinel test — <see cref="ContainsPoint"/>
+  /// is false because no x satisfies <c>MaxValue &lt;= x &lt;= MinValue</c>, and
+  /// <see cref="Union"/> returns the other side.
+  /// </para>
+  /// <para>
+  /// The price falls on the members that turn a box into a NUMBER, and those members do NOT
+  /// guard, by choice, so that <see cref="Area"/> stays one expression. Width and height are
+  /// <c>MinValue - MaxValue</c>, which overflows to <c>-∞</c>: <see cref="Area"/> is <c>+∞</c>,
+  /// <see cref="Perimeter"/> is <c>-∞</c>, and <see cref="EnlargementToContain"/> is
+  /// asymmetric — a real box grows by <c>0</c> to hold <see cref="Empty"/>, <see cref="Empty"/>
+  /// "grows" by <c>-∞</c> to hold a real box, and <see cref="Empty"/> to
+  /// <see cref="Empty"/> is <c>NaN</c> (<c>∞ - ∞</c>). Anything that sorts or compares by area
+  /// must test <see cref="IsEmpty"/> first.
+  /// </para>
   /// </summary>
   public static readonly BoundingBox Empty = new(
     double.MaxValue,
@@ -117,9 +139,20 @@ public struct BoundingBox
   }
 
   /// <summary>
-  /// True when the box cannot contain a point: Min &gt; Max on either axis. Catches
-  /// <see cref="Empty"/> AND any hand-authored inversion, which is why the members that
-  /// turn a box into a number test this rather than comparing to Empty.
+  /// True when the box cannot hold a point: <c>Min &gt; Max</c> on either axis. Catches
+  /// <see cref="Empty"/> and every hand-authored inversion, so this is the test and
+  /// <c>this == Empty</c> is not — equality sees only the sentinel.
+  /// <para>
+  /// Callers today: <see cref="Overlaps"/>, <see cref="Contains"/>,
+  /// <see cref="OverlappingArea"/>, <see cref="Union"/>. Deliberately absent from
+  /// <see cref="Area"/> and <see cref="Perimeter"/> (they return ±∞, a wrong answer that is at
+  /// least not plausible), from <see cref="ContainsPoint"/> (already false by construction) and
+  /// from <see cref="EnlargementToContain"/> (documented as meaningless for an empty side).
+  /// </para>
+  /// <para>
+  /// <c>NaN</c> compares false against everything, so a box holding NaN is never empty.
+  /// <see cref="FromVertices"/> keeps its own NaN policy and the two are not reconciled (D-F).
+  /// </para>
   /// </summary>
   public bool IsEmpty() => MinX > MaxX || MinY > MaxY;
 
