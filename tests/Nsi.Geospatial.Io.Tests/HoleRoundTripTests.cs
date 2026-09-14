@@ -38,6 +38,11 @@ public class HoleRoundTripTests
   /// order was already conventional round-trips its flags for a reason that has nothing to
   /// do with the write. HoleFlagsSurviveRoundTripWhenTheShellIsNotFirst authors the shell at
   /// Parts[1] so position and flag disagree, and says which rule the reader implements.
+  /// <summary>
+  /// The claim through the driver: one feature, three rings, two of them flagged, 6100.
+  /// The Crs premises are the load-bearing part -- without a .prj every area below is null
+  /// and null!.Value throws rather than mis-asserts.
+  /// </summary>
   [Fact]
   public void PolygonHoleIsSubtractedAfterRead()
   {
