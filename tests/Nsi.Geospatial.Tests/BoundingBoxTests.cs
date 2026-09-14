@@ -7,9 +7,9 @@ using Xunit;
 namespace Nsi.Geospatial.Tests;
 
 /// <summary>
-/// Tests for the Geometry stuff
+/// Tests for the BoundingBox
 /// </summary>
-public class GeometryTests
+public class BoundingBoxTests
 {
   [Theory]
   [InlineData(0, 0, 10, 10, 2, 2, 8, 8, 36)] //      this contains other
@@ -292,3 +292,4 @@ public class GeometryTests
     Assert.True(double.IsFinite(box.MinX)); // and addFeature would wave it through
   }
 }
+

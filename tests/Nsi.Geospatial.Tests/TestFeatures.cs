@@ -83,7 +83,13 @@ internal static class TestFeatures
     double h = 1
   ) => new() { (lon, lat), (lon + w, lat), (lon + w, lat + h), (lon, lat + h) };
 
-  /// <summary>Order preserved, no Seal(): some tests author a ring without sealing it.</summary>
+  /// <summary>
+  /// Order preserved. Sealed, though sealing is warm-up only since P-71: Measure() keys
+  /// on CrsInfo identity, so a part measured here recomputes when it is later attached
+  /// to a collection. Nothing in the suite depends on a fixture leaving a part unsealed --
+  /// AreaAndPerimeterMeasureOnDemandWithoutSealing builds its own -- so if a future
+  /// change needs an unmeasured part, construct it there rather than unsealing here.
+  /// </summary>
   internal static Part Ring(IEnumerable<(double X, double Y)> ring, bool exterior)
   {
     var part = new Part(PartType.Ring) { IsHole = !exterior };
@@ -136,11 +142,9 @@ internal static class TestFeatures
 
   // ---- from CrsInfoAndAreaTests ----------------------------------------------------------
 
-  internal static Part Ring(params (double X, double Y)[] points) =>
-    Ring((IEnumerable<(double X, double Y)>)points, true);
+  internal static Part Ring(params (double X, double Y)[] points) => Ring(points, true);
 
-  internal static Part Hole(params (double X, double Y)[] points) =>
-    Ring((IEnumerable<(double X, double Y)>)points, false);
+  internal static Part Hole(params (double X, double Y)[] points) => Ring(points, false);
 
   internal static Feature FeatureOf(params Part[] parts)
   {
