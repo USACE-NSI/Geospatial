@@ -118,4 +118,3 @@ public struct BoundingBox
 
   public static bool operator !=(BoundingBox a, BoundingBox b) => !(a == b);
 }
-
