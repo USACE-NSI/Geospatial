@@ -53,10 +53,19 @@ public sealed class Part
   /// BoundingBox.Empty until a vertex is added.</summary>
   public BoundingBox BoundingBox { get; private set; } = BoundingBox.Empty;
 
-  /// <summary>True when this part is a hole to be subtracted from its feature's
-  /// exterior. Set by SpatialReader from ring order (index > 0) and by callers
-  /// building geometry by hand. Not derived from winding: the shapefile convention
-  /// is positional, and orientation can flip under projection.</summary>
+  /// True when this part is a hole to be subtracted from its feature's exterior. Read back
+  /// from ring position by SpatialReader, set by callers building geometry by hand. Not
+  /// derived from winding: the shapefile convention is positional, and orientation can flip
+  /// under projection.
+  ///
+  /// WRITE ASYMMETRY: SpatialWriter does not consult this flag, and the driver emits the
+  /// exterior ring first regardless of the order Parts were appended in. For a hole-first
+  /// feature the flag you authored is therefore not the flag you read back, and the file
+  /// cannot record the disagreement -- pinned by
+  /// HoleFirstInputIsNormalisedByTheDriverSoTheShellIsAlwaysFirst. Feature.AreaSquareMeters
+  /// is the consumer that does not care: it selects the shell by this flag alone, pinned by
+  /// AreaSquareMetersFindsTheShellByFlagNotByPosition.
+  /// </summary>
   public bool IsHole { get; set; }
   private double _centroidX;
   private double _centroidY;
@@ -270,3 +279,4 @@ public sealed class Part
       };
   }
 }
+

@@ -6,8 +6,8 @@ namespace Nsi.Geospatial.Geometry;
 
 /// <summary>
 /// A single feature: geometry (parts + MBR) *and* its attribute row, held together.
-/// fix: replaces the old Feat parallel lists (_parts[i]/_vertices[i]/row i) where
-/// any add/remove on one list silently desynced the others.
+/// Replaces the old Feat parallel lists (_parts[i]/_vertices[i]/row i), where any add
+/// or remove on one list silently desynced the others.
 /// </summary>
 public sealed class Feature
 {
@@ -70,8 +70,15 @@ public sealed class Feature
     GetAttribute<object?>(name)?.ToString() ?? string.Empty;
 
   /// <summary>
-  /// Area in square metres: exterior ring minus every part flagged IsHole.
-  /// Null when the CRS is unknown.
+  /// Area in square metres: the FIRST part not flagged IsHole, minus every part flagged
+  /// IsHole. Null when there is no such part, when the CRS is unknown, or when any part
+  /// that contributes has an unknown area -- Part documents null as a real answer and this
+  /// member does not turn it into a number.
+  /// Parts beyond the first unflagged one that are not holes contribute nothing: a flat
+  /// Parts list cannot say which exterior a hole belongs to, so a feature with two shells
+  /// reports one shell and is not detectably wrong here. That is a decision, not an
+  /// oversight, and FeatureAreaTests row 1 (nothing flagged -> 6400) is the only place the
+  /// behaviour is observable.
   /// </summary>
   public double? AreaSquareMeters
   {
@@ -80,14 +87,30 @@ public sealed class Feature
       if (Parts.Count == 0 || Crs.Kind == Projections.CrsKind.Unknown)
         return null;
 
-      double? total = Parts[0].AreaSquareMeters;
+      int shell = -1;
+      for (int i = 0; i < Parts.Count; i++)
+      {
+        if (!Parts[i].IsHole)
+        {
+          shell = i;
+          break;
+        }
+      }
+      if (shell < 0)
+        return null;
+
+      double? total = Parts[shell].AreaSquareMeters;
       if (total is null)
         return null;
 
-      for (int i = 1; i < Parts.Count; i++)
+      for (int i = 0; i < Parts.Count; i++)
       {
-        if (Parts[i].IsHole)
-          total -= Parts[i].AreaSquareMeters ?? 0;
+        if (i == shell || !Parts[i].IsHole)
+          continue;
+        double? hole = Parts[i].AreaSquareMeters;
+        if (hole is null)
+          return null;
+        total -= hole.Value;
       }
       return total;
     }
