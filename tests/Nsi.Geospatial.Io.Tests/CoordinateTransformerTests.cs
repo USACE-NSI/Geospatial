@@ -5,33 +5,30 @@ using Xunit;
 namespace Nsi.Geospatial.Io.Tests;
 
 /// <summary>
-/// T-14, N-2. The axis-order guarantee, which now rests on one line and had no test.
+/// T-14, N-2. The axis-order guarantee, asserted by ordinate.
 ///
 /// PR #8 (051e8d8) deleted Reprojector.cs and its hand-rolled NativeLibrary P/Invoke path --
 /// not as cleanup but as a correctness fix, because that path never called
 /// SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER) and returned TRANSPOSED coordinates for
-/// any geographic CRS while CoordinateTransformer returned correct ones. What survives is
-/// CoordinateTransformer.CreateSpatialReference, which applies the strategy to BOTH SRSes.
-/// Deleting that call is a silent, plausible, transposed answer for every geographic
-/// transform in the library and nothing else here would notice.
+/// any geographic CRS while CoordinateTransformer returned correct ones. What survives is ONE
+/// call, inside CoordinateTransformer.CreateSpatialReference, applied to both SRSes. Deleting
+/// it is a silent, plausible, transposed answer for every geographic transform in the library.
 ///
-/// Lives in the Io test project: it already initialises GDAL and already reaches
-/// Nsi.Geospatial.Reprojection. A third test project would be a third GDAL-consuming project,
-/// which copies GdalConfiguration.cs a third time and moves the warning baseline from 6 to 9.
-///
-/// /// What survives is CoordinateTransformer.CreateSpatialReference, which applies the strategy
-/// to BOTH SRSes. Deleting that call is a silent, plausible, transposed answer for every
-/// geographic transform in the library.
-///
-/// T-14's row claimed nothing pinned it. That was wrong: removing the call also fails
+/// This file does not create the first guard, contrary to what T-14's row claimed. Removing
+/// the call also fails
 /// CrsInspectionTests.ReprojectToPopulatesTheTargetCrsAndMakesPlanarMetricsEqualArea, which
-/// reprojects lon/lat into Albers through SpatialReaderOptions.ReprojectTo. So this file does
-/// not create the first guard, it creates the DIRECT ones -- and adds the target-side leg,
-/// which nothing covered. The existing guard is indirect and its fixture is load-bearing:
-/// Cell(-93, 44) transposes to lat = -93, which aea rejects, so it fails by PROJ exception
-/// rather than by assertion. A fixture at mid-latitude would transpose to a LEGAL latitude
-/// and the exception signal would be gone. Verified by deleting the call: all three tests go
-/// red, this file's two with the transposed ordinates named below.
+/// reprojects lon/lat into Albers through SpatialReaderOptions.ReprojectTo -- but that test
+/// fires on a PROJ exception only because its fixture transposes to lat = -93, which aea
+/// refuses. A mid-latitude fixture transposes to a LEGAL latitude and the signal disappears.
+/// What was missing, and what these two facts add, is an assertion on the ORDINATES and any
+/// coverage of the TARGET mapping, which nothing had.
+///
+/// Verified by deleting the call: three tests fail. This file's two fail with the transposed
+/// ordinates quoted in their own doc comments; the pre-existing one throws.
+///
+/// Lives in the Io test project, which already initialises GDAL and reaches
+/// Nsi.Geospatial.Reprojection. A third test project would be a third GDAL-consuming project,
+/// copying GdalConfiguration.cs a third time and moving the warning baseline from 6 to 9.
 /// </summary>
 [Trait("Category", "Gdal")]
 public class CoordinateTransformerTests
@@ -52,9 +49,10 @@ public class CoordinateTransformerTests
   /// the false northing. Nothing here was derived by running the library and copying what it
   /// printed, which is the only way this assertion could have failed to fail.
   ///
-  /// Transposed, GDAL would read -87 as a LATITUDE -- legal, inside -90..90 -- so IsPlausible
-  /// does not fire and the call returns a real, finite, wrong point instead of throwing. A
-  /// wrong number is what needs pinning; an exception would have needed no test.
+  /// Transposed, GDAL reads -87 as a LATITUDE -- legal, inside -90..90 -- so IsPlausible does
+  /// not fire. Observed with the strategy call deleted: an easting of 834637.88152599998 where
+  /// 500000 is expected. A real, finite, wrong number is what needs pinning; an exception
+  /// would have needed no test.
   /// </summary>
   [Fact]
   public void ReprojectUsesTraditionalGisOrderForTheSourceCrs()
