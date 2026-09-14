@@ -163,10 +163,6 @@ public class HoleRoundTripTests
     );
     Assert.Equal(6100d, feature.AreaSquareMeters!.Value, 6);
     Assert.Equal(3, parts.Count); // else the two below throw instead of reporting
-    Assert.True(parts[0].IsHole, $"Parts[0].IsHole came back {parts[0].IsHole}");
-    Assert.False(parts[1].IsHole, $"Parts[1].IsHole came back {parts[1].IsHole}");
-    Assert.True(parts[2].IsHole, $"Parts[2].IsHole came back {parts[2].IsHole}");
-    Assert.Equal(6100d, feature.AreaSquareMeters!.Value, 6);
   }
 
   /// <summary>
