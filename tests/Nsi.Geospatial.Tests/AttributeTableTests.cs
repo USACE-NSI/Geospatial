@@ -31,6 +31,18 @@ public class AttributeTableTests
   }
 
   [Fact]
+  public void UnknownWidthDoesNotTruncate()
+  {
+    // FieldTypes' `length > 0` guard: an unwidthed text column keeps its value rather than
+    // truncating to "". Pinned because P-09's writer half inherits this convention --
+    // "TextFT truncates to Length where a width exists" is only well-defined if length 0
+    // means "no width declared" and not "width zero".
+    var table = new AttributeTable();
+    table.AddField("NAME", FieldType.TextFT, 0, 0);
+    Assert.Equal("abcdef", table.Coerce("NAME", "abcdef"));
+  }
+
+  [Fact]
   public void RenameColumnMovesKey()
   {
     var table = new AttributeTable();
@@ -40,3 +52,4 @@ public class AttributeTableTests
     Assert.True(table.HasColumn("NEW"));
   }
 }
+

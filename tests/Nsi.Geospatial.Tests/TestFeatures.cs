@@ -20,9 +20,9 @@ namespace Nsi.Geospatial.Tests;
 /// sharpest evidence in this row. They are therefore Geographic()/Projected() for the collection
 /// form and GeographicCrs/ProjectedCrs() for the CrsInfo form. Do not "unify" them.
 ///
-/// These build GEOMETRY. They deliberately do not absorb the R-tree's Covers/ContainsPoint/
-/// AssertCovers/AssertIsExactUnion helpers: those reimplement BoundingBox members and should be
-/// deleted in favour of the members, which is P-39's work, not a relocation.
+/// These build GEOMETRY. The R-tree's box predicates call BoundingBox members directly
+/// (P-39); what remains in RTreeTests is tree-level (subtree cover, exact tiling), which
+/// no member expresses — do not relocate those either.
 /// </summary>
 internal static class TestFeatures
 {
@@ -83,7 +83,13 @@ internal static class TestFeatures
     double h = 1
   ) => new() { (lon, lat), (lon + w, lat), (lon + w, lat + h), (lon, lat + h) };
 
-  /// <summary>Order preserved, no Seal(): some tests author a ring without sealing it.</summary>
+  /// <summary>
+  /// Order preserved. Sealed, though sealing is warm-up only since P-71: Measure() keys
+  /// on CrsInfo identity, so a part measured here recomputes when it is later attached
+  /// to a collection. Nothing in the suite depends on a fixture leaving a part unsealed --
+  /// AreaAndPerimeterMeasureOnDemandWithoutSealing builds its own -- so if a future
+  /// change needs an unmeasured part, construct it there rather than unsealing here.
+  /// </summary>
   internal static Part Ring(IEnumerable<(double X, double Y)> ring, bool exterior)
   {
     var part = new Part(PartType.Ring) { IsHole = !exterior };
@@ -136,9 +142,9 @@ internal static class TestFeatures
 
   // ---- from CrsInfoAndAreaTests ----------------------------------------------------------
 
-  internal static Part Ring(params (double X, double Y)[] points) => Build(true, points);
+  internal static Part Ring(params (double X, double Y)[] points) => Ring(points, true);
 
-  internal static Part Hole(params (double X, double Y)[] points) => Build(false, points);
+  internal static Part Hole(params (double X, double Y)[] points) => Ring(points, false);
 
   internal static Feature FeatureOf(params Part[] parts)
   {
@@ -170,20 +176,5 @@ internal static class TestFeatures
 
   /// <summary>Returns a CRSINFO. The Features form is Geographic().</summary>
   internal static CrsInfo GeographicCrs { get; } = new() { Kind = CrsKind.Geographic };
-
-  /// <summary>
-  /// Order preserved. No Seal(): P-71 made every accessor measure on demand, so sealing
-  /// here is warm-up only — and leaving it out is the only thing that keeps an unmeasured
-  /// part reachable from a test.
-  /// </summary>
-  private static Part Build(bool exterior, params (double X, double Y)[] points)
-  {
-    var part = new Part(PartType.Ring) { IsHole = !exterior };
-    foreach ((double x, double y) in points)
-    {
-      part.AddVertex(new Vertex(x, y));
-    }
-    return part;
-  }
 }
 

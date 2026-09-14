@@ -306,7 +306,7 @@ public class RTreeTests
       }
 
       var hits = new HashSet<int>(
-        CandidateFeatureIds(tree, qx, qy).Where(id => ContainsPoint(OverlappingBox(id), qx, qy))
+        CandidateFeatureIds(tree, qx, qy).Where(id => OverlappingBox(id).ContainsPoint(qx, qy))
       );
 
       Assert.True(
@@ -445,16 +445,6 @@ public class RTreeTests
   /// The box feature i was authored with. Symmetric in x and y on purpose.
   private static BoundingBox AuthoredBox(int i) => new(i * 10, i * 10, i * 10 + 5, i * 10 + 5);
 
-  /// Plain comparisons: deliberately NOT BoundingBox.Overlaps/Contains/ContainsPoint.
-  private static bool Covers(BoundingBox outer, BoundingBox inner) =>
-    outer.MinX <= inner.MinX
-    && outer.MinY <= inner.MinY
-    && outer.MaxX >= inner.MaxX
-    && outer.MaxY >= inner.MaxY;
-
-  private static bool ContainsPoint(BoundingBox box, double x, double y) =>
-    box.MinX <= x && x <= box.MaxX && box.MinY <= y && y <= box.MaxY;
-
   /// Feature ids the index offers for a point query, taken from every returned node's whole
   /// subtree -- getCandidateFeatNodesByMBR returns the parent of the matching children, so a
   /// returned node may be an interior one whose features sit deeper.
@@ -488,7 +478,7 @@ public class RTreeTests
     foreach (var child in node.Children)
     {
       Assert.True(
-        Covers(node.BoundingBox, child.BoundingBox),
+        node.BoundingBox.Contains(child.BoundingBox),
         $"node {node.BoundingBox} does not cover child {child.BoundingBox}"
       );
 
