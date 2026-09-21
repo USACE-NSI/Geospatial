@@ -1,4 +1,3 @@
-using System.Drawing;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
 
@@ -28,7 +27,7 @@ public static class SpatialJoins
         polygons.Schema.AddField(d, src.FieldType, src.Length, src.DecimalPlaces);
       }
     }
-    
+
     // Tree is built but not queried: an MBR cannot bound distance-to-segment, so
     // candidate selection is a full scan. Open question — see Issues.md P-02 / D-E.
     _ = pointTree ?? BuildTree(points);
@@ -126,19 +125,24 @@ public static class SpatialJoins
       }
     }
   }
+
   public static Dictionary<int, List<int>> SpatialJoinContains(
     Features points,
     Features polygons,
     string[] destFields,
     string[] sourceFields,
     JoinType joinType,
-    bool joinToPoly    
+    bool joinToPoly
   )
   {
     Features targFeat = points;
     Features srcFeat = polygons;
     var matched = new Dictionary<int, List<int>>();
-    if (joinToPoly) { targFeat = polygons; srcFeat = points; }
+    if (joinToPoly)
+    {
+      targFeat = polygons;
+      srcFeat = points;
+    }
     foreach (var d in destFields)
     {
       int si = Array.IndexOf(sourceFields, d);
@@ -148,7 +152,10 @@ public static class SpatialJoins
         targFeat.Schema.AddField(d, src.FieldType, src.Length, src.DecimalPlaces);
       }
     }
-    if (polygons.RTree == null) { polygons.RTree = BuildTree(polygons); }    
+    if (polygons.RTree == null)
+    {
+      polygons.RTree = BuildTree(polygons);
+    }
     int pointInd = 0;
     foreach (var pnt in points.FeatureSet)
     {
@@ -163,10 +170,22 @@ public static class SpatialJoins
           var poly = polygons.GetFeature(polyInd);
           if (poly != null)
           {
-            if (poly.BoundingBox.MinX > pnt.CentroidX) { continue; }
-            if (poly.BoundingBox.MaxX < pnt.CentroidX) { continue; }
-            if (poly.BoundingBox.MinY > pnt.CentroidY) { continue; }
-            if (poly.BoundingBox.MaxY < pnt.CentroidY) { continue; }
+            if (poly.BoundingBox.MinX > pnt.CentroidX)
+            {
+              continue;
+            }
+            if (poly.BoundingBox.MaxX < pnt.CentroidX)
+            {
+              continue;
+            }
+            if (poly.BoundingBox.MinY > pnt.CentroidY)
+            {
+              continue;
+            }
+            if (poly.BoundingBox.MaxY < pnt.CentroidY)
+            {
+              continue;
+            }
             else
             {
               if (GeometryMath.PointWithinSinglePoly(poly, pnt.Centroid) == true)
@@ -179,26 +198,36 @@ public static class SpatialJoins
                 {
                   joinKey = pointInd;
                 }
-                if(!matched.ContainsKey(joinKey)) { matched[joinKey] = new List<int>(); }
+                if (!matched.ContainsKey(joinKey))
+                {
+                  matched[joinKey] = new List<int>();
+                }
                 matched[joinKey].Add(joinToPoly ? pointInd : polyInd);
                 found = true;
                 break;
-              }          
+              }
             }
-          }          
+          }
         }
-        if (found) { break; }
+        if (found)
+        {
+          break;
+        }
       }
       pointInd++;
     }
-    foreach(var match in matched)
+    foreach (var match in matched)
     {
       for (int i = 0; i < destFields.Length; i++)
       {
         string field = destFields[i];
         Features outFeat = joinToPoly ? polygons : points;
         Features joinFeat = joinToPoly ? points : polygons;
-        outFeat[match.Key].Attributes[field] = Aggregate(match.Value.Select(idx => joinFeat[idx]).ToList(), sourceFields[i], joinType);
+        outFeat[match.Key].Attributes[field] = Aggregate(
+          match.Value.Select(idx => joinFeat[idx]).ToList(),
+          sourceFields[i],
+          joinType
+        );
       }
     }
     return matched;

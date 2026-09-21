@@ -5,7 +5,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Nsi.Geospatial.Io\Nsi.Geospatial.Io.csproj" />
     <ProjectReference Include="..\..\Nsi.Geospatial\Nsi.Geospatial.csproj" />
   </ItemGroup>
 </Project>

@@ -1,8 +1,6 @@
-using System.IO;
 using Nsi.Geospatial.Attributes;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
-using Nsi.Geospatial.Io;
 using Nsi.Geospatial.Spatial;
 using Xunit;
 
@@ -169,16 +167,26 @@ public class SpatialJoinTests
 
     Assert.False(pts[0].Attributes.ContainsKey("ID"));
   }
+
   [Fact]
   public void testSpatialJoinRTree()
-  {    
+  {
     Features polyFeat = new Features { ShapeType = ShapeType.Polygon };
     Features interiorFeat = new Features() { ShapeType = ShapeType.Point };
 
     polyFeat.Schema.AddField("GEOID20", FieldType.TextFT, 12, 0);
     for (int i = 0; i < 500; i++)
     {
-      polyFeat.AddFeature(TestFeatures.Rectangle(i * 10, i * 10, i * 10 + 5, i * 10 + 5, id: i, closeAuthoredRing: true));      
+      polyFeat.AddFeature(
+        TestFeatures.Rectangle(
+          i * 10,
+          i * 10,
+          i * 10 + 5,
+          i * 10 + 5,
+          id: i,
+          closeAuthoredRing: true
+        )
+      );
       polyFeat.FeatureSet[i].Attributes["GEOID20"] = $"GEOID{i:D5}";
     }
     for (int i = 0; i < 500; i++)
