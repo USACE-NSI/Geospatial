@@ -1,3 +1,4 @@
+using System.Drawing;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Geometry;
 
@@ -27,6 +28,7 @@ public static class SpatialJoins
         polygons.Schema.AddField(d, src.FieldType, src.Length, src.DecimalPlaces);
       }
     }
+    
     // Tree is built but not queried: an MBR cannot bound distance-to-segment, so
     // candidate selection is a full scan. Open question — see Issues.md P-02 / D-E.
     _ = pointTree ?? BuildTree(points);
@@ -123,6 +125,83 @@ public static class SpatialJoins
         }
       }
     }
+  }
+  public static Dictionary<int, List<int>> SpatialJoinContains(
+    Features points,
+    Features polygons,
+    string[] destFields,
+    string[] sourceFields,
+    JoinType joinType,
+    bool joinToPoly    
+  )
+  {
+    Features targFeat = points;
+    Features srcFeat = polygons;
+    var matched = new Dictionary<int, List<int>>();
+    if (joinToPoly) { targFeat = polygons; srcFeat = points; }
+    foreach (var d in destFields)
+    {
+      int si = Array.IndexOf(sourceFields, d);
+      if (si >= 0 && !targFeat.Schema.HasColumn(d))
+      {
+        var src = srcFeat.Schema[sourceFields[si]];
+        targFeat.Schema.AddField(d, src.FieldType, src.Length, src.DecimalPlaces);
+      }
+    }
+    if (polygons.RTree == null) { polygons.RTree = BuildTree(polygons); }    
+    int pointInd = 0;
+    foreach (var pnt in points.FeatureSet)
+    {
+      var subsetPolyInds = polygons.RTree.findByXY(pnt.Centroid);
+      bool found = false;
+      int joinKey = 0;
+      foreach (RTreeNode childnode in subsetPolyInds)
+      {
+        foreach (RTreeNode polynode in childnode.Children)
+        {
+          int polyInd = polynode.FeatureIndex[0];
+          var poly = polygons.GetFeature(polyInd);
+          if (poly != null)
+          {
+            if (poly.BoundingBox.MinX > pnt.CentroidX) { continue; }
+            if (poly.BoundingBox.MaxX < pnt.CentroidX) { continue; }
+            if (poly.BoundingBox.MinY > pnt.CentroidY) { continue; }
+            if (poly.BoundingBox.MaxY < pnt.CentroidY) { continue; }
+            else
+            {
+              if (GeometryMath.PointWithinSinglePoly(poly, pnt.Centroid) == true)
+              {
+                if (joinToPoly)
+                {
+                  joinKey = polyInd;
+                }
+                else
+                {
+                  joinKey = pointInd;
+                }
+                if(!matched.ContainsKey(joinKey)) { matched[joinKey] = new List<int>(); }
+                matched[joinKey].Add(joinToPoly ? pointInd : polyInd);
+                found = true;
+                break;
+              }          
+            }
+          }          
+        }
+        if (found) { break; }
+      }
+      pointInd++;
+    }
+    foreach(var match in matched)
+    {
+      for (int i = 0; i < destFields.Length; i++)
+      {
+        string field = destFields[i];
+        Features outFeat = joinToPoly ? polygons : points;
+        Features joinFeat = joinToPoly ? points : polygons;
+        outFeat[match.Key].Attributes[field] = Aggregate(match.Value.Select(idx => joinFeat[idx]).ToList(), sourceFields[i], joinType);
+      }
+    }
+    return matched;
   }
 
   /// <summary>

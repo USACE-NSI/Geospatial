@@ -44,6 +44,15 @@ public class RTreeManager
     Root.getCandidateFeatNodesByMBR(bbox, nodePAth);
     return nodePAth;
   }
+  public List<RTreeNode> findByXY(Vertex vert)
+  {
+    double x = vert.X;
+    double y = vert.Y;
+    List<RTreeNode> nodePAth = new();
+    BoundingBox bbox = new(x, y, x, y);
+    Root.getCandidateFeatNodesByMBR(bbox, nodePAth);
+    return nodePAth;
+  }
 
   public List<RTreeNode> findByInd(int ind)
   {

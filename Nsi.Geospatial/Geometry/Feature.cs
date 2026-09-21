@@ -16,6 +16,9 @@ public sealed class Feature
   public string? Wkt { get; set; }
   public string? Path { get; set; }
   public string? Name { get; set; }
+  private double _centroidX;
+  private double _centroidY;
+  private bool _measured = false;
 
   /// <summary>Set by FeatureCollection.AddFeature.</summary>
   internal Features? Owner
@@ -113,6 +116,96 @@ public sealed class Feature
         total -= hole.Value;
       }
       return total;
+    }
+  }
+  private void EnsureMeasured() //Do we want to only do this feature level measurement when called by spatial join, or is it more efficient to do it when parts are measured?
+  {
+    if(_measured == false)
+    {
+      if (Parts.Count == 0) //|| Crs.Kind == Projections.CrsKind.Unknown)
+      {        
+        return;
+      }
+      switch (ShapeType)
+      {
+        case ShapeType.Line:
+          double sumL = 0;
+          double sumCxL = 0;
+          double sumCyL = 0;         
+          foreach (var part in Parts)
+          {
+            double L = part.LengthMeters ?? 0;
+            sumL += L;
+            sumCxL += L * part.CentroidX;
+            sumCyL += L * part.CentroidY;           
+          }
+          if (sumL == 0)
+          {
+            _centroidX = 0;
+            _centroidY = 0;
+          }
+          else
+          {
+            _centroidX = sumCxL / sumL;
+            _centroidY = sumCyL / sumL;
+          }         
+          break;
+
+        case ShapeType.Point:
+        case ShapeType.PointM:
+          _centroidX = Parts[0].CentroidX;
+          _centroidY = Parts[0].CentroidY;
+          break;
+
+        case ShapeType.Polygon:
+          double sumA = 0;
+          double sumCxA = 0;
+          double sumCyA = 0;          
+          foreach (var part in Parts)
+          {
+            double A = part.Area ?? 0 * (part.IsHole == true ? 1d : -1d);  //Zero as only used for weighting. Assign - if hole
+            sumA += A;
+            sumCxA += A * part.CentroidX;
+            sumCyA += A * part.CentroidY;            
+          }
+          if(sumA == 0) //Assumes area > 0, which should be true as hole area cannot exceed area of container, but may need some check beyond just div/0
+          {
+            _centroidX = 0;
+            _centroidY = 0;
+          }
+          else
+          {
+            _centroidX = sumCxA / sumA;
+            _centroidY = sumCyA / sumA;
+          }         
+          break;
+      }
+     
+      _measured = true;
+    }    
+  }
+  public double CentroidX
+  {
+    get
+    {
+      EnsureMeasured();
+      return _centroidX;
+    }
+  }
+  public double CentroidY
+  {
+    get
+    {
+      EnsureMeasured();
+      return _centroidY;
+    }
+  }
+  public Vertex Centroid
+  {
+    get
+    {
+      EnsureMeasured();
+      return new Vertex(_centroidX, _centroidY);
     }
   }
 }
