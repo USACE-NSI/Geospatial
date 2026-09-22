@@ -73,9 +73,7 @@ public static class GeometryMath
     if (pts.Count == 1)
       return (pts[0].X, pts[0].Y);
 
-    double a = 0,
-      cx = 0,
-      cy = 0;
+    double a = 0, cx = 0, cy = 0;
     for (int i = 0; i < pts.Count; i++)
     {
       var (x1, y1) = pts[i];
@@ -88,9 +86,23 @@ public static class GeometryMath
     a /= 2.0;
     if (Math.Abs(a) < 1e-12)
     {
-      double mx = pts.Average(p => p.X),
-        my = pts.Average(p => p.Y);
-      return (mx, my);
+      double totalLen = 0, cxLine = 0, cyLine = 0;
+      for (int i = 0; i < pts.Count - 1; i++)
+      {
+        var (x1, y1) = pts[i];
+        var (x2, y2) = pts[i + 1];
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double len = Math.Sqrt(dx * dx + dy * dy);
+
+        if (len > 0)
+        {
+          totalLen += len;
+          cxLine += (x1 + x2) * 0.5 * len;
+          cyLine += (y1 + y2) * 0.5 * len;
+        }
+      }
+      return (cxLine / totalLen, cyLine / totalLen);
     }
     return (cx / (6 * a), cy / (6 * a));
   }
@@ -262,6 +274,103 @@ public static class GeometryMath
       Math.Sin(dLon) * Math.Cos(phi2),
       Math.Cos(phi1) * Math.Sin(phi2) - Math.Sin(phi1) * Math.Cos(phi2) * Math.Cos(dLon)
     );
+  }
+  public static bool PolySouthOfLine(double[] poly, List<double[]> interiorParts)
+  {
+    bool southof = false;
+    double northernmostlat = interiorParts.Max(x => x[1]);
+    if (poly[2] <= northernmostlat)
+    {
+      southof = true;
+    }
+    return southof;
+  }
+  public static bool PointWithinSinglePoly(Feature polyFeat, Vertex Point)
+  {
+    bool within = false;
+    for (int i = 0; i < polyFeat.Parts.Count; i++)
+    {
+      Part part = polyFeat.Parts[i];
+      if (!part.IsHole)
+      {
+        if (within == false)
+        {
+          within = pointWithinRing(part, Point, true);
+        }
+      }
+      else if (within == true)
+      {
+        within = !pointWithinRing(part, Point, true);
+      }
+    }
+    return within;
+  }
+  public static bool pointWithinRing(Part partRing, Vertex point, bool containsOnly)
+  {
+    bool within = false;
+    int countCrosses = 0;
+    int zPlus1 = 0;
+    for (int z = 0; z < partRing.Vertices.Count - 1; z++)
+    {
+      zPlus1 = (z + 1) % (partRing.Vertices.Count - 1);
+      Vertex coordz = partRing.Vertices[z];
+      Vertex coordzPlus1 = partRing.Vertices[zPlus1];
+      if (containsOnly == false)
+      {        
+        if (pointOnLine(coordz, coordzPlus1, point) == true)
+        {
+          return true;
+        }
+      }      
+      if (coordz.Y >= point.Y && coordzPlus1.Y >= point.Y) { continue; }
+      if (coordz.Y < point.Y && coordzPlus1.Y < point.Y) { continue; }
+      if (coordz.X < point.X && coordzPlus1.X < point.X) { continue; }
+      if ((coordz.X <= point.X || coordzPlus1.X <= point.X) && pointLeftofLine(coordz, coordzPlus1, point) == false) { continue; }
+
+      countCrosses += 1;
+    }
+    if (countCrosses % 2 != 0)
+    {
+      within = true;
+    }
+    return within;
+  }
+  public static bool pointOnLine(Vertex aCoord, Vertex bCoord, Vertex point)
+  {
+    bool onLine = false;
+    double slope = 0d;
+    double yIntercept = 0d;
+    if (aCoord.X == bCoord.X)
+    {
+      slope = 1d;
+    }
+    else
+    {
+      slope = (aCoord.Y - bCoord.Y) / (aCoord.X - bCoord.X);
+    }
+    yIntercept = aCoord.Y - slope * aCoord.X;
+    if (point.Y == slope * point.X + yIntercept)
+    {
+      if (point.X > Math.Min(aCoord.X, bCoord.X) & point.X < Math.Max(aCoord.X, bCoord.X))
+      {
+        if (point.Y > Math.Min(aCoord.Y, bCoord.Y) & point.Y < Math.Max(aCoord.Y, bCoord.Y))
+        {
+          onLine = true;
+        }
+      }
+    }
+    return onLine;
+  }
+  public static bool pointLeftofLine(Vertex aCoord, Vertex bCoord, Vertex point)
+  {
+    bool leftOfLine = false;
+    double d = (point.X - aCoord.X) * (bCoord.Y - aCoord.Y) - (point.Y - aCoord.Y) * (bCoord.X - aCoord.X);
+    double leftSign = (aCoord.X - 1d - aCoord.X) * (bCoord.Y - aCoord.Y) - (aCoord.Y - aCoord.Y) * (bCoord.X - aCoord.X);
+    if (!(d * leftSign < 0d))
+    {
+      leftOfLine = true;
+    }
+    return leftOfLine;
   }
 }
 

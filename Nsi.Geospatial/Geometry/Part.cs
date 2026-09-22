@@ -254,13 +254,8 @@ public sealed class Part
 
     _perimeter = IsRing ? GeometryMath.ClosedWalk(xy) : GeometryMath.OpenWalk(xy);
     _area = hasArea ? GeometryMath.Area(xy) : null;
-    if (hasArea)
-      (_centroidX, _centroidY) = GeometryMath.Centroid(xy);
-    else
-    {
-      _centroidX = 0;
-      _centroidY = 0;
-    }
+    
+    (_centroidX, _centroidY) = GeometryMath.Centroid(xy);   //Can just call this directly i think, since centroid checks for no area or single vertex
 
     _lengthMeters = crs.Kind switch
     {

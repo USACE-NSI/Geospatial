@@ -1,6 +1,7 @@
 using Nsi.Geospatial.Attributes;
 using Nsi.Geospatial.Enums;
 using Nsi.Geospatial.Projections;
+using Nsi.Geospatial.Spatial;
 
 namespace Nsi.Geospatial.Geometry;
 
@@ -32,6 +33,7 @@ public sealed class Features
   public List<Feature> FeatureSet { get; } = new();
 
   public int Count => FeatureSet.Count;
+  public RTreeManager? RTree { get; set; }
   public Feature this[int index] => FeatureSet[index];
 
   public int AddFeature(Feature feature)
@@ -47,5 +49,10 @@ public sealed class Features
     FeatureSet.RemoveAt(index);
     for (int i = index; i < FeatureSet.Count; i++)
       FeatureSet[i].Id = i;
+  }
+  public Feature GetFeature(int index)
+  {
+    if(FeatureSet.Count > index) { return FeatureSet[index]; }
+    return null;
   }
 }
