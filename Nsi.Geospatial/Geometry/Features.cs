@@ -41,12 +41,14 @@ public sealed class Features
     feature.Owner = this;
     feature.Id = FeatureSet.Count;
     FeatureSet.Add(feature);
+    RTree = null; // invalidate RTree
     return feature.Id;
   }
 
   public void RemoveFeature(int index)
   {
     FeatureSet.RemoveAt(index);
+    RTree = null; // invalidate RTree
     for (int i = index; i < FeatureSet.Count; i++)
       FeatureSet[i].Id = i;
   }

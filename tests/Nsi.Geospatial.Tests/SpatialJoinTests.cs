@@ -204,5 +204,156 @@ public class SpatialJoinTests
     );
     Assert.True(test25.Count == 500);
   }
+  [Fact]
+  public void testSpatialJoinOpenRingRTree()
+  {
+    Features polyFeat = new Features { ShapeType = ShapeType.Polygon };
+    Features interiorFeat = new Features() { ShapeType = ShapeType.Point };
+
+    polyFeat.Schema.AddField("GEOID20", FieldType.TextFT, 12, 0);
+    for (int i = 0; i < 500; i++)
+    {
+      polyFeat.AddFeature(
+        TestFeatures.Rectangle(
+          i * 10,
+          i * 10,
+          i * 10 + 5,
+          i * 10 + 5,
+          id: i,
+          closeAuthoredRing: false
+        )
+      );
+      polyFeat.FeatureSet[i].Attributes["GEOID20"] = $"GEOID{i:D5}";
+    }
+    for (int i = 0; i < 500; i++)
+    {
+      interiorFeat.FeatureSet.Add(TestFeatures.PointAt(i * 10 + 2, i * 10 + 2));
+    }
+
+    var test25 = SpatialJoins.SpatialJoinContains(
+      interiorFeat,
+      polyFeat,
+      destFields: new string[] { "GEOID20" },
+      sourceFields: new string[] { "GEOID20" },
+      joinType: JoinType.First,
+      false
+    );
+    Assert.True(test25.Count == 500);
+  }
+  [Fact]
+  public void testSpatialJoinOneToManyRTree()
+  {
+    Features polyFeat = new Features { ShapeType = ShapeType.Polygon };
+    Features interiorFeat = new Features() { ShapeType = ShapeType.Point };
+
+    polyFeat.Schema.AddField("GEOID20", FieldType.TextFT, 12, 0);
+    for (int i = 0; i < 500; i++)
+    {
+      polyFeat.AddFeature(
+        TestFeatures.Rectangle(
+          i * 10,
+          i * 10,
+          i * 10 + 5,
+          i * 10 + 5,
+          id: i,
+          closeAuthoredRing: true
+        )
+      );
+      polyFeat.FeatureSet[i].Attributes["GEOID20"] = $"GEOID{i:D5}";
+    }
+    for (int i = 0; i < 1000; i++)
+    {
+      if( i % 2 == 0)
+        interiorFeat.FeatureSet.Add(TestFeatures.PointAt((i / 2) * 10 + 2, (i / 2) * 10 + 2));
+      else
+        interiorFeat.FeatureSet.Add(TestFeatures.PointAt((i/2) * 10 + 3, (i/2) * 10 + 3));
+    }
+
+    var test25 = SpatialJoins.SpatialJoinContains(
+      interiorFeat,
+      polyFeat,
+      destFields: new string[] { "GEOID20" },
+      sourceFields: new string[] { "GEOID20" },
+      joinType: JoinType.First,
+      false
+    );
+    Assert.True(test25.Count == 1000);
+  }
+  [Fact]
+  public void testSpatialJoinManyToOneRTree()
+  {
+    Features polyFeat = new Features { ShapeType = ShapeType.Polygon };
+    Features interiorFeat = new Features() { ShapeType = ShapeType.Point };
+
+    polyFeat.Schema.AddField("GEOID20", FieldType.TextFT, 12, 0);
+    for (int i = 0; i < 500; i++)
+    {
+      polyFeat.AddFeature(
+        TestFeatures.Rectangle(
+          i * 10,
+          i * 10,
+          i * 10 + 5,
+          i * 10 + 5,
+          id: i,
+          closeAuthoredRing: true
+        )
+      );
+      polyFeat.FeatureSet[i].Attributes["GEOID20"] = $"GEOID{i:D5}";
+    }
+    for (int i = 0; i < 1000; i++)
+    {
+      if (i % 2 == 0)
+        interiorFeat.FeatureSet.Add(TestFeatures.PointAt((i / 2) * 10 + 2, (i / 2) * 10 + 2));
+      else
+        interiorFeat.FeatureSet.Add(TestFeatures.PointAt((i / 2) * 10 + 3, (i / 2) * 10 + 3));
+    }
+
+    var test25 = SpatialJoins.SpatialJoinContains(
+      interiorFeat,
+      polyFeat,
+      destFields: new string[] { "GEOID20" },
+      sourceFields: new string[] { "GEOID20" },
+      joinType: JoinType.First,
+      true
+    );
+    Assert.True(test25.Count == 500 && test25.Sum(x=>x.Value.Count()) == 1000);
+  }
+  [Fact]
+  public void testPointOnLine()
+  {
+    // Vertical line: x = 5, y from 2 to 10
+    var a = new Vertex(5, 2, 0);
+    var b = new Vertex(5, 10, 0);
+
+    // Points that shoiuld be on the vertical line
+    Assert.True(GeometryMath.pointOnLine(a, b, new Vertex(5, 2, 0)));   // endpoint
+    Assert.True(GeometryMath.pointOnLine(a, b, new Vertex(5, 4, 0)));   // mid
+    Assert.True(GeometryMath.pointOnLine(a, b, new Vertex(5, 10, 0)));  // endpoint
+    Assert.True(GeometryMath.pointOnLine(a, b, new Vertex(5, 7, 0)));   // interior
+    Assert.True(GeometryMath.pointOnLine(a, b, new Vertex(5, 9.999, 0))); // near-end
+
+    // Points that should NOT be on the vertical line
+    Assert.False(GeometryMath.pointOnLine(a, b, new Vertex(6, 4, 0)));  // off by x
+    Assert.False(GeometryMath.pointOnLine(a, b, new Vertex(5, 11, 0))); // beyond segment
+    Assert.False(GeometryMath.pointOnLine(a, b, new Vertex(5, 1.999, 0))); // below segment
+    Assert.False(GeometryMath.pointOnLine(a, b, new Vertex(4.999, 8, 0))); // near but off
+    Assert.False(GeometryMath.pointOnLine(a, b, new Vertex(100, 4, 0))); // far away
+
+    // Horizontal line: y = 3, x from 0 to 10
+    var c = new Vertex(0, 3, 0);
+    var d = new Vertex(10, 3, 0);
+
+    Assert.True(GeometryMath.pointOnLine(c, d, new Vertex(5, 3, 0)));   // mid
+    Assert.True(GeometryMath.pointOnLine(c, d, new Vertex(10, 3, 0)));  // endpoint
+    Assert.False(GeometryMath.pointOnLine(c, d, new Vertex(5, 3.001, 0))); // off by y
+
+    // Diagonal line: (0,0) → (10,10)
+    var e = new Vertex(0, 0, 0);
+    var f = new Vertex(10, 10, 0);
+
+    Assert.True(GeometryMath.pointOnLine(e, f, new Vertex(5, 5, 0)));   // perfect diagonal
+    Assert.False(GeometryMath.pointOnLine(e, f, new Vertex(5, 6, 0)));  // off diagonal
+  }
+
 }
 

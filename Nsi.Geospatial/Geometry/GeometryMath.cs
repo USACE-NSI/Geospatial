@@ -87,10 +87,10 @@ public static class GeometryMath
     if (Math.Abs(a) < 1e-12)
     {
       double totalLen = 0, cxLine = 0, cyLine = 0;
-      for (int i = 0; i < pts.Count - 1; i++)
+      for (int i = 0; i < pts.Count; i++)
       {
         var (x1, y1) = pts[i];
-        var (x2, y2) = pts[i + 1];
+        var (x2, y2) = pts[(i + 1) % pts.Count];
         double dx = x2 - x1;
         double dy = y2 - y1;
         double len = Math.Sqrt(dx * dx + dy * dy);
@@ -102,6 +102,12 @@ public static class GeometryMath
           cyLine += (y1 + y2) * 0.5 * len;
         }
       }
+      if (totalLen < 1e-12)
+      {
+        double mx = pts.Average(p => p.X),
+        my = pts.Average(p => p.Y);
+        return (mx, my);
+      }        
       return (cxLine / totalLen, cyLine / totalLen);
     }
     return (cx / (6 * a), cy / (6 * a));
@@ -310,9 +316,9 @@ public static class GeometryMath
     bool within = false;
     int countCrosses = 0;
     int zPlus1 = 0;
-    for (int z = 0; z < partRing.Vertices.Count - 1; z++)
+    for (int z = 0; z < partRing.Vertices.Count; z++)
     {
-      zPlus1 = (z + 1) % (partRing.Vertices.Count - 1);
+      zPlus1 = (z + 1) % (partRing.Vertices.Count);
       Vertex coordz = partRing.Vertices[z];
       Vertex coordzPlus1 = partRing.Vertices[zPlus1];
       if (containsOnly == false)
@@ -336,13 +342,18 @@ public static class GeometryMath
     return within;
   }
   public static bool pointOnLine(Vertex aCoord, Vertex bCoord, Vertex point)
-  {
-    bool onLine = false;
+  {    
     double slope = 0d;
     double yIntercept = 0d;
     if (aCoord.X == bCoord.X)
     {
-      slope = 1d;
+      if(point.X == aCoord.X)
+      {
+        if (point.Y >= Math.Min(aCoord.Y, bCoord.Y) && point.Y <= Math.Max(aCoord.Y, bCoord.Y))
+        {
+          return true;
+        }
+      }      
     }
     else
     {
@@ -351,15 +362,15 @@ public static class GeometryMath
     yIntercept = aCoord.Y - slope * aCoord.X;
     if (point.Y == slope * point.X + yIntercept)
     {
-      if (point.X > Math.Min(aCoord.X, bCoord.X) & point.X < Math.Max(aCoord.X, bCoord.X))
+      if (point.X >= Math.Min(aCoord.X, bCoord.X) && point.X <= Math.Max(aCoord.X, bCoord.X))
       {
-        if (point.Y > Math.Min(aCoord.Y, bCoord.Y) & point.Y < Math.Max(aCoord.Y, bCoord.Y))
+        if (point.Y >= Math.Min(aCoord.Y, bCoord.Y) && point.Y <= Math.Max(aCoord.Y, bCoord.Y))
         {
-          onLine = true;
+          return true;
         }
       }
     }
-    return onLine;
+    return false;
   }
   public static bool pointLeftofLine(Vertex aCoord, Vertex bCoord, Vertex point)
   {
