@@ -163,7 +163,7 @@ public sealed class Feature
           double sumCyA = 0;          
           foreach (var part in Parts)
           {
-            double A = part.Area ?? 0 * (part.IsHole == true ? 1d : -1d);  //Zero as only used for weighting. Assign - if hole
+            double A = (part.Area ?? 0) * (part.IsHole == true ? -1d : 1d);  //Zero as only used for weighting. Assign - if hole
             sumA += A;
             sumCxA += A * part.CentroidX;
             sumCyA += A * part.CentroidY;            
